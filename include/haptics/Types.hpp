@@ -1,0 +1,269 @@
+#pragma once
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+
+namespace haptics {
+
+enum class MaterialFamily : uint8_t {
+  Liquid = 0,
+  Granular = 1,
+  Hybrid = 2,
+  Detented = 3,
+  Custom = 4,
+};
+
+enum class EventType : uint8_t {
+  None = 0,
+  WallHit,
+  RollTrain,
+  ImpactCluster,
+  DropletCluster,
+  RoofSlap,
+  Scrape,
+};
+
+enum class TextureAtomKind : uint8_t {
+  None = 0,
+  HardPing,
+  WetBurst,
+  DryRattle,
+  ScrapeNoise,
+  FlowRipple,
+};
+
+enum class WallId : uint8_t {
+  Front = 0,
+  Back = 1,
+  Top = 2,
+  Bottom = 3,
+  None = 255,
+};
+
+enum class CalibrationBand : uint8_t {
+  None = 0,
+  Low = 1,
+  High = 2,
+};
+
+enum class CalibrationStage : uint8_t {
+  Idle = 0,
+  Settling = 1,
+  Measuring = 2,
+  Complete = 3,
+  Aborted = 4,
+};
+
+enum class RunMode : uint8_t {
+  Idle = 0,
+  Live = 1,
+  Calibration = 2,
+  Record = 3,
+  Replay = 4,
+};
+
+enum class ControlMessageType : uint8_t {
+  None = 0,
+  SetParam,
+  LoadPreset,
+  SetRunMode,
+  StartCalibration,
+  StopCalibration,
+  RequestTelemetry,
+  SetTiltMode,
+  RecordStart,
+  RecordStop,
+  ReplayStart,
+  ReplayStop,
+};
+
+struct Vec2f {
+  float x = 0.0f;
+  float y = 0.0f;
+};
+
+struct Vec3f {
+  float x = 0.0f;
+  float y = 0.0f;
+  float z = 0.0f;
+};
+
+struct ImuSample {
+  uint32_t timestamp_us = 0;
+  Vec3f accel_g{};
+  Vec3f gyro_dps{};
+  bool valid = false;
+};
+
+struct MassState {
+  Vec2f pos_norm{};      // normalized container coordinates [-1, 1]
+  Vec2f vel_norm_s{};    // normalized velocity [1/s]
+  float energy = 0.0f;   // latent activity state [0, 1]
+  float fill = 0.5f;
+  float headspace = 0.5f;
+  float container_x_m = 0.06f;
+  float container_y_m = 0.06f;
+  float container_z_m = 0.06f;
+  MaterialFamily family = MaterialFamily::Liquid;
+};
+
+struct HapticEvent {
+  EventType type = EventType::None;
+  WallId primary_wall = WallId::None;
+  Vec2f direction{};
+  float amplitude = 0.0f;
+  float duration_ms = 0.0f;
+  float density_hz = 0.0f;
+  bool clustered = false;
+};
+
+template <std::size_t N>
+struct EventFrame {
+  std::array<HapticEvent, N> items{};
+  std::size_t count = 0;
+};
+
+struct TextureCommand {
+  TextureAtomKind atom = TextureAtomKind::None;
+  EventType source = EventType::None;
+  WallId primary_wall = WallId::None;
+  float low_env = 0.0f;
+  float high_env = 0.0f;
+  float noise_env = 0.0f;
+  float amplitude = 0.0f;
+  float duration_ms = 0.0f;
+  float density_hz = 0.0f;
+  float apparent_motion_soa_ms = 0.0f;
+  bool distribute_to_neighbors = false;
+};
+
+template <std::size_t N>
+struct TextureFrame {
+  std::array<TextureCommand, N> items{};
+  std::size_t count = 0;
+};
+
+struct ResonanceVoice {
+  TextureAtomKind atom = TextureAtomKind::None;
+  EventType source = EventType::None;
+  WallId primary_wall = WallId::None;
+  float low_env = 0.0f;
+  float high_env = 0.0f;
+  float noise_env = 0.0f;
+  float apparent_motion_soa_ms = 0.0f;
+  bool distribute_to_neighbors = false;
+};
+
+template <std::size_t N>
+struct ResonanceFrame {
+  std::array<ResonanceVoice, N> items{};
+  std::size_t count = 0;
+};
+
+struct DriveFrame4 {
+  std::array<float, 4> low{};
+  std::array<float, 4> high{};
+  std::array<float, 4> noise{};
+};
+
+struct ActuatorFrame4 {
+  std::array<float, 4> ch{};
+};
+
+struct SpatialFrame4 {
+  DriveFrame4 drive{};
+  ActuatorFrame4 summary{};
+};
+
+struct TiltPlaneCommand {
+  float thumb_angle_deg = 0.0f;
+  float index_angle_deg = 0.0f;
+  float thumb_current_limit_ma = 0.0f;
+  float index_current_limit_ma = 0.0f;
+};
+
+struct RecorderStatus {
+  bool enabled = false;
+  bool recording = false;
+  bool replaying = false;
+  uint32_t recorded_frames = 0;
+  uint32_t replay_index = 0;
+  char active_file[64]{};
+};
+
+struct RemoteStatus {
+  bool compile_enabled = false;
+  bool runtime_enabled = false;
+  uint16_t connected_clients = 0;
+  uint32_t received_messages = 0;
+  uint32_t transmitted_messages = 0;
+};
+
+struct ControlValue {
+  bool has_number = false;
+  bool has_bool = false;
+  bool has_text = false;
+  float number = 0.0f;
+  bool boolean = false;
+  char text[64]{};
+};
+
+struct ControlMessage {
+  ControlMessageType type = ControlMessageType::None;
+  uint32_t timestamp_ms = 0;
+  RunMode run_mode = RunMode::Live;
+  bool tilt_enable = false;
+  char preset[32]{};
+  char path[64]{};
+  char argument[64]{};
+  ControlValue value{};
+  bool valid = false;
+};
+
+struct AudioBackendStatus {
+  bool compile_enabled = false;
+  bool runtime_enabled = false;
+  bool test_mode = false;
+  WallId test_wall = WallId::None;
+  uint32_t underrun_count = 0;
+};
+
+struct RuntimeCalibrationStatus {
+  bool active = false;
+  bool finished = false;
+  bool aborted = false;
+  WallId wall = WallId::None;
+  CalibrationBand band = CalibrationBand::None;
+  CalibrationStage stage = CalibrationStage::Idle;
+  uint32_t completed_steps = 0;
+  uint32_t total_steps = 0;
+  float candidate_hz = 0.0f;
+  float best_hz = 0.0f;
+  float candidate_score = 0.0f;
+  float best_score = 0.0f;
+  float progress = 0.0f;
+  bool loaded_from_storage = false;
+};
+
+struct TelemetrySnapshot {
+  uint32_t timestamp_ms = 0;
+  uint32_t frame_counter = 0;
+  char active_preset[32]{};
+  RunMode run_mode = RunMode::Idle;
+  ImuSample imu{};
+  MassState mass{};
+  HapticEvent last_event{};
+  ActuatorFrame4 actuators{};
+  TiltPlaneCommand tilt{};
+  AudioBackendStatus audio{};
+  RuntimeCalibrationStatus calibration{};
+  RecorderStatus recorder{};
+  RemoteStatus remote{};
+};
+
+constexpr std::size_t kMaxEventsPerFrame = 16;
+constexpr std::size_t kMaxTexturesPerFrame = 16;
+constexpr std::size_t kMaxResonanceVoicesPerFrame = 16;
+
+}  // namespace haptics

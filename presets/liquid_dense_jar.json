@@ -1,0 +1,17 @@
+{
+  "preset": "liquid_dense_jar",
+  "family": "Liquid",
+  "container": {
+    "span_x_m": 0.055,
+    "span_y_m": 0.055,
+    "span_z_m": 0.090,
+    "fill": 0.72,
+    "headspace": 0.28,
+    "viscosity": 0.62,
+    "enable_roof_contact": true
+  },
+  "event": {
+    "droplet_rate_hz": 22.0,
+    "roof_slap_threshold": 0.86
+  }
+}

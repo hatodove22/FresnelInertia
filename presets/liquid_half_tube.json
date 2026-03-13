@@ -1,0 +1,16 @@
+{
+  "preset": "liquid_half_tube",
+  "family": "Liquid",
+  "container": {
+    "span_x_m": 0.090,
+    "span_y_m": 0.045,
+    "span_z_m": 0.045,
+    "fill": 0.40,
+    "headspace": 0.60,
+    "viscosity": 0.18
+  },
+  "event": {
+    "droplet_rate_hz": 48.0,
+    "wall_threshold": 0.68
+  }
+}

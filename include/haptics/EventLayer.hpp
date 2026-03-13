@@ -1,0 +1,34 @@
+#pragma once
+
+#include <array>
+
+#include "haptics/Parameters.hpp"
+#include "haptics/Types.hpp"
+
+namespace haptics {
+
+class EventLayer {
+ public:
+  void configure(const SystemParams& params);
+  EventFrame<kMaxEventsPerFrame> update(const MassState& state, float dt_s);
+  const HapticEvent& lastEvent() const { return last_event_; }
+
+ private:
+  void pushEvent(EventFrame<kMaxEventsPerFrame>& frame, const HapticEvent& event);
+  SystemParams params_{};
+  HapticEvent last_event_{};
+  std::array<float, 4> wall_cooldown_s_{};
+  std::array<bool, 4> wall_armed_{};
+  float roll_phase_ = 0.0f;
+  float impact_phase_ = 0.0f;
+  float rolling_activity_ = 0.0f;
+  float impact_activity_ = 0.0f;
+  float scrape_cooldown_s_ = 0.0f;
+  float droplet_phase_ = 0.0f;
+  float liquid_activity_ = 0.0f;
+  float roof_cooldown_s_ = 0.0f;
+  float hybrid_impact_phase_ = 0.0f;
+  WallId roll_wall_ = WallId::None;
+};
+
+}  // namespace haptics

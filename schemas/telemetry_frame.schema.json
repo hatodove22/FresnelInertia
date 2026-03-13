@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/telemetry_frame.schema.json",
+  "title": "TelemetryFrame",
+  "type": "object",
+  "required": ["timestamp_ms", "preset", "run_mode", "mass", "actuators"],
+  "properties": {
+    "timestamp_ms": {"type": "integer", "minimum": 0},
+    "preset": {"type": "string"},
+    "run_mode": {
+      "type": "string",
+      "enum": ["idle", "live", "calibration", "record", "replay"]
+    },
+    "imu": {
+      "type": "object",
+      "properties": {
+        "accel_g": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+        "gyro_dps": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
+      },
+      "additionalProperties": false
+    },
+    "mass": {
+      "type": "object",
+      "properties": {
+        "pos_norm": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+        "vel_norm_s": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+        "energy": {"type": "number"},
+        "fill": {"type": "number"}
+      },
+      "required": ["pos_norm", "vel_norm_s", "energy", "fill"],
+      "additionalProperties": true
+    },
+    "last_event": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string"},
+        "primary_wall": {"type": "string"},
+        "amplitude": {"type": "number"}
+      },
+      "additionalProperties": true
+    },
+    "actuators": {
+      "type": "array",
+      "items": {"type": "number"},
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "tilt": {
+      "type": "object",
+      "properties": {
+        "thumb_angle_deg": {"type": "number"},
+        "index_angle_deg": {"type": "number"}
+      },
+      "additionalProperties": true
+    },
+    "audio": {
+      "type": "object",
+      "properties": {
+        "compile_enabled": {"type": "boolean"},
+        "runtime_enabled": {"type": "boolean"},
+        "test_mode": {"type": "boolean"},
+        "test_wall": {
+          "type": "string",
+          "enum": ["None", "Front", "Back", "Top", "Bottom"]
+        },
+        "underrun_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "calibration": {
+      "type": "object",
+      "properties": {
+        "active": {"type": "boolean"},
+        "finished": {"type": "boolean"},
+        "aborted": {"type": "boolean"},
+        "wall": {
+          "type": "string",
+          "enum": ["None", "Front", "Back", "Top", "Bottom"]
+        },
+        "band": {
+          "type": "string",
+          "enum": ["None", "Low", "High"]
+        },
+        "stage": {
+          "type": "string",
+          "enum": ["Idle", "Settling", "Measuring", "Complete", "Aborted"]
+        },
+        "candidate_hz": {"type": "number"},
+        "best_hz": {"type": "number"},
+        "candidate_score": {"type": "number"},
+        "best_score": {"type": "number"},
+        "progress": {"type": "number"},
+        "loaded_from_storage": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "recorder": {
+      "type": "object",
+      "properties": {
+        "recording": {"type": "boolean"},
+        "replaying": {"type": "boolean"},
+        "recorded_frames": {"type": "integer", "minimum": 0},
+        "replay_index": {"type": "integer", "minimum": 0},
+        "active_file": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "remote": {
+      "type": "object",
+      "properties": {
+        "compile_enabled": {"type": "boolean"},
+        "runtime_enabled": {"type": "boolean"},
+        "connected_clients": {"type": "integer", "minimum": 0},
+        "received_messages": {"type": "integer", "minimum": 0},
+        "transmitted_messages": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

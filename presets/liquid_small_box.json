@@ -1,0 +1,23 @@
+{
+  "preset": "liquid_small_box",
+  "family": "Liquid",
+  "container": {
+    "span_x_m": 0.06,
+    "span_y_m": 0.06,
+    "span_z_m": 0.06,
+    "fill": 0.55,
+    "headspace": 0.45,
+    "viscosity": 0.30
+  },
+  "mass": {
+    "natural_freq_x_hz": 2.2,
+    "natural_freq_y_hz": 2.2,
+    "damping_ratio_x": 0.35,
+    "damping_ratio_y": 0.35
+  },
+  "event": {
+    "wall_threshold": 0.72,
+    "droplet_rate_hz": 40.0,
+    "roof_slap_threshold": 0.88
+  }
+}

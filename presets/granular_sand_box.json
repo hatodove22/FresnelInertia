@@ -1,0 +1,19 @@
+{
+  "preset": "granular_sand_box",
+  "family": "Granular",
+  "container": {
+    "span_x_m": 0.06,
+    "span_y_m": 0.06,
+    "span_z_m": 0.04,
+    "fill": 0.35,
+    "headspace": 0.65,
+    "viscosity": 0.08,
+    "particle_count": 0.90,
+    "particle_hardness": 0.35
+  },
+  "event": {
+    "impact_rate_hz": 28.0,
+    "roll_rate_hz": 10.0,
+    "scrape_threshold": 0.55
+  }
+}

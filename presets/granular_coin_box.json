@@ -1,0 +1,18 @@
+{
+  "preset": "granular_coin_box",
+  "family": "Granular",
+  "container": {
+    "span_x_m": 0.05,
+    "span_y_m": 0.05,
+    "span_z_m": 0.03,
+    "fill": 0.20,
+    "headspace": 0.80,
+    "particle_count": 0.25,
+    "particle_hardness": 0.90
+  },
+  "event": {
+    "impact_rate_hz": 22.0,
+    "roll_rate_hz": 8.0,
+    "scrape_threshold": 0.40
+  }
+}
