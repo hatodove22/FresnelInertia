@@ -15,6 +15,9 @@ class TiltPlaneServoInterface {
   bool isEnabled() const { return enabled_ && runtime_enabled_; }
 
  private:
+  void setTorqueEnabled(bool enabled);
+  void zeroCurrents();
+
   SystemParams params_{};
   bool enabled_ = false;
   bool runtime_enabled_ = false;

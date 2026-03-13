@@ -85,6 +85,8 @@ This document defines the parameter taxonomy for the unified material-haptics fr
 - `recorder.record_dir`
 - `recorder.flush_interval_frames`
 
+`recorder.flush_interval_frames` controls how many NDJSON frames are buffered before an explicit flush while the recording file stays open.
+
 ## J. Tilt-plane channel
 - `tilt.thumb_servo_id`
 - `tilt.index_servo_id`
@@ -123,6 +125,9 @@ This is intended for additive runtime identification and will likely be refined 
 - `iface.reserve_ble_gatt`
 - `iface.reserve_udp_osc`
 - `system.feature_flags.*`
+
+`iface.wifi_mode_ap=true` starts the current SoftAP transport.
+`iface.wifi_mode_ap=false` starts the same WebSocket server in station mode and attempts to join the configured SSID.
 
 ## 3. Material-family interpretation
 

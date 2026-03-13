@@ -44,9 +44,10 @@ The internal message schema must be transport-independent.
 
 ### Current transport baseline
 - current transport build: `m5stack-sticks3-remote`
-- network mode: SoftAP by default
+- network mode: SoftAP by default, optional station mode when `iface.wifi_mode_ap=false`
 - control: inbound WebSocket JSON using `schemas/control_message.schema.json`
 - telemetry: low-rate WebSocket JSON push using `schemas/telemetry_frame.schema.json`
+- frame parsing: buffered and non-blocking so partial client frames do not stall the main haptics loop
 
 ## 3. Message schemas
 

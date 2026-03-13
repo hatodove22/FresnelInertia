@@ -159,11 +159,28 @@ ControlMessageType parseMessageType(const char* text) {
 
 #if HAPTICS_ENABLE_REMOTE_BACKEND
 constexpr size_t kMaxWsClients = 4;
+constexpr size_t kMaxClientBufferBytes = 4096;
 RemoteInterface* g_remote_owner = nullptr;
 WiFiServer* g_server = nullptr;
 std::array<WiFiClient, kMaxWsClients> g_clients{};
 std::array<bool, kMaxWsClients> g_client_handshaked{};
 std::array<String, kMaxWsClients> g_client_buffers{};
+
+enum class FrameExtractResult : uint8_t {
+  NeedMoreData = 0,
+  Consumed = 1,
+  Disconnect = 2,
+};
+
+uint8_t byteAt(const String& buffer, size_t index) {
+  return static_cast<uint8_t>(static_cast<unsigned char>(buffer[static_cast<unsigned int>(index)]));
+}
+
+void readAvailableBytes(WiFiClient& client, String& buffer) {
+  while (client.available() > 0) {
+    buffer += static_cast<char>(client.read());
+  }
+}
 
 String websocketAcceptKey(const String& key) {
   const String input = key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -239,11 +256,15 @@ ControlMessage parseControlPayload(const char* payload) {
 
 bool handleHandshake(RemoteInterface& owner, size_t index) {
   WiFiClient& client = g_clients[index];
-  while (client.available() > 0) {
-    g_client_buffers[index] += static_cast<char>(client.read());
+  readAvailableBytes(client, g_client_buffers[index]);
+  if (g_client_buffers[index].length() > kMaxClientBufferBytes) {
+    client.stop();
+    g_client_buffers[index] = "";
+    return false;
   }
 
-  if (g_client_buffers[index].indexOf("\r\n\r\n") < 0) {
+  const int header_end = g_client_buffers[index].indexOf("\r\n\r\n");
+  if (header_end < 0) {
     return false;
   }
 
@@ -265,60 +286,67 @@ bool handleHandshake(RemoteInterface& owner, size_t index) {
       "Sec-WebSocket-Accept: %s\r\n\r\n",
       accept_key.c_str());
   g_client_handshaked[index] = true;
-  g_client_buffers[index] = "";
+  g_client_buffers[index].remove(0, header_end + 4);
   owner.adjustClientCount(1);
   return true;
 }
 
-bool readTextFrame(WiFiClient& client, String& payload_out) {
-  if (client.available() < 2) {
-    return false;
+FrameExtractResult extractBufferedTextFrame(String& buffer, String& payload_out) {
+  payload_out = "";
+  if (buffer.length() < 2) {
+    return FrameExtractResult::NeedMoreData;
   }
 
-  const uint8_t b0 = client.read();
-  const uint8_t b1 = client.read();
+  const uint8_t b0 = byteAt(buffer, 0);
+  const uint8_t b1 = byteAt(buffer, 1);
   const uint8_t opcode = b0 & 0x0F;
-  if (opcode == 0x08) {
-    client.stop();
-    return false;
-  }
-  if (opcode != 0x01) {
-    return false;
-  }
 
+  size_t offset = 2;
   size_t payload_len = b1 & 0x7F;
   if (payload_len == 126) {
-    if (client.available() < 2) {
-      return false;
+    if (buffer.length() < 4) {
+      return FrameExtractResult::NeedMoreData;
     }
-    payload_len = static_cast<size_t>(client.read()) << 8;
-    payload_len |= static_cast<size_t>(client.read());
+    payload_len = static_cast<size_t>(byteAt(buffer, 2)) << 8;
+    payload_len |= static_cast<size_t>(byteAt(buffer, 3));
+    offset = 4;
   } else if (payload_len == 127) {
-    return false;
+    return FrameExtractResult::Disconnect;
   }
 
-  uint8_t mask[4]{};
-  if (b1 & 0x80) {
-    if (client.available() < 4) {
-      return false;
-    }
-    for (int i = 0; i < 4; ++i) {
-      mask[i] = client.read();
-    }
+  const bool masked = (b1 & 0x80) != 0;
+  if (masked && buffer.length() < static_cast<unsigned int>(offset + 4)) {
+    return FrameExtractResult::NeedMoreData;
+  }
+
+  const size_t mask_offset = offset;
+  offset += masked ? 4 : 0;
+  const size_t frame_len = offset + payload_len;
+  if (buffer.length() < static_cast<unsigned int>(frame_len)) {
+    return FrameExtractResult::NeedMoreData;
+  }
+
+  if (opcode == 0x08) {
+    buffer.remove(0, static_cast<unsigned int>(frame_len));
+    return FrameExtractResult::Disconnect;
+  }
+
+  if (opcode != 0x01) {
+    buffer.remove(0, static_cast<unsigned int>(frame_len));
+    return FrameExtractResult::Consumed;
   }
 
   payload_out.reserve(payload_len);
   for (size_t i = 0; i < payload_len; ++i) {
-    while (client.available() == 0) {
-      delay(1);
-    }
-    uint8_t byte = client.read();
-    if (b1 & 0x80) {
-      byte ^= mask[i % 4];
+    uint8_t byte = byteAt(buffer, offset + i);
+    if (masked) {
+      byte ^= byteAt(buffer, mask_offset + (i % 4));
     }
     payload_out += static_cast<char>(byte);
   }
-  return true;
+
+  buffer.remove(0, static_cast<unsigned int>(frame_len));
+  return FrameExtractResult::Consumed;
 }
 #endif
 
@@ -337,35 +365,43 @@ void RemoteInterface::configure(const SystemParams& params) {
   status_.runtime_enabled = status_.compile_enabled && params.features.enable_remote_interface;
 
 #if HAPTICS_ENABLE_REMOTE_BACKEND
+  if (g_server != nullptr) {
+    delete g_server;
+    g_server = nullptr;
+  }
+  for (auto& client : g_clients) {
+    if (client.connected()) {
+      client.stop();
+    }
+  }
+  g_client_handshaked.fill(false);
+  g_client_buffers.fill("");
+  status_.connected_clients = 0;
+  WiFi.mode(WIFI_OFF);
+
   if (!status_.runtime_enabled) {
-    if (g_server != nullptr) {
-      delete g_server;
-      g_server = nullptr;
-    }
-    for (auto& client : g_clients) {
-      if (client.connected()) {
-        client.stop();
-      }
-    }
-    g_client_handshaked.fill(false);
-    g_client_buffers.fill("");
-    status_.connected_clients = 0;
-    WiFi.mode(WIFI_OFF);
     return;
   }
 
   g_remote_owner = this;
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(params_.iface.wifi_ssid, params_.iface.wifi_password);
-  if (g_server == nullptr) {
-    g_server = new WiFiServer(params_.iface.websocket_port);
-    g_server->begin();
+  if (params_.iface.wifi_mode_ap) {
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(params_.iface.wifi_ssid, params_.iface.wifi_password);
     Serial.printf(
         "remote: ws://%s:%u ssid=%s\n",
         WiFi.softAPIP().toString().c_str(),
         static_cast<unsigned>(params_.iface.websocket_port),
         params_.iface.wifi_ssid);
+  } else {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(params_.iface.wifi_ssid, params_.iface.wifi_password);
+    Serial.printf(
+        "remote: station ssid=%s port=%u\n",
+        params_.iface.wifi_ssid,
+        static_cast<unsigned>(params_.iface.websocket_port));
   }
+  g_server = new WiFiServer(params_.iface.websocket_port);
+  g_server->begin();
 #endif
 }
 
@@ -435,13 +471,34 @@ void RemoteInterface::update() {
       continue;
     }
 
-    String payload;
-    if (readTextFrame(client, payload)) {
-      ControlMessage message = parseControlPayload(payload.c_str());
-      if (message.valid) {
-        pushMessage(message);
+    readAvailableBytes(client, g_client_buffers[i]);
+    if (g_client_buffers[i].length() > kMaxClientBufferBytes) {
+      client.stop();
+      continue;
+    }
+
+    while (true) {
+      String payload;
+      const FrameExtractResult result = extractBufferedTextFrame(g_client_buffers[i], payload);
+      if (result == FrameExtractResult::NeedMoreData) {
+        break;
       }
-      noteReceivedMessage();
+      if (result == FrameExtractResult::Disconnect) {
+        client.stop();
+        if (g_client_handshaked[i]) {
+          adjustClientCount(-1);
+        }
+        g_client_handshaked[i] = false;
+        g_client_buffers[i] = "";
+        break;
+      }
+      if (payload.length() > 0) {
+        ControlMessage message = parseControlPayload(payload.c_str());
+        if (message.valid) {
+          pushMessage(message);
+        }
+        noteReceivedMessage();
+      }
     }
   }
 #endif

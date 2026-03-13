@@ -136,10 +136,15 @@ bool TiltPlaneServoInterface::begin(const SystemParams& params) {
 
 void TiltPlaneServoInterface::configure(const SystemParams& params) {
   params_ = params;
-  runtime_enabled_ = enabled_ && params.features.enable_tilt_plane;
+  const bool next_runtime_enabled = enabled_ && params.features.enable_tilt_plane;
 
 #if HAPTICS_ENABLE_TILT_SERVO
-  if (!runtime_enabled_) {
+  if (!next_runtime_enabled) {
+    if (runtime_enabled_) {
+      zeroCurrents();
+      setTorqueEnabled(false);
+    }
+    runtime_enabled_ = false;
     return;
   }
 
@@ -150,11 +155,24 @@ void TiltPlaneServoInterface::configure(const SystemParams& params) {
     writeU8(servo_id, kAddrOperatingMode, operating_mode, params_.pins.dynamixel_direction);
     writeU8(servo_id, kAddrTorqueEnable, 1, params_.pins.dynamixel_direction);
   }
+  last_submit_ms_ = millis();
 #endif
+  runtime_enabled_ = next_runtime_enabled;
 }
 
 void TiltPlaneServoInterface::setRuntimeEnabled(bool enabled) {
-  runtime_enabled_ = enabled_ && enabled;
+  const bool next_runtime_enabled = enabled_ && enabled;
+#if HAPTICS_ENABLE_TILT_SERVO
+  if (runtime_enabled_ && !next_runtime_enabled) {
+    zeroCurrents();
+    setTorqueEnabled(false);
+  } else if (!runtime_enabled_ && next_runtime_enabled) {
+    runtime_enabled_ = next_runtime_enabled;
+    configure(params_);
+    return;
+  }
+#endif
+  runtime_enabled_ = next_runtime_enabled;
 }
 
 void TiltPlaneServoInterface::home() {
@@ -176,15 +194,15 @@ void TiltPlaneServoInterface::submit(const TiltPlaneCommand& command) {
   const float dt_s = std::max(0.010f, (now_ms - last_submit_ms_) * 1.0e-3f);
   last_submit_ms_ = now_ms;
 
-  auto clampAngle = [&](float target_deg, float last_deg) {
+  auto clampAngle = [&](float target_deg, float last_deg, float home_deg) {
     const float bounded =
-        clampf(target_deg, params_.tilt.min_angle_deg + params_.tilt.thumb_home_deg, params_.tilt.max_angle_deg + params_.tilt.thumb_home_deg);
+        clampf(target_deg, params_.tilt.min_angle_deg + home_deg, params_.tilt.max_angle_deg + home_deg);
     const float max_step = params_.tilt.max_velocity_deg_s * dt_s;
     return clampf(bounded, last_deg - max_step, last_deg + max_step);
   };
 
-  const float thumb_angle = clampAngle(command.thumb_angle_deg, last_command_.thumb_angle_deg);
-  const float index_angle = clampAngle(command.index_angle_deg, last_command_.index_angle_deg);
+  const float thumb_angle = clampAngle(command.thumb_angle_deg, last_command_.thumb_angle_deg, params_.tilt.thumb_home_deg);
+  const float index_angle = clampAngle(command.index_angle_deg, last_command_.index_angle_deg, params_.tilt.index_home_deg);
   const float thumb_current = clampf(command.thumb_current_limit_ma, 0.0f, params_.tilt.max_current_ma);
   const float index_current = clampf(command.index_current_limit_ma, 0.0f, params_.tilt.max_current_ma);
 
@@ -200,6 +218,24 @@ void TiltPlaneServoInterface::submit(const TiltPlaneCommand& command) {
   last_command_.index_current_limit_ma = index_current;
 #else
   (void)command;
+#endif
+}
+
+void TiltPlaneServoInterface::setTorqueEnabled(bool enabled) {
+#if HAPTICS_ENABLE_TILT_SERVO
+  const uint8_t torque_value = enabled ? 1u : 0u;
+  for (const uint8_t servo_id : {params_.tilt.thumb_servo_id, params_.tilt.index_servo_id}) {
+    writeU8(servo_id, kAddrTorqueEnable, torque_value, params_.pins.dynamixel_direction);
+  }
+#else
+  (void)enabled;
+#endif
+}
+
+void TiltPlaneServoInterface::zeroCurrents() {
+#if HAPTICS_ENABLE_TILT_SERVO
+  writeU16(params_.tilt.thumb_servo_id, kAddrGoalCurrent, 0, params_.pins.dynamixel_direction);
+  writeU16(params_.tilt.index_servo_id, kAddrGoalCurrent, 0, params_.pins.dynamixel_direction);
 #endif
 }
 

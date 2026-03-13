@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 
+#include <algorithm>
 #include <cstdio>
 
 namespace haptics {
@@ -101,13 +102,40 @@ bool Recorder::mountFilesystem() {
   return mounted_;
 }
 
+bool Recorder::openRecordFile() {
+  if (record_file_) {
+    return true;
+  }
+  if (status_.active_file[0] == '\0') {
+    return false;
+  }
+  record_file_ = LittleFS.open(status_.active_file, FILE_APPEND);
+  return static_cast<bool>(record_file_);
+}
+
+void Recorder::flushRecordFile() {
+  if (!record_file_) {
+    pending_flush_frames_ = 0;
+    return;
+  }
+  record_file_.flush();
+  pending_flush_frames_ = 0;
+}
+
+void Recorder::closeRecordFile() {
+  if (record_file_) {
+    flushRecordFile();
+    record_file_.close();
+  }
+  pending_flush_frames_ = 0;
+}
+
 void Recorder::append(const TelemetrySnapshot& snapshot) {
   if (!status_.recording || !mountFilesystem()) {
     return;
   }
 
-  File file = LittleFS.open(status_.active_file, FILE_APPEND);
-  if (!file) {
+  if (!openRecordFile()) {
     return;
   }
 
@@ -167,11 +195,15 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
   calibration["best_score"] = snapshot.calibration.best_score;
   calibration["progress"] = snapshot.calibration.progress;
 
-  serializeJson(doc, file);
-  file.println();
-  file.close();
+  serializeJson(doc, record_file_);
+  record_file_.println();
 
   ++status_.recorded_frames;
+  ++pending_flush_frames_;
+  const uint16_t flush_interval_frames = std::max<uint16_t>(1, params_.recorder.flush_interval_frames);
+  if (pending_flush_frames_ >= flush_interval_frames) {
+    flushRecordFile();
+  }
 }
 
 bool Recorder::startRecording(uint32_t now_ms, const char* requested_file) {
@@ -179,6 +211,7 @@ bool Recorder::startRecording(uint32_t now_ms, const char* requested_file) {
     return false;
   }
 
+  closeRecordFile();
   LittleFS.mkdir(params_.recorder.record_dir);
 
   char path[96]{};
@@ -201,11 +234,18 @@ bool Recorder::startRecording(uint32_t now_ms, const char* requested_file) {
   status_.recording = true;
   status_.replaying = false;
   status_.recorded_frames = 0;
+  pending_flush_frames_ = 0;
   updateStatusPath(path);
+  if (!openRecordFile()) {
+    status_.recording = false;
+    updateStatusPath(nullptr);
+    return false;
+  }
   return true;
 }
 
 void Recorder::stopRecording() {
+  closeRecordFile();
   status_.recording = false;
 }
 
@@ -267,6 +307,7 @@ bool Recorder::startReplay(const char* requested_file, uint32_t now_ms) {
     return false;
   }
 
+  closeRecordFile();
   char path[96]{};
   if (requested_file[0] == '/') {
     std::snprintf(path, sizeof(path), "%s", requested_file);

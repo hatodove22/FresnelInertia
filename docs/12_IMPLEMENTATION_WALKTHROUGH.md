@@ -166,6 +166,7 @@ When compile-disabled or runtime-disabled, `submit()` safely becomes a no-op.
 - Compile-gated raw Dynamixel Protocol 2.0 packet writer.
 - Maps `MassState.pos_norm.x` into thumb/index target angles.
 - Applies angle and current bounds before each submit.
+- Disabling runtime tilt now zeros current commands and explicitly drops servo torque.
 - Intended for low-frequency pseudo-force cues, not texture rendering.
 
 ## Calibration
@@ -215,6 +216,7 @@ Typical override domains:
 `src/Recorder.cpp`
 
 - Recording path writes NDJSON into LittleFS under `RecorderParams.record_dir`.
+- The recorder keeps the file open during capture and flushes on `RecorderParams.flush_interval_frames` boundaries, then forces a final flush on stop.
 - Each line stores the telemetry snapshot needed for later offline inspection.
 - Replay path reads recorded IMU samples and feeds them back into the same runtime pipeline.
 
@@ -229,10 +231,11 @@ Run-mode priority inside `HapticPipeline` is:
 
 `src/RemoteInterface.cpp`
 
-- Compile-gated SoftAP + minimal WebSocket server
+- Compile-gated WebSocket server with SoftAP or station-mode WiFi bring-up
 - Accepts JSON control messages matching `schemas/control_message.schema.json`
 - Publishes low-rate telemetry JSON aligned with `schemas/telemetry_frame.schema.json`
 - Queues parsed control messages for `HapticPipeline`
+- Uses buffered non-blocking frame parsing so incomplete client frames do not block the control loop
 
 Supported control families:
 

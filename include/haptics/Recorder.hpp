@@ -1,5 +1,7 @@
 #pragma once
 
+#include <FS.h>
+
 #include "haptics/Parameters.hpp"
 #include "haptics/Types.hpp"
 
@@ -21,6 +23,9 @@ class Recorder {
  private:
   bool mountFilesystem();
   bool loadNextReplaySample();
+  bool openRecordFile();
+  void flushRecordFile();
+  void closeRecordFile();
   void updateStatusPath(const char* path);
 
   SystemParams params_{};
@@ -30,6 +35,8 @@ class Recorder {
   uint32_t next_replay_timestamp_ms_ = 0;
   uint32_t last_replay_timestamp_ms_ = 0;
   ImuSample next_replay_sample_{};
+  File record_file_{};
+  uint16_t pending_flush_frames_ = 0;
   bool replay_sample_ready_ = false;
   bool mounted_ = false;
 };

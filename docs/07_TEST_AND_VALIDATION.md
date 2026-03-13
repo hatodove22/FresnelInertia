@@ -19,6 +19,7 @@
 - Serial telemetry prints latent state, actuator-frame summaries, and recorder/remote status.
 - Console preset listing/loading works.
 - Recorder start/stop and replay start/stop commands work without crashing.
+- Recorder batching honors `recorder.flush_interval_frames` without losing tail frames on stop.
 
 ## 3. Audio backend validation
 
@@ -64,11 +65,19 @@
 - verify safe home position on both XL330 units
 - verify current-limited motion before full position control tests
 - verify emergency stop behavior
+- verify `tilt off` drops torque and does not leave either XL330 energized
+- verify asymmetric thumb/index home angles still clamp each servo to its own safe range
+
+## 5.1 Remote transport robustness
+
+- verify a partial or malformed WebSocket frame does not stall IMU polling or haptics updates
+- verify both `iface.wifi_mode_ap=true` and `iface.wifi_mode_ap=false` bring up the remote transport as expected
 
 ## 6. Recorder / replay validation
 
 - recorded sessions must replay latent state evolution deterministically enough for debugging
 - event counts and actuator summaries should match within expected tolerance
+- stop recording before `recorder.flush_interval_frames` is reached and verify the tail frames are still persisted
 
 ## 7. Acceptance criteria for first full haptic milestone
 
