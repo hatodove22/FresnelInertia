@@ -84,6 +84,11 @@ The intended end-state is still the same:
 6. New subsystems must remain behind compile-time and/or runtime gates with safe defaults.
 7. The supported main-firmware monitoring workflow should remain USB serial plus SoftAP browser monitoring; display logic stays probe-only until panel stability is understood.
 
+The formal target refinement model for that end-state is now captured in
+`docs/17_PARAMETRIC_CONTAINER_HAPTICS_MODEL_SPEC.md`.
+The current firmware should continue to evolve toward that model additively from
+the existing reduced shared state, not via architectural replacement.
+
 ## 8. Recommended next focus
 
 - Finish the additive TDM backend migration without breaking the dual-I2S fallback path.

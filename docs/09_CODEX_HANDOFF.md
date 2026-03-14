@@ -14,6 +14,7 @@ Before changing code, read in order:
 6. `docs/06_PARAMETER_MODEL.md`
 7. `docs/07_TEST_AND_VALIDATION.md`
 8. `docs/15_ENVIRONMENT_BRINGUP_NOTES.md`
+9. `docs/17_PARAMETRIC_CONTAINER_HAPTICS_MODEL_SPEC.md`
 
 ## 2. Status and next tickets
 

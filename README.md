@@ -131,6 +131,7 @@ Read these in order before implementing:
 14. `docs/14_TILT_PSEUDOFORCE_SPEC_REV2.md`
 15. `docs/15_ENVIRONMENT_BRINGUP_NOTES.md`
 16. `docs/16_PROGRESS_STATUS.md`
+17. `docs/17_PARAMETRIC_CONTAINER_HAPTICS_MODEL_SPEC.md`
 
 ## Notes for future open-source release
 

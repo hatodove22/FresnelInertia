@@ -68,6 +68,12 @@ The four-layer model is the core abstraction and shall remain stable even as ind
 - `09_CODEX_HANDOFF.md`
 - `10_REFERENCES.md`
 - `11_CODEX_START_PROMPT.md`
+- `12_IMPLEMENTATION_WALKTHROUGH.md`
+- `13_COLLABORATION_INPUT_CHECKLIST.md`
+- `14_TILT_PSEUDOFORCE_SPEC_REV2.md`
+- `15_ENVIRONMENT_BRINGUP_NOTES.md`
+- `16_PROGRESS_STATUS.md`
+- `17_PARAMETRIC_CONTAINER_HAPTICS_MODEL_SPEC.md`
 
 ## 6. Current repository state
 
