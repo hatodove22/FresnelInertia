@@ -13,6 +13,7 @@ Before changing code, read in order:
 5. `docs/04_HARDWARE_AND_PIN_SPEC.md`
 6. `docs/06_PARAMETER_MODEL.md`
 7. `docs/07_TEST_AND_VALIDATION.md`
+8. `docs/15_ENVIRONMENT_BRINGUP_NOTES.md`
 
 ## 2. Status and next tickets
 
@@ -21,9 +22,16 @@ Before changing code, read in order:
 - safe defaults remain off in the baseline env
 - channel test mode exists for Front / Back / Top / Bottom isolation
 - runtime enable and backend status are reflected in telemetry
+- runtime output layout can now switch between `quad_wall_4ch` and `front_back_2ch`
 
 ### Next active ticket
-Run bench validation on the now-complete baseline: audio routing, NVS calibration restore, liquid/granular separation, remote telemetry, and servo safety.
+Stabilize the main monitoring workflow around USB serial + SoftAP browser status, then return to hardware tuning: audio routing, NVS calibration restore, liquid/granular separation, remote telemetry, and servo safety.
+
+### Bring-up caution
+When audio or display behavior differs from a known-good bench setup, check
+`docs/15_ENVIRONMENT_BRINGUP_NOTES.md` before assuming a pipeline regression.
+The recent bench session found several environment-sensitive issues in board
+detection, serial monitor behavior, storage state, and Windows build cleanup.
 
 ### Ticket B
 Actuator sweep and low/high carrier storage are now implemented in firmware.
@@ -45,6 +53,11 @@ The shared four-layer path now has a full baseline implementation.
 - resonance output is per-voice rather than wall-summed
 - spatial rendering applies SOA-aware delayed flow to neighbors
 - next step is tuning, not replacing, the architecture
+
+### Monitoring policy
+- The main firmware should be monitored through USB serial and the SoftAP browser page.
+- Do not add new on-device display UX to the main runtime path.
+- Keep any remaining display work isolated to probe envs only.
 
 ### Ticket C
 Replace the placeholder wall-hit behavior with geometry-aware event scheduling.
@@ -68,7 +81,7 @@ Remote, recorder/replay, and tilt baselines are now implemented.
 - Prefer additive `.cpp` changes over broad file moves.
 - Keep public structures stable unless docs are updated.
 - Avoid introducing transport dependencies until the canonical schema is respected.
-- Do not add drawing/UI work; this repository is intentionally focused on haptic generation.
+- Do not add new main-firmware display/UI work; lightweight browser monitoring is acceptable because it directly supports on-device haptic tuning.
 
 ## 4. What not to do
 

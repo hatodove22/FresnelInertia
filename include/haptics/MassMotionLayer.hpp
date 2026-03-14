@@ -15,6 +15,8 @@ class MassMotionLayer {
   MassState state_{};
   Vec2f filtered_drive_{};
   Vec2f convective_bias_{};
+  Vec2f agitation_bias_{};
+  float agitation_phase_rad_ = 0.0f;
 };
 
 }  // namespace haptics

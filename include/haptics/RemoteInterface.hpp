@@ -11,6 +11,7 @@ class RemoteInterface {
   void configure(const SystemParams& params);
   void update();
   void publishTelemetry(const TelemetrySnapshot& telemetry);
+  void describeStatus(char* out, std::size_t size) const;
   bool popMessage(ControlMessage& message);
   void pushMessage(const ControlMessage& message);
   void adjustClientCount(int delta);
@@ -26,6 +27,8 @@ class RemoteInterface {
   std::size_t queue_tail_ = 0;
   std::size_t queue_count_ = 0;
   uint32_t last_telemetry_ms_ = 0;
+  TelemetrySnapshot last_telemetry_{};
+  bool has_telemetry_ = false;
 };
 
 }  // namespace haptics

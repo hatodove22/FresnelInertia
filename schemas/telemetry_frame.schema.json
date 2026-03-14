@@ -49,7 +49,19 @@
       "type": "object",
       "properties": {
         "thumb_angle_deg": {"type": "number"},
-        "index_angle_deg": {"type": "number"}
+        "index_angle_deg": {"type": "number"},
+        "thumb_current_limit_ma": {"type": "number"},
+        "index_current_limit_ma": {"type": "number"},
+        "thumb_base_deg": {"type": "number"},
+        "index_base_deg": {"type": "number"},
+        "thumb_delta_deg": {"type": "number"},
+        "index_delta_deg": {"type": "number"},
+        "common_force_n": {"type": "number"},
+        "differential_torque_nm": {"type": "number"},
+        "cg_x_m": {"type": "number"},
+        "cg_y_m": {"type": "number"},
+        "apparent_mass_kg": {"type": "number"},
+        "pseudoforce_enabled": {"type": "boolean"}
       },
       "additionalProperties": true
     },
@@ -59,6 +71,12 @@
         "compile_enabled": {"type": "boolean"},
         "runtime_enabled": {"type": "boolean"},
         "test_mode": {"type": "boolean"},
+        "demo_compat_mode": {"type": "boolean"},
+        "output_layout": {
+          "type": "string",
+          "enum": ["quad_wall_4ch", "front_back_2ch"]
+        },
+        "active_output_channels": {"type": "integer", "enum": [2, 4]},
         "test_wall": {
           "type": "string",
           "enum": ["None", "Front", "Back", "Top", "Bottom"]

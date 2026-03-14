@@ -12,6 +12,7 @@
 #include "haptics/RuntimeCalibrator.hpp"
 #include "haptics/SpatialRenderer4.hpp"
 #include "haptics/TextureLayer.hpp"
+#include "haptics/TiltPseudoForceModel.hpp"
 #include "haptics/TiltPlaneServoInterface.hpp"
 
 namespace haptics {
@@ -34,7 +35,7 @@ class HapticPipeline {
  private:
   void applyPreset(MaterialFamily family);
   bool loadPresetByName(const char* preset_name);
-  TiltPlaneCommand makeTiltCommandFromMass(const MassState& state) const;
+  TiltPlaneCommand updateTiltCommand(const ImuSample& sample, const MassState& state, float dt_s);
   MassState makeDefaultMassState() const;
   void reconfigurePipeline();
   void refreshOutputConfig();
@@ -52,6 +53,7 @@ class HapticPipeline {
   RuntimeCalibrator calibrator_{};
   SpatialRenderer4 spatial_renderer_{};
   AudioOutput4Ch audio_{};
+  TiltPseudoForceModel tilt_model_{};
   TiltPlaneServoInterface tilt_{};
   RemoteInterface remote_{};
   Recorder recorder_{};

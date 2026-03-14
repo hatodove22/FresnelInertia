@@ -37,21 +37,35 @@ ResonanceFrame<kMaxResonanceVoicesPerFrame> ResonanceLayer::update(
     float high_weight = params_.resonance.high_gain[wall_index];
     float noise_weight = 1.0f;
     switch (cmd.atom) {
+      case TextureAtomKind::KnockPing:
+        low_weight *= 1.22f;
+        high_weight *= 1.08f;
+        noise_weight *= 0.58f;
+        break;
+      case TextureAtomKind::DetentClick:
+        low_weight *= 1.28f;
+        high_weight *= 0.92f;
+        noise_weight *= 0.70f;
+        break;
       case TextureAtomKind::WetBurst:
-        high_weight *= 1.10f;
-        noise_weight *= 1.15f;
+        low_weight *= 1.30f;
+        high_weight *= 0.92f;
+        noise_weight *= 0.90f;
         break;
       case TextureAtomKind::DryRattle:
-        high_weight *= 1.05f;
-        noise_weight *= 1.05f;
+        low_weight *= 1.18f;
+        high_weight *= 0.90f;
+        noise_weight *= 0.92f;
         break;
       case TextureAtomKind::ScrapeNoise:
-        low_weight *= 0.80f;
-        noise_weight *= 1.20f;
+        low_weight *= 1.10f;
+        high_weight *= 1.12f;
+        noise_weight *= 1.28f;
         break;
       case TextureAtomKind::FlowRipple:
-        low_weight *= 1.05f;
-        high_weight *= 0.95f;
+        low_weight *= 1.35f;
+        high_weight *= 0.80f;
+        noise_weight *= 0.78f;
         break;
       case TextureAtomKind::HardPing:
       case TextureAtomKind::None:
@@ -59,10 +73,17 @@ ResonanceFrame<kMaxResonanceVoicesPerFrame> ResonanceLayer::update(
         break;
     }
 
+    if (cmd.source == EventType::DropletCluster) {
+      low_weight *= 1.20f;
+      high_weight *= 0.88f;
+      noise_weight *= 0.85f;
+    }
+
     ResonanceVoice voice{};
     voice.atom = cmd.atom;
     voice.source = cmd.source;
     voice.primary_wall = cmd.primary_wall;
+    voice.direction = cmd.direction;
     voice.low_env = clamp01(cmd.low_env * low_weight);
     voice.high_env = clamp01(cmd.high_env * high_weight);
     voice.noise_env = clamp01(cmd.noise_env * noise_weight);

@@ -1,5 +1,8 @@
 # 08 Implementation Plan
 
+For the concrete as-built snapshot as of `2026-03-15`, see `16_PROGRESS_STATUS.md`.
+This document remains the intended development order and gap-management plan.
+
 ## Phase 0 - Documentation and scaffold
 - finalize design docs
 - stabilize C++ module boundaries
@@ -9,7 +12,19 @@
 - implemented: stereo I2S x2 backend in `AudioOutput4Ch`
 - implemented: compile-time flag for backend enable
 - implemented: runtime enable toggle and single-wall channel test mode
+- implemented: runtime-selectable `quad_wall_4ch` / `front_back_2ch` physical output layout
 - next refinement: bench validation and tuning of buffering / underrun behavior
+
+## Phase 1A - Additive TDM backend migration
+- goal: add a single-port TDM backend for simpler 4-channel wiring without changing the shared haptic pipeline
+- preserve: the current dual-stereo I2S x2 backend as the safe fallback during migration
+- preserve: `audio.demo_compat_mode` as the known-good mono single-amp route
+- preserve: the current `front_back_2ch` physical fallback semantics
+- planned first TDM target: ESP32-S3 TX-only path using the newer `esp_driver_i2s` API
+- planned first TDM profile: `48 kHz`, `16-bit`, `4 slots`, `PCM short`
+- planned slot mapping: `slot0=Front`, `slot1=Back`, `slot2=Top`, `slot3=Bottom`
+- planned bring-up hardware: MAX98357A boards with per-board slot straps
+- acceptance intent: the physical transport changes, but `DriveFrame4`, telemetry, presets, and spatial rendering remain source-compatible
 
 ## Phase 2 - Resonance sweep and storage
 - implemented: per-channel excitation sweep
@@ -56,18 +71,46 @@
 ## Phase 9 - Smartphone / HMD interface
 - implemented: SoftAP + WebSocket JSON control/telemetry baseline
 - implemented: schema-shaped control message handling
-- next refinement: BLE / UDP / OSC transports and stronger message validation
+- next refinement: promote serial + SoftAP browser monitoring to the canonical human-facing workflow
 
 ## Phase 10 - Open-source cleanup
 - implemented: hardware placeholder contract and contribution checklist
 - deferred: license selection and actual hardware asset publication
+
+## Current priority
+
+- keep the shared haptic pipeline intact
+- improve observability and hardware-side tuning workflow
+- use USB serial + SoftAP browser monitoring as the supported main-firmware path
+- treat display work as probe-only until the low-level panel issue is understood
+
+## Implemented now vs needs improvement
+
+- implemented now:
+  - geometry-aware mass layer
+  - wall / shaker / liquid / hybrid event families
+  - stateful texture atoms and resonance/spatial rendering
+  - audio backend with `quad_wall_4ch` / `front_back_2ch`
+  - dual-I2S backend as the current shipped 4-channel transport
+  - runtime calibration with NVS persistence
+  - recorder/replay
+  - SoftAP/WebSocket remote baseline
+  - tilt pseudo-force baseline
+- needs improvement:
+  - additive TDM backend migration and bench validation
+  - liquid / granular / hybrid percept realism
+  - localization and repeatability on hardware
+  - storage robustness
+  - monitoring reliability
+  - servo safety validation
+  - browser monitoring UX
 
 ## Risk register
 
 | Risk | Why it matters | Early mitigation |
 |---|---|---|
 | Output self-couples into IMU | can destabilize model behavior | keep sensor path band-limited and architected before output tuning |
-| Audio backend complexity | can delay research progress | start with stereo I2S x2 rather than TDM |
+| Audio backend complexity | can delay research progress | keep dual-I2S as the stable baseline, then add TDM behind an explicit backend migration path |
 | Liquid model overfitting | may produce “hum” instead of rich texture | keep event-centric liquid rendering |
 | Servo safety | risk of mechanical overdrive | start with current-limited position mode and conservative angle bounds |
 | Architecture drift | Codex may implement locally convenient hacks | use AGENTS.md + docs as source of truth |

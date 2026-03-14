@@ -40,10 +40,12 @@ Recommended task decomposition for the ESP32-S3 development platform:
 - **Task C: audio-rate render**
   - generate four actuator streams
   - write to stereo I2S x2 or TDM x1
+  - keep the canonical 4-wall drive frame transport-agnostic until `AudioOutput4Ch`
 - **Task D: control/telemetry**
-  - serial debug
-  - future smartphone/HMD gateway
-  - future recorder/replay
+  - USB serial monitoring
+  - SoftAP browser status page
+  - WebSocket JSON control/telemetry
+  - recorder/replay
 
 ## 3. Current code modules
 
@@ -55,10 +57,10 @@ Recommended task decomposition for the ESP32-S3 development platform:
 | `TextureLayer` | short haptic atoms / temporal patterns |
 | `ResonanceLayer` | actuator-aware envelope projection |
 | `SpatialRenderer4` | map onto 4 wall channels |
-| `AudioOutput4Ch` | hardware backend for 4-channel output |
+| `AudioOutput4Ch` | hardware backend for switchable `quad_wall_4ch` / `front_back_2ch` output with an additive dual-I2S -> TDM migration path |
 | `TiltPlaneServoInterface` | future XL330 control path |
-| `RemoteInterface` | future smartphone/HMD transport |
-| `Recorder` | future synchronized data capture |
+| `RemoteInterface` | current SoftAP/WebSocket/HTTP monitoring and control path |
+| `Recorder` | current synchronized data capture baseline |
 | `HapticPipeline` | orchestration layer |
 
 ## 4. Data ownership policy
@@ -66,6 +68,10 @@ Recommended task decomposition for the ESP32-S3 development platform:
 - `SystemParams` is the single runtime configuration object.
 - `TelemetrySnapshot` is the canonical debug/export snapshot.
 - Mass-state and event outputs should remain plain data structs, not hidden inside transport code.
+- The 4-wall `DriveFrame4` remains the canonical output of the shared haptic pipeline.
+- Physical transport decisions such as dual-stereo I2S, single-port TDM, or mono diagnostic fallback belong only inside `AudioOutput4Ch`.
+- The main firmware must not depend on the on-device display for normal monitoring.
+- Any display bring-up logic is probe-only until low-level panel instability is understood.
 
 ## 5. Architectural invariants
 

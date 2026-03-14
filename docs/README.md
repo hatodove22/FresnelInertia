@@ -1,5 +1,7 @@
 # Docs Index
 
+For the current as-built snapshot, start with `16_PROGRESS_STATUS.md`.
+
 Recommended read order:
 
 1. `00_DESIGN_SPECIFICATION.md`
@@ -13,5 +15,9 @@ Recommended read order:
 9. `08_IMPLEMENTATION_PLAN.md`
 10. `09_CODEX_HANDOFF.md`
 11. `10_REFERENCES.md`
-
 12. `11_CODEX_START_PROMPT.md`
+13. `12_IMPLEMENTATION_WALKTHROUGH.md`
+14. `13_COLLABORATION_INPUT_CHECKLIST.md`
+15. `14_TILT_PSEUDOFORCE_SPEC_REV2.md`
+16. `15_ENVIRONMENT_BRINGUP_NOTES.md`
+17. `16_PROGRESS_STATUS.md`

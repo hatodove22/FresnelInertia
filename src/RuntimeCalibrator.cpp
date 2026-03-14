@@ -1,5 +1,7 @@
 #include "haptics/RuntimeCalibrator.hpp"
 
+#include "haptics/DebugFlags.hpp"
+
 #include <Preferences.h>
 
 #include <algorithm>
@@ -55,6 +57,34 @@ size_t wallToIndex(WallId wall) {
   }
 }
 
+size_t activeWallCount(AudioOutputLayout layout) {
+  return layout == AudioOutputLayout::FrontBack2Ch ? 2u : kWallCount;
+}
+
+WallId activeWallAt(AudioOutputLayout layout, size_t active_index) {
+  if (layout == AudioOutputLayout::FrontBack2Ch) {
+    switch (active_index) {
+      case 0:
+        return WallId::Front;
+      case 1:
+        return WallId::Back;
+      default:
+        return WallId::None;
+    }
+  }
+  return wallFromIndex(active_index);
+}
+
+WallId nextActiveWall(AudioOutputLayout layout, WallId current) {
+  const size_t count = activeWallCount(layout);
+  for (size_t i = 0; i < count; ++i) {
+    if (activeWallAt(layout, i) == current) {
+      return (i + 1u < count) ? activeWallAt(layout, i + 1u) : WallId::None;
+    }
+  }
+  return WallId::None;
+}
+
 uint32_t countSteps(float start_hz, float stop_hz, float step_hz) {
   if (step_hz <= 0.0f || stop_hz < start_hz) {
     return 1;
@@ -85,6 +115,11 @@ void RuntimeCalibrator::configure(const SystemParams& params) {
 }
 
 bool RuntimeCalibrator::loadStoredCarriers(SystemParams& params) {
+#if HAPTICS_DEBUG_DISABLE_STORAGE
+  (void)params;
+  status_.loaded_from_storage = false;
+  return false;
+#else
   Preferences prefs;
   if (!prefs.begin(kPreferenceNamespace, true)) {
     return false;
@@ -106,6 +141,7 @@ bool RuntimeCalibrator::loadStoredCarriers(SystemParams& params) {
   params_ = params;
   status_.loaded_from_storage = true;
   return true;
+#endif
 }
 
 bool RuntimeCalibrator::start(SystemParams& params, uint32_t now_ms) {
@@ -125,7 +161,7 @@ bool RuntimeCalibrator::start(SystemParams& params, uint32_t now_ms) {
 
   status_ = {};
   status_.active = true;
-  status_.wall = WallId::Front;
+  status_.wall = activeWallAt(params_.audio.output_layout, 0);
   status_.band = CalibrationBand::Low;
   status_.stage = CalibrationStage::Settling;
   status_.candidate_hz = params_.calibration.low_start_hz;
@@ -247,7 +283,7 @@ uint32_t RuntimeCalibrator::totalCandidateSteps() const {
       countSteps(params_.calibration.low_start_hz, params_.calibration.low_stop_hz, params_.calibration.low_step_hz);
   const uint32_t high_steps = countSteps(
       params_.calibration.high_start_hz, params_.calibration.high_stop_hz, params_.calibration.high_step_hz);
-  return static_cast<uint32_t>(kWallCount) * (low_steps + high_steps);
+  return static_cast<uint32_t>(activeWallCount(params_.audio.output_layout)) * (low_steps + high_steps);
 }
 
 float RuntimeCalibrator::currentRangeStartHz() const {
@@ -306,12 +342,12 @@ bool RuntimeCalibrator::advanceCandidate(SystemParams& params, uint32_t now_ms) 
   if (status_.band == CalibrationBand::Low) {
     status_.band = CalibrationBand::High;
   } else {
-    const size_t next_wall_index = wall_index + 1;
-    if (next_wall_index >= kWallCount) {
+    const WallId next_wall = nextActiveWall(params_.audio.output_layout, status_.wall);
+    if (next_wall == WallId::None) {
       stop(params, true);
       return true;
     }
-    status_.wall = wallFromIndex(next_wall_index);
+    status_.wall = next_wall;
     status_.band = CalibrationBand::Low;
   }
 
@@ -328,6 +364,11 @@ void RuntimeCalibrator::restoreRunState(SystemParams& params) {
   params.audio.channel_test_enable = saved_test_enable_;
   params.audio.channel_test_wall = saved_test_wall_;
   params.audio.channel_test_level = saved_test_level_;
+  if (params.audio.output_layout == AudioOutputLayout::FrontBack2Ch &&
+      (params.audio.channel_test_wall == WallId::Top || params.audio.channel_test_wall == WallId::Bottom)) {
+    params.audio.channel_test_enable = false;
+    params.audio.channel_test_wall = WallId::None;
+  }
 }
 
 void RuntimeCalibrator::updateProgress() {
@@ -353,6 +394,10 @@ float RuntimeCalibrator::observeSample(const ImuSample& sample) {
 }
 
 bool RuntimeCalibrator::persistCarriers(const SystemParams& params) const {
+#if HAPTICS_DEBUG_DISABLE_STORAGE
+  (void)params;
+  return false;
+#else
   Preferences prefs;
   if (!prefs.begin(kPreferenceNamespace, false)) {
     return false;
@@ -362,6 +407,7 @@ bool RuntimeCalibrator::persistCarriers(const SystemParams& params) const {
   putFloatArray(prefs, kHighCarrierKey, params.resonance.high_carrier_hz);
   prefs.end();
   return true;
+#endif
 }
 
 }  // namespace haptics

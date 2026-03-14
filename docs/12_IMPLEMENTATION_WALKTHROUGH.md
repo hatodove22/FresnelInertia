@@ -17,7 +17,7 @@ Compile-time gates:
 - `HAPTICS_ENABLE_REMOTE_BACKEND`
 - `HAPTICS_ENABLE_TILT_SERVO`
 
-Runtime gates live in `SystemParams.features` and default to safe-off for audio, tilt, remote, recorder, and runtime calibration.
+Runtime gates live in `SystemParams.features` and default to safe-off for audio, tilt, remote, recorder, and runtime calibration. The debug display flag is now retained for probe-only use and is not part of the supported main-firmware path.
 
 ## Entry points
 
@@ -27,11 +27,13 @@ Runtime gates live in `SystemParams.features` and default to safe-off for audio,
 - Builds the default liquid preset with `makeDefaultLiquidPreset()`.
 - Starts `HapticPipeline`.
 - Handles UI bindings:
-  - `BtnA` click: cycle material family preset
+  - `BtnA` click: cycle the built-in demo preset sequence
+    `liquid_small_box -> granular_coin_box -> granular_single_marble_box -> hybrid_ice_water -> detented_custom`
   - `BtnA` hold: cycle audio test wall
   - `BtnB` click: toggle verbose serial
   - `BtnB` hold: toggle runtime audio enable
 - Feeds serial console commands into `HapticPipeline::handleConsoleCommand()`.
+- Does not use the StickS3 display in the normal main runtime path; the main monitoring surfaces are USB serial and SoftAP HTTP status.
 
 ### `src/HapticPipeline.cpp`
 
@@ -72,6 +74,7 @@ The main runtime loop is:
 - Uses geometry-aware span scaling so smaller containers produce shorter travel times and denser wall contacts.
 - Applies family-specific mobility, damping, rebound, and energy shaping.
 - Adds a convective bias term for liquid and hybrid families to approximate delayed free-surface motion.
+- Adds a small agitation coupling from vertical acceleration magnitude and yaw-rate so liquid/detented presets still move when the user's shake is not cleanly aligned with board X/Y.
 
 Output:
 
@@ -82,6 +85,7 @@ Output:
 `src/EventLayer.cpp`
 
 - Detects direct wall hits for all families.
+- Uses `event.wall_threshold` as a soft wall-contact depth bias rather than a hard on/off cutoff so older presets remain active.
 - Granular family:
   - `RollTrain`
   - `ImpactCluster`
@@ -89,8 +93,14 @@ Output:
 - Liquid family:
   - `DropletCluster`
   - `RoofSlap`
+- droplet activity is additionally shaped by `event.splash_threshold` as a soft burst-activity reference
+- burst drive also keeps a floor from latent `energy` so strong shake energy can still produce droplets even when planar position remains small
 - Hybrid family:
   - liquid-like droplet bursts plus sparse rigid impact clusters
+- Detented family:
+  - discrete detent-like wall ticks
+  - intermittent scrape instead of a per-frame placeholder
+  - those ticks are still emitted as `WallHit` events but are rendered as a dedicated detent click inside the texture layer when the active family is `Detented`
 
 The event layer is stateful. It keeps cooldowns, phase accumulators, and activity variables so event density follows motion rather than emitting one-shot threshold spikes.
 
@@ -104,8 +114,17 @@ Output:
 `src/TextureLayer.cpp`
 
 - Converts each haptic event into one or more stateful texture voices.
+- Preserves event motion direction so later stages can render lead/trail apparent motion.
+- Clustered wet and granular events now add a companion low-band support voice so
+  single-transducer benches do not collapse into mostly high/noise energy.
+- `Scrape` now also carries a companion low-band `FlowRipple` body so mono/demo-compat benches keep a tangible scrape feel.
+- `HardPing` now uses `texture.hard_ping_high_ms` to shorten the high-band tail independently from the low-band body.
+- Sparse hard-particle granular presets now map isolated wall/impact events to `KnockPing`, a shorter and crisper rigid-contact atom, so a single marble does not blur into the same rattle rendering as a bead cluster.
+- Detented wall hits now map to `DetentClick`, a short low-mid-weighted click atom, instead of sharing the generic `HardPing` voicing.
 - Internal atom kinds:
   - `HardPing`
+  - `KnockPing`
+  - `DetentClick`
   - `WetBurst`
   - `DryRattle`
   - `ScrapeNoise`
@@ -121,10 +140,16 @@ Output:
 `src/ResonanceLayer.cpp`
 
 - Applies wall-specific low/high gain shaping.
+- Biases `WetBurst`, `DryRattle`, and `FlowRipple` more toward the low carrier
+  than before so liquid and granular presets remain perceptible on the current
+  single-amp bench.
+- Gives `DetentClick` additional low-carrier weight so detented presets read as tactile notches instead of faint bright taps.
+- Gives `KnockPing` a short low-mid plus crisp high transient so single-particle rigid impacts read as `kotsu`-like taps instead of softened cluster noise.
 - Keeps resonance as a per-voice representation instead of collapsing directly to 4 channels.
 - Preserves source metadata needed for spatial rendering:
   - source event
   - primary wall
+  - motion direction
   - SOA hint
   - neighbor distribution flag
 
@@ -138,7 +163,8 @@ Output:
 
 - Maps resonance voices onto 4 walls.
 - Applies local, neighbor, and opposite bleed using `SpatialRendererParams`.
-- Supports simple delayed apparent motion for `FlowRipple` by queueing delayed drive frames.
+- Uses physical wall adjacency (`Front/Back <-> Top/Bottom`) rather than index-ring adjacency.
+- Supports direction-aware delayed apparent motion for `FlowRipple` by queueing lead/trail delayed drive frames.
 - Produces both:
   - full-band `DriveFrame4 { low[4], high[4], noise[4] }`
   - summarized `ActuatorFrame4` for telemetry
@@ -155,16 +181,35 @@ Output:
   - low carrier
   - high carrier
   - noise
+- Supports runtime-selectable output layouts:
+  - `quad_wall_4ch`: both buses active
+  - `front_back_2ch`: only Front / Back are physically driven and Top / Bottom are collapsed into common-mode energy on that pair
 - Supports runtime enable plus channel-isolation test mode.
 
 When compile-disabled or runtime-disabled, `submit()` safely becomes a no-op.
 
 ### 8. Tilt-plane backend
 
+`src/TiltPseudoForceModel.cpp`
+
+- Keeps the existing base tilt driven by `MassState.pos_norm.x`.
+- Estimates low-frequency shell + content CoG from:
+  - `ContainerParams.shell_mass_kg`
+  - `ContainerParams.content_mass_full_kg`
+  - `ContainerParams.shell_cg_{x,y}_m`
+  - filtered `MassState.pos_norm`
+- Filters IMU acceleration into:
+  - quasi-static gravity `g_qs`
+  - gravity-removed low-frequency acceleration `a_dyn`
+- Computes:
+  - common-mode vertical inertia term
+  - differential torque term about the thumb/index grasp width
+- Maps pseudo-force through `atan()` plus branch clamps, total clamp, smoothing, deadband, and slew limiting.
+
 `src/TiltPlaneServoInterface.cpp`
 
 - Compile-gated raw Dynamixel Protocol 2.0 packet writer.
-- Maps `MassState.pos_norm.x` into thumb/index target angles.
+- Receives the already-combined `TiltPlaneCommand` from `HapticPipeline`.
 - Applies angle and current bounds before each submit.
 - Disabling runtime tilt now zeros current commands and explicitly drops servo torque.
 - Intended for low-frequency pseudo-force cues, not texture rendering.
@@ -198,9 +243,12 @@ Current canonical families:
 - hybrid
 - detented
 
+Built-in demo presets now also include `granular_single_marble_box`, which approximates a `5 cm` cube with one hard marble by using very low particle count, high hardness, and sparse event rates.
+
 ### Filesystem overrides
 
 `PresetStore` optionally overlays `/presets/<name>.json` from LittleFS on top of a built-in or family-default preset.
+LittleFS mount is now attempted once during startup; if it fails, built-in preset load/list commands continue to work without retrying a mount inside the main loop.
 
 Typical override domains:
 
@@ -232,6 +280,7 @@ Run-mode priority inside `HapticPipeline` is:
 `src/RemoteInterface.cpp`
 
 - Compile-gated WebSocket server with SoftAP or station-mode WiFi bring-up
+- Exposes a lightweight HTTP status page on `iface.http_port`
 - Accepts JSON control messages matching `schemas/control_message.schema.json`
 - Publishes low-rate telemetry JSON aligned with `schemas/telemetry_frame.schema.json`
 - Queues parsed control messages for `HapticPipeline`
@@ -260,7 +309,7 @@ Carries:
 - mass state
 - last event
 - 4-channel actuator summary
-- tilt command
+- tilt command including base tilt, pseudo-force delta, current limit, apparent mass, CoG, and force/torque debug terms
 - audio backend status
 - calibration status
 - recorder status
@@ -272,12 +321,19 @@ Serial verbose output prints a compact summary every 250 ms. Recorder and remote
 
 Implemented in `HapticPipeline::handleConsoleCommand()`:
 
+- `status`
 - `cal start|stop|status`
 - `preset list`
 - `preset load <name>`
 - `record start|stop|status`
 - `replay start <file>|stop|status`
 - `tilt on|off|status`
+- `remote status`
+- `audio diag on|off`
+- `audio on|off|status`
+- `audio test front|back|top|bottom|off`
+- `audio test level <0..1>`
+- `audio layout 2ch|4ch`
 
 ## Where to edit for common tasks
 
@@ -286,6 +342,7 @@ Implemented in `HapticPipeline::handleConsoleCommand()`:
 - Change texture atoms: `src/TextureLayer.cpp`
 - Change wall routing / SOA: `src/SpatialRenderer4.cpp`
 - Change carrier calibration: `src/RuntimeCalibrator.cpp`
+- Change low-frequency pseudo-force mapping: `src/TiltPseudoForceModel.cpp`
 - Change preset defaults: `include/haptics/Parameters.hpp`
 - Change preset JSON loading: `src/PresetStore.cpp`
 - Change remote protocol: `src/RemoteInterface.cpp` and `schemas/`

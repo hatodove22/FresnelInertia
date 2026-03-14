@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <cstdio>
 
 #ifndef HAPTICS_ENABLE_REMOTE_BACKEND
 #define HAPTICS_ENABLE_REMOTE_BACKEND 0
@@ -9,6 +10,7 @@
 
 #if HAPTICS_ENABLE_REMOTE_BACKEND
 #include <WiFi.h>
+#include <WebServer.h>
 #include <mbedtls/base64.h>
 #include <mbedtls/sha1.h>
 #endif
@@ -82,6 +84,16 @@ const char* calibrationStageToString(CalibrationStage stage) {
   }
 }
 
+const char* audioLayoutToString(AudioOutputLayout layout) {
+  switch (layout) {
+    case AudioOutputLayout::FrontBack2Ch:
+      return "front_back_2ch";
+    case AudioOutputLayout::QuadWall4Ch:
+    default:
+      return "quad_wall_4ch";
+  }
+}
+
 const char* runModeToString(RunMode mode) {
   switch (mode) {
     case RunMode::Live:
@@ -115,6 +127,34 @@ RunMode parseRunMode(const char* text) {
     return RunMode::Replay;
   }
   return RunMode::Live;
+}
+
+bool sameText(const char* lhs, const char* rhs) {
+  return std::strncmp(lhs != nullptr ? lhs : "", rhs != nullptr ? rhs : "", 32) == 0;
+}
+
+bool requiresRemoteRestart(const SystemParams& current, const SystemParams& next) {
+  const bool current_enabled = current.features.enable_remote_interface;
+  const bool next_enabled = next.features.enable_remote_interface;
+  if (current_enabled != next_enabled) {
+    return true;
+  }
+  if (!current_enabled && !next_enabled) {
+    return false;
+  }
+  if (current.iface.wifi_mode_ap != next.iface.wifi_mode_ap) {
+    return true;
+  }
+  if (current.iface.http_port != next.iface.http_port || current.iface.websocket_port != next.iface.websocket_port) {
+    return true;
+  }
+  if (!sameText(current.iface.wifi_ssid, next.iface.wifi_ssid)) {
+    return true;
+  }
+  if (!sameText(current.iface.wifi_password, next.iface.wifi_password)) {
+    return true;
+  }
+  return false;
 }
 
 ControlMessageType parseMessageType(const char* text) {
@@ -162,6 +202,7 @@ constexpr size_t kMaxWsClients = 4;
 constexpr size_t kMaxClientBufferBytes = 4096;
 RemoteInterface* g_remote_owner = nullptr;
 WiFiServer* g_server = nullptr;
+WebServer* g_http_server = nullptr;
 std::array<WiFiClient, kMaxWsClients> g_clients{};
 std::array<bool, kMaxWsClients> g_client_handshaked{};
 std::array<String, kMaxWsClients> g_client_buffers{};
@@ -252,6 +293,94 @@ ControlMessage parseControlPayload(const char* payload) {
   }
   message.valid = message.type != ControlMessageType::None;
   return message;
+}
+
+template <typename TDoc>
+void populateTelemetryDocument(TDoc& doc, const TelemetrySnapshot& telemetry) {
+  doc["timestamp_ms"] = telemetry.timestamp_ms;
+  doc["preset"] = telemetry.active_preset;
+  doc["run_mode"] = runModeToString(telemetry.run_mode);
+
+  JsonObject mass = doc.createNestedObject("mass");
+  JsonArray pos = mass.createNestedArray("pos_norm");
+  pos.add(telemetry.mass.pos_norm.x);
+  pos.add(telemetry.mass.pos_norm.y);
+  JsonArray vel = mass.createNestedArray("vel_norm_s");
+  vel.add(telemetry.mass.vel_norm_s.x);
+  vel.add(telemetry.mass.vel_norm_s.y);
+  mass["energy"] = telemetry.mass.energy;
+  mass["fill"] = telemetry.mass.fill;
+
+  JsonObject last_event = doc.createNestedObject("last_event");
+  last_event["type"] = eventTypeToString(telemetry.last_event.type);
+  last_event["primary_wall"] = wallToString(telemetry.last_event.primary_wall);
+  last_event["amplitude"] = telemetry.last_event.amplitude;
+
+  JsonArray actuators = doc.createNestedArray("actuators");
+  for (float ch : telemetry.actuators.ch) {
+    actuators.add(ch);
+  }
+
+  JsonObject tilt = doc.createNestedObject("tilt");
+  tilt["thumb_angle_deg"] = telemetry.tilt.thumb_angle_deg;
+  tilt["index_angle_deg"] = telemetry.tilt.index_angle_deg;
+  tilt["thumb_current_limit_ma"] = telemetry.tilt.thumb_current_limit_ma;
+  tilt["index_current_limit_ma"] = telemetry.tilt.index_current_limit_ma;
+  tilt["thumb_base_deg"] = telemetry.tilt.thumb_base_deg;
+  tilt["index_base_deg"] = telemetry.tilt.index_base_deg;
+  tilt["thumb_delta_deg"] = telemetry.tilt.thumb_delta_deg;
+  tilt["index_delta_deg"] = telemetry.tilt.index_delta_deg;
+  tilt["common_force_n"] = telemetry.tilt.common_force_n;
+  tilt["differential_torque_nm"] = telemetry.tilt.differential_torque_nm;
+  tilt["cg_x_m"] = telemetry.tilt.cg_x_m;
+  tilt["cg_y_m"] = telemetry.tilt.cg_y_m;
+  tilt["apparent_mass_kg"] = telemetry.tilt.apparent_mass_kg;
+  tilt["pseudoforce_enabled"] = telemetry.tilt.pseudoforce_enabled;
+
+  JsonObject audio = doc.createNestedObject("audio");
+  audio["compile_enabled"] = telemetry.audio.compile_enabled;
+  audio["runtime_enabled"] = telemetry.audio.runtime_enabled;
+  audio["test_mode"] = telemetry.audio.test_mode;
+  audio["demo_compat_mode"] = telemetry.audio.demo_compat_mode;
+  audio["output_layout"] = audioLayoutToString(telemetry.audio.output_layout);
+  audio["active_output_channels"] = telemetry.audio.active_output_channels;
+  audio["test_wall"] = wallToString(telemetry.audio.test_wall);
+  audio["underrun_count"] = telemetry.audio.underrun_count;
+
+  JsonObject recorder = doc.createNestedObject("recorder");
+  recorder["recording"] = telemetry.recorder.recording;
+  recorder["replaying"] = telemetry.recorder.replaying;
+  recorder["recorded_frames"] = telemetry.recorder.recorded_frames;
+  recorder["replay_index"] = telemetry.recorder.replay_index;
+
+  JsonObject calibration = doc.createNestedObject("calibration");
+  calibration["active"] = telemetry.calibration.active;
+  calibration["finished"] = telemetry.calibration.finished;
+  calibration["aborted"] = telemetry.calibration.aborted;
+  calibration["wall"] = wallToString(telemetry.calibration.wall);
+  calibration["band"] = calibrationBandToString(telemetry.calibration.band);
+  calibration["stage"] = calibrationStageToString(telemetry.calibration.stage);
+  calibration["candidate_hz"] = telemetry.calibration.candidate_hz;
+  calibration["best_hz"] = telemetry.calibration.best_hz;
+  calibration["candidate_score"] = telemetry.calibration.candidate_score;
+  calibration["best_score"] = telemetry.calibration.best_score;
+  calibration["progress"] = telemetry.calibration.progress;
+  calibration["loaded_from_storage"] = telemetry.calibration.loaded_from_storage;
+
+  JsonObject remote = doc.createNestedObject("remote");
+  remote["compile_enabled"] = telemetry.remote.compile_enabled;
+  remote["runtime_enabled"] = telemetry.remote.runtime_enabled;
+  remote["connected_clients"] = telemetry.remote.connected_clients;
+  remote["received_messages"] = telemetry.remote.received_messages;
+  remote["transmitted_messages"] = telemetry.remote.transmitted_messages;
+}
+
+String serializeTelemetryPayload(const TelemetrySnapshot& telemetry) {
+  StaticJsonDocument<2048> doc;
+  populateTelemetryDocument(doc, telemetry);
+  String payload;
+  serializeJson(doc, payload);
+  return payload;
 }
 
 bool handleHandshake(RemoteInterface& owner, size_t index) {
@@ -356,18 +485,31 @@ bool RemoteInterface::begin(const SystemParams& params) {
   params_ = params;
   status_ = {};
   status_.compile_enabled = HAPTICS_ENABLE_REMOTE_BACKEND != 0;
+  has_telemetry_ = false;
+  last_telemetry_ = {};
   configure(params);
   return true;
 }
 
 void RemoteInterface::configure(const SystemParams& params) {
+  const SystemParams previous_params = params_;
+  const bool had_runtime_enabled = status_.runtime_enabled;
   params_ = params;
   status_.runtime_enabled = status_.compile_enabled && params.features.enable_remote_interface;
 
 #if HAPTICS_ENABLE_REMOTE_BACKEND
+  if (had_runtime_enabled && status_.runtime_enabled && !requiresRemoteRestart(previous_params, params_)) {
+    return;
+  }
+
   if (g_server != nullptr) {
     delete g_server;
     g_server = nullptr;
+  }
+  if (g_http_server != nullptr) {
+    g_http_server->stop();
+    delete g_http_server;
+    g_http_server = nullptr;
   }
   for (auto& client : g_clients) {
     if (client.connected()) {
@@ -377,6 +519,8 @@ void RemoteInterface::configure(const SystemParams& params) {
   g_client_handshaked.fill(false);
   g_client_buffers.fill("");
   status_.connected_clients = 0;
+  status_.received_messages = 0;
+  status_.transmitted_messages = 0;
   WiFi.mode(WIFI_OFF);
 
   if (!status_.runtime_enabled) {
@@ -388,7 +532,9 @@ void RemoteInterface::configure(const SystemParams& params) {
     WiFi.mode(WIFI_AP);
     WiFi.softAP(params_.iface.wifi_ssid, params_.iface.wifi_password);
     Serial.printf(
-        "remote: ws://%s:%u ssid=%s\n",
+        "remote: http://%s:%u/ ws://%s:%u ssid=%s\n",
+        WiFi.softAPIP().toString().c_str(),
+        static_cast<unsigned>(params_.iface.http_port),
         WiFi.softAPIP().toString().c_str(),
         static_cast<unsigned>(params_.iface.websocket_port),
         params_.iface.wifi_ssid);
@@ -396,12 +542,64 @@ void RemoteInterface::configure(const SystemParams& params) {
     WiFi.mode(WIFI_STA);
     WiFi.begin(params_.iface.wifi_ssid, params_.iface.wifi_password);
     Serial.printf(
-        "remote: station ssid=%s port=%u\n",
+        "remote: station ssid=%s http_port=%u ws_port=%u\n",
         params_.iface.wifi_ssid,
+        static_cast<unsigned>(params_.iface.http_port),
         static_cast<unsigned>(params_.iface.websocket_port));
   }
+  g_http_server = new WebServer(params_.iface.http_port);
+  g_http_server->on("/", HTTP_GET, [this]() {
+    const IPAddress ip = params_.iface.wifi_mode_ap ? WiFi.softAPIP() : WiFi.localIP();
+    String page;
+    page.reserve(2800);
+    page += F("<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>");
+    page += F("<title>Haptics Status</title><style>body{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#101418;color:#e8eef2;margin:0;padding:16px;}h1{font-size:18px;margin:0 0 8px;}p{margin:4px 0 12px;color:#a9bac6;}pre{white-space:pre-wrap;word-break:break-word;background:#171e24;border:1px solid #2d3a44;border-radius:8px;padding:12px;}</style></head><body>");
+    page += F("<h1>Container Haptics Status</h1><p>");
+    page += (params_.iface.wifi_mode_ap ? "SoftAP " : "Station ");
+    page += params_.iface.wifi_ssid;
+    page += F(" | HTTP ");
+    page += String(static_cast<unsigned>(params_.iface.http_port));
+    page += F(" | WS ");
+    page += String(static_cast<unsigned>(params_.iface.websocket_port));
+    page += F(" | IP ");
+    page += ip.toString();
+    page += F("</p><pre id='status'>loading...</pre><script>async function pull(){try{const r=await fetch('/api/status');const s=await r.json();document.getElementById('status').textContent=JSON.stringify(s,null,2);}catch(err){document.getElementById('status').textContent='status fetch failed: '+err;}} setInterval(pull,500); pull();</script></body></html>");
+    g_http_server->send(200, "text/html; charset=utf-8", page);
+  });
+  g_http_server->on("/api/status", HTTP_GET, [this]() {
+    const TelemetrySnapshot& telemetry = has_telemetry_ ? last_telemetry_ : TelemetrySnapshot{};
+    g_http_server->send(200, "application/json", serializeTelemetryPayload(telemetry));
+  });
+  g_http_server->begin();
   g_server = new WiFiServer(params_.iface.websocket_port);
   g_server->begin();
+#endif
+}
+
+void RemoteInterface::describeStatus(char* out, std::size_t size) const {
+  if (out == nullptr || size == 0) {
+    return;
+  }
+  out[0] = '\0';
+#if HAPTICS_ENABLE_REMOTE_BACKEND
+  const IPAddress ip = params_.iface.wifi_mode_ap ? WiFi.softAPIP() : WiFi.localIP();
+  std::snprintf(out,
+                size,
+                "remote: enabled=%u mode=%s ssid=%s ip=%u.%u.%u.%u http=%u ws=%u clients=%u rx=%lu tx=%lu",
+                static_cast<unsigned>(status_.runtime_enabled),
+                params_.iface.wifi_mode_ap ? "ap" : "sta",
+                params_.iface.wifi_ssid,
+                static_cast<unsigned>(ip[0]),
+                static_cast<unsigned>(ip[1]),
+                static_cast<unsigned>(ip[2]),
+                static_cast<unsigned>(ip[3]),
+                static_cast<unsigned>(params_.iface.http_port),
+                static_cast<unsigned>(params_.iface.websocket_port),
+                static_cast<unsigned>(status_.connected_clients),
+                static_cast<unsigned long>(status_.received_messages),
+                static_cast<unsigned long>(status_.transmitted_messages));
+#else
+  std::snprintf(out, size, "remote: compile_enabled=0 runtime_enabled=0");
 #endif
 }
 
@@ -441,6 +639,10 @@ void RemoteInterface::update() {
 #if HAPTICS_ENABLE_REMOTE_BACKEND
   if (!status_.runtime_enabled || g_server == nullptr) {
     return;
+  }
+
+  if (g_http_server != nullptr) {
+    g_http_server->handleClient();
   }
 
   WiFiClient candidate = g_server->available();
@@ -505,6 +707,8 @@ void RemoteInterface::update() {
 }
 
 void RemoteInterface::publishTelemetry(const TelemetrySnapshot& telemetry) {
+  last_telemetry_ = telemetry;
+  has_telemetry_ = true;
 #if HAPTICS_ENABLE_REMOTE_BACKEND
   if (!status_.runtime_enabled || g_server == nullptr) {
     return;
@@ -514,67 +718,7 @@ void RemoteInterface::publishTelemetry(const TelemetrySnapshot& telemetry) {
   }
   last_telemetry_ms_ = millis();
 
-  StaticJsonDocument<1536> doc;
-  doc["timestamp_ms"] = telemetry.timestamp_ms;
-  doc["preset"] = telemetry.active_preset;
-  doc["run_mode"] = runModeToString(telemetry.run_mode);
-
-  JsonObject mass = doc.createNestedObject("mass");
-  JsonArray pos = mass.createNestedArray("pos_norm");
-  pos.add(telemetry.mass.pos_norm.x);
-  pos.add(telemetry.mass.pos_norm.y);
-  JsonArray vel = mass.createNestedArray("vel_norm_s");
-  vel.add(telemetry.mass.vel_norm_s.x);
-  vel.add(telemetry.mass.vel_norm_s.y);
-  mass["energy"] = telemetry.mass.energy;
-  mass["fill"] = telemetry.mass.fill;
-
-  JsonObject last_event = doc.createNestedObject("last_event");
-  last_event["type"] = eventTypeToString(telemetry.last_event.type);
-  last_event["primary_wall"] = wallToString(telemetry.last_event.primary_wall);
-  last_event["amplitude"] = telemetry.last_event.amplitude;
-
-  JsonArray actuators = doc.createNestedArray("actuators");
-  for (float ch : telemetry.actuators.ch) {
-    actuators.add(ch);
-  }
-
-  JsonObject audio = doc.createNestedObject("audio");
-  audio["compile_enabled"] = telemetry.audio.compile_enabled;
-  audio["runtime_enabled"] = telemetry.audio.runtime_enabled;
-  audio["test_mode"] = telemetry.audio.test_mode;
-  audio["test_wall"] = wallToString(telemetry.audio.test_wall);
-  audio["underrun_count"] = telemetry.audio.underrun_count;
-
-  JsonObject recorder = doc.createNestedObject("recorder");
-  recorder["recording"] = telemetry.recorder.recording;
-  recorder["replaying"] = telemetry.recorder.replaying;
-  recorder["recorded_frames"] = telemetry.recorder.recorded_frames;
-  recorder["replay_index"] = telemetry.recorder.replay_index;
-
-  JsonObject calibration = doc.createNestedObject("calibration");
-  calibration["active"] = telemetry.calibration.active;
-  calibration["finished"] = telemetry.calibration.finished;
-  calibration["aborted"] = telemetry.calibration.aborted;
-  calibration["wall"] = wallToString(telemetry.calibration.wall);
-  calibration["band"] = calibrationBandToString(telemetry.calibration.band);
-  calibration["stage"] = calibrationStageToString(telemetry.calibration.stage);
-  calibration["candidate_hz"] = telemetry.calibration.candidate_hz;
-  calibration["best_hz"] = telemetry.calibration.best_hz;
-  calibration["candidate_score"] = telemetry.calibration.candidate_score;
-  calibration["best_score"] = telemetry.calibration.best_score;
-  calibration["progress"] = telemetry.calibration.progress;
-  calibration["loaded_from_storage"] = telemetry.calibration.loaded_from_storage;
-
-  JsonObject remote = doc.createNestedObject("remote");
-  remote["compile_enabled"] = telemetry.remote.compile_enabled;
-  remote["runtime_enabled"] = telemetry.remote.runtime_enabled;
-  remote["connected_clients"] = telemetry.remote.connected_clients;
-  remote["received_messages"] = telemetry.remote.received_messages;
-  remote["transmitted_messages"] = telemetry.remote.transmitted_messages;
-
-  String payload;
-  serializeJson(doc, payload);
+  const String payload = serializeTelemetryPayload(telemetry);
 
   for (size_t i = 0; i < g_clients.size(); ++i) {
     if (g_client_handshaked[i] && g_clients[i] && g_clients[i].connected()) {

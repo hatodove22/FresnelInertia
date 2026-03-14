@@ -18,6 +18,10 @@ float length2(float x, float y) {
   return std::sqrt(x * x + y * y);
 }
 
+float length3(float x, float y, float z) {
+  return std::sqrt(x * x + y * y + z * z);
+}
+
 float safeSpan(float span_m) {
   return std::max(0.020f, span_m);
 }
@@ -29,6 +33,8 @@ void MassMotionLayer::configure(const SystemParams& params) {
   state_ = {};
   filtered_drive_ = {};
   convective_bias_ = {};
+  agitation_bias_ = {};
+  agitation_phase_rad_ = 0.0f;
   state_.container_x_m = params.container.span_x_m;
   state_.container_y_m = params.container.span_y_m;
   state_.container_z_m = params.container.span_z_m;
@@ -97,8 +103,10 @@ MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
   const float rebound = clampf(params_.mass.rebound * rebound_multiplier, 0.08f, 0.92f);
   const float ax = sample.valid ? sample.accel_g.x : 0.0f;
   const float ay = sample.valid ? sample.accel_g.y : 0.0f;
+  const float az = sample.valid ? sample.accel_g.z : 0.0f;
   const float gx = sample.valid ? sample.gyro_dps.x : 0.0f;
   const float gy = sample.valid ? sample.gyro_dps.y : 0.0f;
+  const float gz = sample.valid ? sample.gyro_dps.z : 0.0f;
 
   // Map board acceleration into normalized container acceleration. A smaller container yields
   // larger normalized excursions for the same physical motion, which shortens travel time.
@@ -107,6 +115,50 @@ MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
   const float drive_lerp = clampf(dt_s * 10.0f, 0.0f, 1.0f);
   filtered_drive_.x += (target_drive_x - filtered_drive_.x) * drive_lerp;
   filtered_drive_.y += (target_drive_y - filtered_drive_.y) * drive_lerp;
+
+  // Couple vertical/agitation motion into the 2D latent plane so pure up/down shakes
+  // and yaw-dominant motion can still excite liquid and detented families.
+  const float accel_mag = length3(ax, ay, az);
+  const float dynamic_accel_g = clampf(accel_mag - 1.0f, 0.0f, 2.0f);
+  const float spin_norm = clampf(gz / 180.0f, -1.5f, 1.5f);
+  const float span_gain_mean = 0.5f * (span_gain_x + span_gain_y);
+  float agitation_gain = 0.06f;
+  switch (params_.container.family) {
+    case MaterialFamily::Liquid:
+      agitation_gain = 0.18f + 0.18f * headspace;
+      break;
+    case MaterialFamily::Hybrid:
+      agitation_gain = 0.14f + 0.12f * headspace;
+      break;
+    case MaterialFamily::Detented:
+      agitation_gain = 0.24f;
+      break;
+    case MaterialFamily::Granular:
+      agitation_gain = 0.08f + 0.06f * particle_count;
+      break;
+    case MaterialFamily::Custom:
+    default:
+      agitation_gain = 0.10f;
+      break;
+  }
+
+  agitation_phase_rad_ += dt_s * (3.2f + 4.4f * std::fabs(spin_norm));
+  agitation_phase_rad_ += dt_s * 2.4f * spin_norm;
+  if (agitation_phase_rad_ > 2.0f * kPi) {
+    agitation_phase_rad_ -= 2.0f * kPi;
+  } else if (agitation_phase_rad_ < 0.0f) {
+    agitation_phase_rad_ += 2.0f * kPi;
+  }
+
+  Vec2f agitation_target{};
+  const float agitation_drive = agitation_gain * span_gain_mean * dynamic_accel_g;
+  agitation_target.x =
+      agitation_drive * std::cos(agitation_phase_rad_) + agitation_gain * 0.12f * spin_norm * (1.0f + std::fabs(state_.pos_norm.y));
+  agitation_target.y =
+      agitation_drive * std::sin(agitation_phase_rad_) - agitation_gain * 0.12f * spin_norm * (1.0f + std::fabs(state_.pos_norm.x));
+  const float agitation_lerp = clampf(dt_s * (4.0f + 5.0f * agitation_gain + 3.0f * dynamic_accel_g), 0.0f, 1.0f);
+  agitation_bias_.x += (agitation_target.x - agitation_bias_.x) * agitation_lerp;
+  agitation_bias_.y += (agitation_target.y - agitation_bias_.y) * agitation_lerp;
 
   if (convective_gain > 0.0f) {
     const float span_z_m = safeSpan(params_.container.span_z_m);
@@ -127,11 +179,11 @@ MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
 
   state_.vel_norm_s.x +=
       (-2.0f * damping_x * wx * state_.vel_norm_s.x - wx * wx * state_.pos_norm.x + filtered_drive_.x +
-       convective_bias_.x) *
+       convective_bias_.x + agitation_bias_.x) *
       dt_s;
   state_.vel_norm_s.y +=
       (-2.0f * damping_y * wy * state_.vel_norm_s.y - wy * wy * state_.pos_norm.y + filtered_drive_.y +
-       convective_bias_.y) *
+       convective_bias_.y + agitation_bias_.y) *
       dt_s;
 
   state_.pos_norm.x += state_.vel_norm_s.x * dt_s;

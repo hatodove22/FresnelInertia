@@ -38,6 +38,7 @@ This layer must capture the fact that:
 ### Initial liquid model
 For early development, use a 2D damped mass scaffold.
 Later, refine into geometry-aware impulsive/convective liquid state.
+The current scaffold may also fold vertical/yaw agitation into the 2D state so ordinary hand shaking does not disappear when it is poorly aligned with the container plane.
 
 ### Initial granular model
 Use a mean-field state with:
@@ -66,7 +67,7 @@ Convert latent motion into discrete symbolic events.
 - wall-hit
 - droplet-cluster
 - roof-slap (high fill)
-- flow-along-wall
+- flow-along-wall via direction-aware `flow_ripple` companions on the contacted wall
 
 #### Granular
 - impact-cluster
@@ -77,7 +78,8 @@ Convert latent motion into discrete symbolic events.
 - liquid events + sparse rigid impact events
 
 #### Detented/custom
-- scrape / discrete detents / custom patterns
+- intermittent scrape plus discrete detent-like ticks / custom patterns
+- detent ticks should bias toward a short low-mid click rather than reusing the same bright wall-hit rendering as liquid / granular families
 
 ## 4. Texture Layer
 
@@ -87,6 +89,8 @@ Convert symbolic events into short time-structured haptic atoms.
 ### Initial atom library
 
 - `hard_ping`
+- `knock_ping`
+- `detent_click`
 - `wet_burst`
 - `dry_rattle`
 - `scrape_noise`
@@ -94,6 +98,16 @@ Convert symbolic events into short time-structured haptic atoms.
 
 ### Key design choice
 Apparent motion should be encoded primarily through timing (SOA), not only amplitude.
+That timing should follow the carried motion direction so lead/trail neighbors do not collapse into a symmetric blur.
+
+Clustered wet and granular events may emit a short companion low-band body voice
+in addition to their primary atom so that single-transducer and low-channel
+benches still preserve a clear tactile "mass" impression instead of only a
+thin splash or rattle.
+The same rule also applies to scrape-like textures on the current mono bench:
+keep some tonal/body content alongside broadband grain so scrape does not vanish.
+Detented presets should likewise use a dedicated click atom with stronger low-carrier weight so mechanical notch steps remain tangible on the current transducer bench.
+Very sparse hard-particle presets such as a single marble should use a dedicated short `knock_ping` atom so isolated impacts feel like one rigid bead contacting the wall, not like a softened mini-cluster.
 
 ## 5. Resonance Layer
 
@@ -130,13 +144,52 @@ Recommended canonical ordering:
 1. `wall_hit`: mostly local wall, slight bleed to adjacent walls
 2. `impact_cluster`: local + neighbors
 3. `droplet_cluster`: local + neighbors with stronger high-frequency weighting
-4. `flow_ripple`: apparent motion across adjacent walls using SOA
+4. `flow_ripple`: apparent motion across the physically adjacent walls using SOA and preserved motion direction
 
-## 7. Future low-frequency tilt-plane path
+Adjacency is wall-physical rather than index-ring based:
 
-The same mass-motion state later drives:
+- Front / Back neighbor Top / Bottom
+- Top / Bottom neighbor Front / Back
+
+## 7. Low-frequency tilt-plane branch
+
+The same mass-motion state now also drives a parallel low-frequency tilt-plane branch:
+
 - thumb tilt-plane command
 - index tilt-plane command
 
-This path is explicitly **not** part of the 4-channel texture renderer.
-It is a parallel low-frequency augmentation path.
+The final per-finger command remains additive:
+
+- `phi_cmd = phi_base + delta_phi_pseudoforce`
+
+Where:
+
+- `phi_base` is the existing container-attitude renderer
+- `delta_phi_pseudoforce` is the low-frequency pseudo-force correction
+
+This branch is explicitly **not** part of the 4-channel texture renderer.
+It remains a separate low-frequency augmentation path for:
+
+- generalized weight shifting
+- vertical inertia
+- horizontal inertia
+
+The current implementation uses:
+
+- shell mass and shell CoG from `ContainerParams`
+- effective content mass from the active preset fill state
+- filtered body-frame quasi-static gravity `g_qs`
+- filtered gravity-removed low-frequency acceleration `a_dyn`
+- smoothed content CoG estimated from `MassState.pos_norm`
+
+The pseudo-force branch then decomposes into:
+
+- common mode for vertical inertia
+- differential mode for torque about the thumb/index grasp width
+
+Hard limits are applied to:
+
+- common-mode correction
+- differential correction
+- total pseudo-force correction
+- final command angle

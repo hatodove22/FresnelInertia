@@ -20,12 +20,13 @@ struct FeatureFlags {
   bool enable_recorder = false;
   bool enable_runtime_calibration = false;
   bool enable_verbose_serial = true;
+  bool enable_debug_display = false;
 };
 
 struct PlatformPins {
-  // Experimental dual-stereo I2S mapping for StickS3 + MAX98360A x4.
-  int i2s0_bck = 5;
-  int i2s0_ws = 7;
+  // Known-working external amp mapping for StickS3 bus A.
+  int i2s0_bck = 7;
+  int i2s0_ws = 5;
   int i2s0_dout = 43;
 
   int i2s1_bck = 4;
@@ -41,6 +42,10 @@ struct ContainerParams {
   float span_x_m = 0.060f;
   float span_y_m = 0.060f;
   float span_z_m = 0.060f;
+  float shell_mass_kg = 0.080f;
+  float content_mass_full_kg = 0.140f;
+  float shell_cg_x_m = 0.0f;
+  float shell_cg_y_m = -0.008f;
   float fill = 0.55f;
   float headspace = 0.45f;
   float viscosity = 0.30f;
@@ -101,7 +106,10 @@ struct AudioBackendParams {
   uint32_t sample_rate_hz = 24000;
   uint16_t dma_buf_len = 64;
   uint8_t dma_buf_count = 4;
+  AudioOutputLayout output_layout = AudioOutputLayout::QuadWall4Ch;
+  bool demo_compat_mode = false;
   bool runtime_enable = false;
+  float output_gain = 1.0f;
   bool channel_test_enable = false;
   WallId channel_test_wall = WallId::None;
   float channel_test_level = 0.20f;
@@ -135,6 +143,26 @@ struct TiltPlaneParams {
   float min_angle_deg = -10.0f;
   float max_angle_deg = 10.0f;
   float max_tilt_deg = 10.0f;
+  bool enable_pseudoforce = true;
+  float w_eff_m = 0.050f;
+  float Ft_nom_thumb_N = 1.0f;
+  float Ft_nom_index_N = 1.0f;
+  float k_cm = 0.35f;
+  float k_tau = 0.25f;
+  float k_phi = 1.0f;
+  float sign_thumb = 1.0f;
+  float sign_index = 1.0f;
+  float max_delta_cm_deg = 2.5f;
+  float max_delta_df_deg = 5.0f;
+  float max_delta_total_deg = 6.0f;
+  float max_total_cmd_deg = 10.0f;
+  float content_cg_span_fraction = 0.50f;
+  float g_qs_cutoff_hz = 4.0f;
+  float a_dyn_cutoff_hz = 8.0f;
+  float content_cg_cutoff_hz = 4.0f;
+  float command_cutoff_hz = 6.0f;
+  float command_deadband_deg = 0.15f;
+  float pseudoforce_slew_deg_s = 80.0f;
   float max_velocity_deg_s = 120.0f;
   float max_current_ma = 500.0f;
   bool current_based_position_mode = true;
@@ -144,6 +172,7 @@ struct InterfaceParams {
   bool wifi_mode_ap = true;
   char wifi_ssid[32] = "HapticsStickS3";
   char wifi_password[32] = "haptics123";
+  uint16_t http_port = 80;
   bool reserve_websocket_json = true;
   bool reserve_ble_gatt = true;
   bool reserve_udp_osc = true;
@@ -176,11 +205,18 @@ inline SystemParams makeDefaultLiquidPreset() {
   std::strncpy(params.preset_name, "liquid_small_box", sizeof(params.preset_name) - 1);
   std::strncpy(params.preset_source, "builtin", sizeof(params.preset_source) - 1);
   params.container.family = MaterialFamily::Liquid;
+  params.container.shell_mass_kg = 0.080f;
+  params.container.content_mass_full_kg = 0.140f;
+  params.container.shell_cg_y_m = -0.008f;
   params.container.fill = 0.55f;
   params.container.headspace = 0.45f;
   params.container.viscosity = 0.30f;
-  params.event.droplet_rate_hz = 40.0f;
-  params.event.wall_threshold = 0.72f;
+  params.event.droplet_rate_hz = 24.0f;
+  params.event.wall_threshold = 0.62f;
+  params.event.splash_threshold = 0.75f;
+  params.texture.wet_burst_ms = 10.0f;
+  params.texture.flow_ripple_soa_ms = 12.0f;
+  params.resonance.master_gain = 0.48f;
   params.features.enable_verbose_serial = true;
   return params;
 }
@@ -191,6 +227,9 @@ inline SystemParams makeDefaultLiquidDenseJarPreset() {
   params.container.span_x_m = 0.055f;
   params.container.span_y_m = 0.055f;
   params.container.span_z_m = 0.090f;
+  params.container.shell_mass_kg = 0.095f;
+  params.container.content_mass_full_kg = 0.190f;
+  params.container.shell_cg_y_m = -0.010f;
   params.container.fill = 0.72f;
   params.container.headspace = 0.28f;
   params.container.viscosity = 0.62f;
@@ -206,6 +245,9 @@ inline SystemParams makeDefaultLiquidHalfTubePreset() {
   params.container.span_x_m = 0.090f;
   params.container.span_y_m = 0.045f;
   params.container.span_z_m = 0.045f;
+  params.container.shell_mass_kg = 0.070f;
+  params.container.content_mass_full_kg = 0.110f;
+  params.container.shell_cg_y_m = -0.006f;
   params.container.fill = 0.40f;
   params.container.headspace = 0.60f;
   params.container.viscosity = 0.18f;
@@ -221,6 +263,9 @@ inline SystemParams makeDefaultGranularPreset() {
   params.container.span_x_m = 0.05f;
   params.container.span_y_m = 0.05f;
   params.container.span_z_m = 0.03f;
+  params.container.shell_mass_kg = 0.075f;
+  params.container.content_mass_full_kg = 0.120f;
+  params.container.shell_cg_y_m = -0.007f;
   params.container.fill = 0.20f;
   params.container.headspace = 0.80f;
   params.container.particle_count = 0.25f;
@@ -239,6 +284,9 @@ inline SystemParams makeDefaultGranularSandPreset() {
   params.container.span_x_m = 0.060f;
   params.container.span_y_m = 0.060f;
   params.container.span_z_m = 0.040f;
+  params.container.shell_mass_kg = 0.080f;
+  params.container.content_mass_full_kg = 0.160f;
+  params.container.shell_cg_y_m = -0.008f;
   params.container.fill = 0.35f;
   params.container.headspace = 0.65f;
   params.container.viscosity = 0.08f;
@@ -256,6 +304,9 @@ inline SystemParams makeDefaultGranularBeadPreset() {
   params.container.span_x_m = 0.055f;
   params.container.span_y_m = 0.055f;
   params.container.span_z_m = 0.035f;
+  params.container.shell_mass_kg = 0.078f;
+  params.container.content_mass_full_kg = 0.135f;
+  params.container.shell_cg_y_m = -0.007f;
   params.container.fill = 0.28f;
   params.container.headspace = 0.72f;
   params.container.viscosity = 0.03f;
@@ -267,6 +318,36 @@ inline SystemParams makeDefaultGranularBeadPreset() {
   return params;
 }
 
+inline SystemParams makeDefaultGranularSingleMarblePreset() {
+  SystemParams params = makeDefaultGranularPreset();
+  std::strncpy(params.preset_name, "granular_single_marble_box", sizeof(params.preset_name) - 1);
+  params.container.span_x_m = 0.050f;
+  params.container.span_y_m = 0.050f;
+  params.container.span_z_m = 0.050f;
+  params.container.shell_mass_kg = 0.072f;
+  params.container.content_mass_full_kg = 0.010f;
+  params.container.shell_cg_y_m = -0.006f;
+  params.container.fill = 0.04f;
+  params.container.headspace = 0.96f;
+  params.container.viscosity = 0.01f;
+  params.container.particle_count = 0.03f;
+  params.container.particle_hardness = 1.00f;
+  params.mass.natural_freq_x_hz = 2.7f;
+  params.mass.natural_freq_y_hz = 2.7f;
+  params.mass.rebound = 0.48f;
+  params.event.wall_threshold = 0.54f;
+  params.event.impact_rate_hz = 10.0f;
+  params.event.roll_rate_hz = 4.2f;
+  params.event.scrape_threshold = 0.62f;
+  params.texture.hard_ping_low_ms = 16.0f;
+  params.texture.hard_ping_high_ms = 5.0f;
+  params.texture.dry_rattle_ms = 7.0f;
+  params.texture.flow_ripple_soa_ms = 10.0f;
+  params.texture.default_high_bias = 0.86f;
+  params.resonance.master_gain = 0.62f;
+  return params;
+}
+
 inline SystemParams makeDefaultHybridPreset() {
   SystemParams params = makeDefaultLiquidPreset();
   std::strncpy(params.preset_name, "hybrid_ice_water", sizeof(params.preset_name) - 1);
@@ -274,6 +355,9 @@ inline SystemParams makeDefaultHybridPreset() {
   params.container.span_x_m = 0.07f;
   params.container.span_y_m = 0.07f;
   params.container.span_z_m = 0.09f;
+  params.container.shell_mass_kg = 0.090f;
+  params.container.content_mass_full_kg = 0.180f;
+  params.container.shell_cg_y_m = -0.009f;
   params.container.fill = 0.65f;
   params.container.headspace = 0.35f;
   params.container.viscosity = 0.20f;
@@ -289,7 +373,21 @@ inline SystemParams makeDefaultDetentedPreset() {
   SystemParams params = makeDefaultLiquidPreset();
   std::strncpy(params.preset_name, "detented_custom", sizeof(params.preset_name) - 1);
   params.container.family = MaterialFamily::Detented;
-  params.event.scrape_threshold = 0.35f;
+  params.container.shell_mass_kg = 0.080f;
+  params.container.content_mass_full_kg = 0.000f;
+  params.container.shell_cg_y_m = -0.008f;
+  params.container.fill = 0.10f;
+  params.container.headspace = 0.90f;
+  params.event.wall_threshold = 0.42f;
+  params.event.impact_rate_hz = 38.0f;
+  params.event.scrape_threshold = 0.16f;
+  params.mass.accel_to_energy_gain = 0.66f;
+  params.mass.rebound = 0.38f;
+  params.texture.scrape_noise_ms = 32.0f;
+  params.texture.hard_ping_low_ms = 22.0f;
+  params.texture.hard_ping_high_ms = 6.0f;
+  params.texture.default_high_bias = 0.78f;
+  params.resonance.master_gain = 0.82f;
   return params;
 }
 

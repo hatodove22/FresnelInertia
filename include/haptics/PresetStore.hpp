@@ -28,6 +28,7 @@ class PresetStore {
   bool mountFilesystem() const;
 
   mutable bool mounted_ = false;
+  mutable bool mount_attempted_ = false;
 };
 
 }  // namespace haptics

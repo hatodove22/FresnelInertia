@@ -1,5 +1,7 @@
 #include "haptics/PresetStore.hpp"
 
+#include "haptics/DebugFlags.hpp"
+
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 
@@ -22,6 +24,7 @@ constexpr BuiltinPreset kBuiltinPresets[] = {
     {"granular_coin_box", MaterialFamily::Granular, &makeDefaultGranularPreset},
     {"granular_sand_box", MaterialFamily::Granular, &makeDefaultGranularSandPreset},
     {"granular_bead_box", MaterialFamily::Granular, &makeDefaultGranularBeadPreset},
+    {"granular_single_marble_box", MaterialFamily::Granular, &makeDefaultGranularSingleMarblePreset},
     {"hybrid_ice_water", MaterialFamily::Hybrid, &makeDefaultHybridPreset},
     {"detented_custom", MaterialFamily::Detented, &makeDefaultDetentedPreset},
 };
@@ -69,6 +72,18 @@ void applyContainer(const JsonObjectConst& object, SystemParams& params) {
   }
   if (object["span_z_m"].is<float>()) {
     params.container.span_z_m = object["span_z_m"].as<float>();
+  }
+  if (object["shell_mass_kg"].is<float>()) {
+    params.container.shell_mass_kg = object["shell_mass_kg"].as<float>();
+  }
+  if (object["content_mass_full_kg"].is<float>()) {
+    params.container.content_mass_full_kg = object["content_mass_full_kg"].as<float>();
+  }
+  if (object["shell_cg_x_m"].is<float>()) {
+    params.container.shell_cg_x_m = object["shell_cg_x_m"].as<float>();
+  }
+  if (object["shell_cg_y_m"].is<float>()) {
+    params.container.shell_cg_y_m = object["shell_cg_y_m"].as<float>();
   }
   if (object["fill"].is<float>()) {
     params.container.fill = object["fill"].as<float>();
@@ -159,6 +174,54 @@ void applySpatial(const JsonObjectConst& object, SystemParams& params) {
   }
 }
 
+void applyTilt(const JsonObjectConst& object, SystemParams& params) {
+  if (object["enable_pseudoforce"].is<bool>()) {
+    params.tilt.enable_pseudoforce = object["enable_pseudoforce"].as<bool>();
+  }
+  if (object["max_tilt_deg"].is<float>()) {
+    params.tilt.max_tilt_deg = object["max_tilt_deg"].as<float>();
+  }
+  if (object["w_eff_m"].is<float>()) {
+    params.tilt.w_eff_m = object["w_eff_m"].as<float>();
+  }
+  if (object["Ft_nom_thumb_N"].is<float>()) {
+    params.tilt.Ft_nom_thumb_N = object["Ft_nom_thumb_N"].as<float>();
+  }
+  if (object["Ft_nom_index_N"].is<float>()) {
+    params.tilt.Ft_nom_index_N = object["Ft_nom_index_N"].as<float>();
+  }
+  if (object["k_cm"].is<float>()) {
+    params.tilt.k_cm = object["k_cm"].as<float>();
+  }
+  if (object["k_tau"].is<float>()) {
+    params.tilt.k_tau = object["k_tau"].as<float>();
+  }
+  if (object["k_phi"].is<float>()) {
+    params.tilt.k_phi = object["k_phi"].as<float>();
+  }
+  if (object["sign_thumb"].is<float>()) {
+    params.tilt.sign_thumb = object["sign_thumb"].as<float>();
+  }
+  if (object["sign_index"].is<float>()) {
+    params.tilt.sign_index = object["sign_index"].as<float>();
+  }
+  if (object["max_delta_cm_deg"].is<float>()) {
+    params.tilt.max_delta_cm_deg = object["max_delta_cm_deg"].as<float>();
+  }
+  if (object["max_delta_df_deg"].is<float>()) {
+    params.tilt.max_delta_df_deg = object["max_delta_df_deg"].as<float>();
+  }
+  if (object["max_delta_total_deg"].is<float>()) {
+    params.tilt.max_delta_total_deg = object["max_delta_total_deg"].as<float>();
+  }
+  if (object["max_total_cmd_deg"].is<float>()) {
+    params.tilt.max_total_cmd_deg = object["max_total_cmd_deg"].as<float>();
+  }
+  if (object["content_cg_span_fraction"].is<float>()) {
+    params.tilt.content_cg_span_fraction = object["content_cg_span_fraction"].as<float>();
+  }
+}
+
 bool containsName(const PresetList<16>& list, const char* name) {
   for (std::size_t i = 0; i < list.count; ++i) {
     if (std::strcmp(list.items[i].name, name) == 0) {
@@ -171,8 +234,14 @@ bool containsName(const PresetList<16>& list, const char* name) {
 }  // namespace
 
 bool PresetStore::begin() {
+#if HAPTICS_DEBUG_DISABLE_STORAGE
+  mounted_ = false;
+  mount_attempted_ = true;
+  return true;
+#else
   mounted_ = mountFilesystem();
   return true;
+#endif
 }
 
 PresetList<16> PresetStore::listPresets() const {
@@ -251,6 +320,11 @@ bool PresetStore::loadBuiltin(const char* name, SystemParams& params) const {
 }
 
 bool PresetStore::applyFilesystemOverride(const char* name, SystemParams& params) const {
+#if HAPTICS_DEBUG_DISABLE_STORAGE
+  (void)name;
+  (void)params;
+  return false;
+#else
   if (!mountFilesystem()) {
     return false;
   }
@@ -300,14 +374,23 @@ bool PresetStore::applyFilesystemOverride(const char* name, SystemParams& params
   if (root["spatial"].is<JsonObjectConst>()) {
     applySpatial(root["spatial"].as<JsonObjectConst>(), params);
   }
+  if (root["tilt"].is<JsonObjectConst>()) {
+    applyTilt(root["tilt"].as<JsonObjectConst>(), params);
+  }
   return true;
+#endif
 }
 
 bool PresetStore::mountFilesystem() const {
-  if (!mounted_) {
+#if HAPTICS_DEBUG_DISABLE_STORAGE
+  return false;
+#else
+  if (!mount_attempted_) {
+    mount_attempted_ = true;
     mounted_ = LittleFS.begin(false);
   }
   return mounted_;
+#endif
 }
 
 }  // namespace haptics

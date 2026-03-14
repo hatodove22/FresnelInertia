@@ -1,5 +1,7 @@
 #include "haptics/Recorder.hpp"
 
+#include "haptics/DebugFlags.hpp"
+
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 
@@ -73,14 +75,45 @@ const char* stageToString(CalibrationStage stage) {
   }
 }
 
+const char* audioLayoutToString(AudioOutputLayout layout) {
+  switch (layout) {
+    case AudioOutputLayout::FrontBack2Ch:
+      return "front_back_2ch";
+    case AudioOutputLayout::QuadWall4Ch:
+    default:
+      return "quad_wall_4ch";
+  }
+}
+
+const char* runModeToString(RunMode mode) {
+  switch (mode) {
+    case RunMode::Live:
+      return "live";
+    case RunMode::Calibration:
+      return "calibration";
+    case RunMode::Record:
+      return "record";
+    case RunMode::Replay:
+      return "replay";
+    case RunMode::Idle:
+    default:
+      return "idle";
+  }
+}
+
 }  // namespace
 
 bool Recorder::begin(const SystemParams& params) {
   params_ = params;
   status_ = {};
   status_.enabled = params.features.enable_recorder;
+#if HAPTICS_DEBUG_DISABLE_STORAGE
+  mounted_ = false;
+  return true;
+#else
   mounted_ = mountFilesystem();
   return true;
+#endif
 }
 
 void Recorder::configure(const SystemParams& params) {
@@ -96,10 +129,14 @@ void Recorder::updateStatusPath(const char* path) {
 }
 
 bool Recorder::mountFilesystem() {
+#if HAPTICS_DEBUG_DISABLE_STORAGE
+  return false;
+#else
   if (!mounted_) {
     mounted_ = LittleFS.begin(false);
   }
   return mounted_;
+#endif
 }
 
 bool Recorder::openRecordFile() {
@@ -139,9 +176,10 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
     return;
   }
 
-  StaticJsonDocument<1536> doc;
+  StaticJsonDocument<2048> doc;
   doc["timestamp_ms"] = snapshot.timestamp_ms;
   doc["preset"] = snapshot.active_preset;
+  doc["run_mode"] = runModeToString(snapshot.run_mode);
 
   JsonObject imu = doc.createNestedObject("imu");
   JsonArray accel = imu.createNestedArray("accel_g");
@@ -175,10 +213,29 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
     actuators.add(ch);
   }
 
+  JsonObject tilt = doc.createNestedObject("tilt");
+  tilt["thumb_angle_deg"] = snapshot.tilt.thumb_angle_deg;
+  tilt["index_angle_deg"] = snapshot.tilt.index_angle_deg;
+  tilt["thumb_current_limit_ma"] = snapshot.tilt.thumb_current_limit_ma;
+  tilt["index_current_limit_ma"] = snapshot.tilt.index_current_limit_ma;
+  tilt["thumb_base_deg"] = snapshot.tilt.thumb_base_deg;
+  tilt["index_base_deg"] = snapshot.tilt.index_base_deg;
+  tilt["thumb_delta_deg"] = snapshot.tilt.thumb_delta_deg;
+  tilt["index_delta_deg"] = snapshot.tilt.index_delta_deg;
+  tilt["common_force_n"] = snapshot.tilt.common_force_n;
+  tilt["differential_torque_nm"] = snapshot.tilt.differential_torque_nm;
+  tilt["cg_x_m"] = snapshot.tilt.cg_x_m;
+  tilt["cg_y_m"] = snapshot.tilt.cg_y_m;
+  tilt["apparent_mass_kg"] = snapshot.tilt.apparent_mass_kg;
+  tilt["pseudoforce_enabled"] = snapshot.tilt.pseudoforce_enabled;
+
   JsonObject audio = doc.createNestedObject("audio");
   audio["compile_enabled"] = snapshot.audio.compile_enabled;
   audio["runtime_enabled"] = snapshot.audio.runtime_enabled;
   audio["test_mode"] = snapshot.audio.test_mode;
+  audio["demo_compat_mode"] = snapshot.audio.demo_compat_mode;
+  audio["output_layout"] = audioLayoutToString(snapshot.audio.output_layout);
+  audio["active_output_channels"] = snapshot.audio.active_output_channels;
   audio["test_wall"] = wallToString(snapshot.audio.test_wall);
   audio["underrun_count"] = snapshot.audio.underrun_count;
 
@@ -207,6 +264,11 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
 }
 
 bool Recorder::startRecording(uint32_t now_ms, const char* requested_file) {
+#if HAPTICS_DEBUG_DISABLE_STORAGE
+  (void)now_ms;
+  (void)requested_file;
+  return false;
+#else
   if (!mountFilesystem()) {
     return false;
   }
@@ -242,6 +304,7 @@ bool Recorder::startRecording(uint32_t now_ms, const char* requested_file) {
     return false;
   }
   return true;
+#endif
 }
 
 void Recorder::stopRecording() {
@@ -250,6 +313,9 @@ void Recorder::stopRecording() {
 }
 
 bool Recorder::loadNextReplaySample() {
+#if HAPTICS_DEBUG_DISABLE_STORAGE
+  return false;
+#else
   if (!status_.replaying || status_.active_file[0] == '\0') {
     return false;
   }
@@ -300,9 +366,15 @@ bool Recorder::loadNextReplaySample() {
   file.close();
   replay_sample_ready_ = false;
   return false;
+#endif
 }
 
 bool Recorder::startReplay(const char* requested_file, uint32_t now_ms) {
+#if HAPTICS_DEBUG_DISABLE_STORAGE
+  (void)requested_file;
+  (void)now_ms;
+  return false;
+#else
   if (!mountFilesystem() || requested_file == nullptr || requested_file[0] == '\0') {
     return false;
   }
@@ -327,6 +399,7 @@ bool Recorder::startReplay(const char* requested_file, uint32_t now_ms) {
   replay_sample_ready_ = false;
   updateStatusPath(path);
   return loadNextReplaySample();
+#endif
 }
 
 void Recorder::stopReplay() {

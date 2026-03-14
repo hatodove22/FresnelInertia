@@ -28,6 +28,12 @@ class EventLayer {
   float liquid_activity_ = 0.0f;
   float roof_cooldown_s_ = 0.0f;
   float hybrid_impact_phase_ = 0.0f;
+  bool liquid_burst_ready_ = true;
+  bool hybrid_burst_ready_ = true;
+  float detent_phase_ = 0.0f;
+  float detent_activity_ = 0.0f;
+  float detent_scrape_cooldown_s_ = 0.0f;
+  bool detent_tick_ready_ = true;
   WallId roll_wall_ = WallId::None;
 };
 

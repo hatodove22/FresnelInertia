@@ -22,7 +22,7 @@ The system shall generate **on-device vibrotactile signals** for container conte
 | FR-06 | Texture layer | Convert events to short haptic atoms and apparent-motion patterns. | Implemented baseline |
 | FR-07 | Resonance layer | Project texture atoms onto calibrated actuator resonance banks. | Implemented baseline |
 | FR-08 | 4-channel spatial rendering | Render the resonance-layer output to four wall-aligned actuators. | Implemented baseline |
-| FR-09 | Audio output abstraction | Provide a hardware abstraction for 4-channel output using stereo I2S x2 now, TDM x1 later. | Implemented (stereo I2S x2, compile-gated) |
+| FR-09 | Audio output abstraction | Provide a hardware abstraction for 4-channel wall output with a runtime-switchable 2-channel Front/Back fallback using stereo I2S x2 now, TDM x1 later. | Implemented (stereo I2S x2, compile-gated) |
 | FR-10 | Runtime resonance calibration | Sweep and store low/high resonance carriers per actuator. | Implemented (NVS-backed storage, IMU-proxy sweep) |
 | FR-11 | Preset system | Support human-readable presets for different content/material behaviors. | Implemented baseline |
 | FR-12 | Parameter registry | Maintain a typed parameter model with units and future UI compatibility. | Documented |

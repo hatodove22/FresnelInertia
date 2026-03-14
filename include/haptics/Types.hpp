@@ -27,6 +27,8 @@ enum class EventType : uint8_t {
 enum class TextureAtomKind : uint8_t {
   None = 0,
   HardPing,
+  KnockPing,
+  DetentClick,
   WetBurst,
   DryRattle,
   ScrapeNoise,
@@ -53,6 +55,11 @@ enum class CalibrationStage : uint8_t {
   Measuring = 2,
   Complete = 3,
   Aborted = 4,
+};
+
+enum class AudioOutputLayout : uint8_t {
+  QuadWall4Ch = 0,
+  FrontBack2Ch = 1,
 };
 
 enum class RunMode : uint8_t {
@@ -128,6 +135,7 @@ struct TextureCommand {
   TextureAtomKind atom = TextureAtomKind::None;
   EventType source = EventType::None;
   WallId primary_wall = WallId::None;
+  Vec2f direction{};
   float low_env = 0.0f;
   float high_env = 0.0f;
   float noise_env = 0.0f;
@@ -148,6 +156,7 @@ struct ResonanceVoice {
   TextureAtomKind atom = TextureAtomKind::None;
   EventType source = EventType::None;
   WallId primary_wall = WallId::None;
+  Vec2f direction{};
   float low_env = 0.0f;
   float high_env = 0.0f;
   float noise_env = 0.0f;
@@ -181,6 +190,16 @@ struct TiltPlaneCommand {
   float index_angle_deg = 0.0f;
   float thumb_current_limit_ma = 0.0f;
   float index_current_limit_ma = 0.0f;
+  float thumb_base_deg = 0.0f;
+  float index_base_deg = 0.0f;
+  float thumb_delta_deg = 0.0f;
+  float index_delta_deg = 0.0f;
+  float common_force_n = 0.0f;
+  float differential_torque_nm = 0.0f;
+  float cg_x_m = 0.0f;
+  float cg_y_m = 0.0f;
+  float apparent_mass_kg = 0.0f;
+  bool pseudoforce_enabled = false;
 };
 
 struct RecorderStatus {
@@ -225,6 +244,9 @@ struct AudioBackendStatus {
   bool compile_enabled = false;
   bool runtime_enabled = false;
   bool test_mode = false;
+  bool demo_compat_mode = false;
+  AudioOutputLayout output_layout = AudioOutputLayout::QuadWall4Ch;
+  uint8_t active_output_channels = 4;
   WallId test_wall = WallId::None;
   uint32_t underrun_count = 0;
 };
