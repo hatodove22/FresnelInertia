@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "haptics/AudioOutput4Ch.hpp"
 #include "haptics/EventLayer.hpp"
 #include "haptics/ImuSampler.hpp"
@@ -33,8 +35,22 @@ class HapticPipeline {
   const SystemParams& params() const { return params_; }
 
  private:
+  struct RuntimeConfigSnapshot {
+    FeatureFlags features{};
+    PlatformPins pins{};
+    AudioBackendParams audio{};
+    TiltPlaneParams tilt{};
+    InterfaceParams iface{};
+    RecorderParams recorder{};
+    std::array<float, 4> low_carrier_hz{};
+    std::array<float, 4> high_carrier_hz{};
+  };
+
   void applyPreset(MaterialFamily family);
   bool loadPresetByName(const char* preset_name);
+  RuntimeConfigSnapshot captureRuntimeConfig() const;
+  void restoreRuntimeConfig(SystemParams& params, const RuntimeConfigSnapshot& snapshot) const;
+  void commitPresetParams(SystemParams next_params, const RuntimeConfigSnapshot& snapshot);
   TiltPlaneCommand updateTiltCommand(const ImuSample& sample, const MassState& state, float dt_s);
   MassState makeDefaultMassState() const;
   void reconfigurePipeline();

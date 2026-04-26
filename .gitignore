@@ -5,3 +5,6 @@
 __pycache__/
 *.log
 *.tmp
+webxr/node_modules/
+webxr/dist/
+webxr/*.tsbuildinfo

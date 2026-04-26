@@ -49,6 +49,7 @@ For the precise repository snapshot, remaining gaps, and ideal end-state, see `d
   - LittleFS-backed recorder / replay
   - compile-gated SoftAP HTTP status page plus WebSocket JSON remote backend
   - compile-gated XL330 tilt pseudo-force baseline
+  - standalone `webxr/` visual demo for phone and Quest MR, with procedural assets, local material dynamics, and live device communication deferred
   - serial console control and telemetry
 - **Implemented but still validation-heavy**
   - perceptual realism and gain balance, especially liquid vs granular vs hybrid
@@ -80,6 +81,7 @@ parametric-container-haptics/
 ├── docs/
 ├── presets/
 ├── schemas/
+├── webxr/
 ├── hardware/
 └── test/
 ```
@@ -102,6 +104,7 @@ parametric-container-haptics/
 14. If a pure tone is hard to feel on the transducer, flash `m5stack-sticks3-transducer-probe` and use `status`, `freq 180`, `level 0.45`, `burst 60`, `period 220`, or `sweep on`.
 15. If `M5.Speaker`-based tests boot but still do not drive the amp, flash `m5stack-sticks3-raw-i2s-probe`. It bypasses `M5.Speaker`, writes directly to `I2S_NUM_0`, duplicates the same waveform into both left and right slots so mono amps such as MAX98357A cannot miss the active channel, and can switch between `external` pins `7/5/43` and the StickS3 `legacy` speaker pins `17/15/14`.
 16. If the full main firmware is unstable, do not keep editing `m5stack-sticks3-audio` in place. Walk the probe ladder instead: `main-boot-probe -> main-pipeline-probe -> main-loop-probe -> main-audio-probe -> main-delta-probe`.
+17. For the visual WebXR demo, run `cd webxr`, `npm.cmd install`, then `npm.cmd run dev` for local development or `npm.cmd run quest` for a temporary Quest-accessible Cloudflare URL.
 
 ## Development principles
 
@@ -132,6 +135,7 @@ Read these in order before implementing:
 15. `docs/15_ENVIRONMENT_BRINGUP_NOTES.md`
 16. `docs/16_PROGRESS_STATUS.md`
 17. `docs/17_PARAMETRIC_CONTAINER_HAPTICS_MODEL_SPEC.md`
+18. `docs/18_WEBXR_SMARTPHONE_DEMO.md`
 
 ## Notes for future open-source release
 

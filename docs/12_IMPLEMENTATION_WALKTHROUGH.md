@@ -60,6 +60,14 @@ The main runtime loop is:
 3. Otherwise the live IMU sample comes from `ImuSampler`.
 4. `processSample()` runs the whole haptic pipeline and updates telemetry.
 
+Preset changes go through a small runtime-config preservation path inside
+`HapticPipeline`. `captureRuntimeConfig()` snapshots feature flags, pins,
+audio, tilt, interface, recorder, and calibrated low/high carrier arrays before
+a built-in or filesystem preset replaces the material model. `commitPresetParams()`
+then restores those runtime fields, reconfigures the pipeline, and resets the
+tilt model. This keeps preset cycling additive: material parameters can change
+without silently changing the active hardware/session configuration.
+
 ## Pipeline stages
 
 ### 1. IMU sampling
@@ -297,6 +305,25 @@ Supported control families:
 - start/stop record
 - start/stop replay
 
+## Standalone WebXR visual client
+
+`webxr/`
+
+- Lives outside the firmware build and has its own Node/Vite/TypeScript toolchain.
+- Reads selected repository presets through `src/presets.ts` so visual demos do not define a second material catalog.
+- Uses `src/simulator.ts` for browser-local visual dynamics:
+  - damped second-order liquid/hybrid slosh
+  - agitation and impact pulse
+  - procedural waves
+  - hardness/count-shaped particle spread
+- Uses `src/renderer/ContainerScene.ts` for the transparent container, contained liquid volume, animated liquid surface, foam markers, label, and instanced granular/hybrid contents.
+- Uses `src/renderer/EnvironmentScene.ts` plus `src/renderer/ProceduralAssets.ts` for the lab-bench setting and generated texture assets.
+- Uses `src/input/PhoneInput.ts` for touch and DeviceOrientation tilt.
+- Uses `src/xr/WebXrBridge.ts` for Quest Browser WebXR entry, hand models, and pinch/grab pose bridging.
+- `npm.cmd run quest` calls `scripts/start-quest-tunnel.ps1`, which builds the app, starts a production preview, opens a Cloudflare Quick Tunnel, and prints a temporary Quest-accessible URL.
+
+This client is visual-only in v1. It does not use the firmware remote interface, does not change `schemas/`, and does not drive the StickS3.
+
 ## Telemetry model
 
 Main struct: `TelemetrySnapshot` in `include/haptics/Types.hpp`
@@ -347,9 +374,11 @@ Implemented in `HapticPipeline::handleConsoleCommand()`:
 - Change preset JSON loading: `src/PresetStore.cpp`
 - Change remote protocol: `src/RemoteInterface.cpp` and `schemas/`
 - Change recorder format: `src/Recorder.cpp` and `schemas/`
+- Change WebXR visual demo: `webxr/src/` and `docs/18_WEBXR_SMARTPHONE_DEMO.md`
 
 ## Current practical limits
 
 - Bench validation is still pending for audio wall localization, liquid vs granular percept separation, and servo safety.
 - Remote transport is intentionally minimal and optimized for bring-up, not for robust long-session networking.
 - Recorder and replay are functional baseline implementations intended for inspection and iteration, not yet for high-volume logging.
+- The WebXR client is a standalone visual demo; live telemetry subscription and hosted deployment remain future work.

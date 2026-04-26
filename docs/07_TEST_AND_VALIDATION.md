@@ -20,6 +20,7 @@
 - Audio test-wall cycling works via `BtnA` hold.
 - Serial telemetry prints latent state, actuator-frame summaries, and recorder/remote status.
 - Console preset listing/loading works.
+- preset cycling and `preset load <name>` preserve runtime feature flags, pin assignments, audio layout/runtime state, tilt/interface/recorder settings, and calibrated resonance carriers.
 - Recorder start/stop and replay start/stop commands work without crashing.
 - Recorder batching honors `recorder.flush_interval_frames` without losing tail frames on stop.
 - if LittleFS mount fails at boot, built-in preset listing/loading should still work and should not retry a crashing remount on every console command
@@ -189,6 +190,21 @@
 
 - verify a partial or malformed WebSocket frame does not stall IMU polling or haptics updates
 - verify both `iface.wifi_mode_ap=true` and `iface.wifi_mode_ap=false` bring up the remote transport as expected
+
+## 5.2 WebXR / smartphone visual demo
+
+- from `webxr/`, verify `npm.cmd run typecheck` passes
+- from `webxr/`, verify `npm.cmd run build` passes
+- verify the phone mode opens in a mobile browser without requiring WebXR
+- verify touch drag changes the virtual container tilt and the rendered content response
+- verify optional DeviceOrientation control only starts after explicit user permission
+- verify the preset selector changes liquid / granular / hybrid visual behavior using `presets/*.json`
+- verify the Quest 3/3S path starts from an HTTPS URL in Quest Browser
+- verify the MR path requests hand tracking as optional WebXR support and pinch/grab can attach the container to a hand pose
+- verify the IWSDK/IWER development path can open the app on desktop without a headset
+- verify `npm.cmd run quest` prints a Cloudflare Quick Tunnel URL and serves the production preview without Vite HMR errors
+- verify liquid and hybrid content remains visibly contained inside the transparent shell during strong tilt
+- verify the visual client does not require firmware, schema, or transport changes in v1
 
 ## 6. Recorder / replay validation
 

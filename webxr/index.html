@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1014" />
+    <title>Container Haptics XR Demo</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="scene" aria-label="3D container contents demo"></canvas>
+      <section class="hud" aria-label="Demo controls">
+        <div class="title-row">
+          <div>
+            <p class="eyebrow">Parametric Container Haptics</p>
+            <h1>Visual Demo</h1>
+          </div>
+          <span id="mode-badge" class="badge">Phone</span>
+        </div>
+        <label class="control">
+          <span>Preset</span>
+          <select id="preset-select"></select>
+        </label>
+        <div class="actions">
+          <button id="orientation-button" type="button">Use Tilt</button>
+          <button id="xr-button" type="button">Enter MR</button>
+          <button id="quest-button" type="button">Send to Quest</button>
+        </div>
+        <dl class="readout">
+          <div>
+            <dt>Family</dt>
+            <dd id="family-readout">-</dd>
+          </div>
+          <div>
+            <dt>Fill</dt>
+            <dd id="fill-readout">-</dd>
+          </div>
+          <div>
+            <dt>Tilt</dt>
+            <dd id="tilt-readout">0 / 0</dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

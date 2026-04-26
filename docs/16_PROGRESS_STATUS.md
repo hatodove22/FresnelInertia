@@ -12,7 +12,8 @@ Its purpose is to make three things explicit:
 - The repository already contains a real on-device 4-layer haptic pipeline shared across liquid, granular, hybrid, and detented families.
 - The main firmware path is `src/main.cpp` + `HapticPipeline`, with USB serial plus the SoftAP browser page as the supported human-facing monitoring workflow.
 - Audio, recorder / replay, runtime resonance calibration, remote control / telemetry, and the XL330 tilt pseudo-force baseline are all present behind compile-time and runtime gates.
-- The main remaining gaps are bench validation, additive TDM migration, transport expansion, storage / monitoring robustness, and servo safety tuning.
+- A standalone `webxr/` visual client now exists for smartphone and Quest 3/3S demos without requiring live firmware communication.
+- The main remaining gaps are bench validation, additive TDM migration, live transport expansion, storage / monitoring robustness, and servo safety tuning.
 
 ## 2. Build verification completed on 2026-03-15
 
@@ -40,7 +41,7 @@ It does not by itself prove hardware-side tactile quality, localization, or serv
 | 8 | 4-transducer spatial rendering | Implemented baseline | `SpatialRenderer4`, physical wall adjacency, SOA-aware flow motion, canonical `DriveFrame4` | Stronger four-wall bench localization validation |
 | 9 | Telemetry / recorder / replay | Implemented baseline | Serial telemetry, shared `TelemetrySnapshot`, NDJSON recorder, IMU replay, WebSocket telemetry | Deterministic comparison metrics and recorder file-management UX |
 | 10 | XL330 tilt-plane integration | Implemented baseline | Raw Dynamixel path, pseudo-force model, current / velocity / angle clamps, telemetry exposure | Sign calibration, safety validation, mechanical bench tuning |
-| 11 | Smartphone / HMD transports | Partial | SoftAP HTTP status page plus WebSocket JSON control / telemetry baseline | BLE / UDP / OSC, robust client UX, explicit HMD / host integration |
+| 11 | Smartphone / HMD transports | Partial | SoftAP HTTP status page plus WebSocket JSON control / telemetry baseline; standalone `webxr/` visual demo for phone and Quest MR | BLE / UDP / OSC, live XR telemetry/control, robust client UX |
 
 ## 4. Implemented now
 
@@ -52,8 +53,12 @@ It does not by itself prove hardware-side tactile quality, localization, or serv
 - LittleFS-backed NDJSON recorder and IMU replay path.
 - Compile-gated SoftAP HTTP + WebSocket JSON monitoring / control baseline.
 - Compile-gated XL330 thumb/index tilt pseudo-force baseline.
+- Standalone `webxr/` visual demo with smartphone touch/tilt input, Quest MR entry, pinch/grab bridge, procedural bench assets, local material visuals, and Cloudflare Quick Tunnel launch script.
 - Probe-oriented bring-up environments for audio, display isolation, raw I2S, and staged main-firmware debugging.
 - Feature-gated default behavior that keeps the baseline build stable when audio, remote, tilt, recorder, or calibration are disabled.
+- Preset application now has an explicit runtime-config preservation helper so
+  built-in and filesystem preset loads keep hardware/session gates, output
+  configuration, recorder/interface settings, and calibrated carriers stable.
 
 ## 5. Implemented but not yet proven enough
 
@@ -62,13 +67,14 @@ It does not by itself prove hardware-side tactile quality, localization, or serv
 - Calibration currently uses an IMU-proxy response metric; stronger identification remains future work.
 - Recorder / replay works as a baseline, but deterministic comparison tooling and file-management UX are still light.
 - Remote monitoring is useful for bring-up, but long-session robustness and browser UX still need work.
+- The WebXR demo is visual-only; live telemetry/control, persistence, and hosted deployment are still future work.
 - XL330 control is present, but servo sign, current-based position behavior, and safety margins still need dedicated bench validation.
 
 ## 6. Not implemented yet
 
 - Single-port TDM audio backend migration.
 - BLE, UDP, and OSC transports beyond the reserved interface fields.
-- Explicit HMD / host integration beyond the current WebSocket JSON baseline.
+- Live HMD / host integration beyond the current WebSocket JSON baseline and standalone visual demo.
 - Final hardware asset publication in `hardware/`.
 - Final open-source license selection.
 

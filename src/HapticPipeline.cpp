@@ -182,80 +182,77 @@ void HapticPipeline::refreshOutputConfig() {
   audio_.configure(params_);
 }
 
+HapticPipeline::RuntimeConfigSnapshot HapticPipeline::captureRuntimeConfig() const {
+  RuntimeConfigSnapshot snapshot{};
+  snapshot.features = params_.features;
+  snapshot.pins = params_.pins;
+  snapshot.audio = params_.audio;
+  snapshot.tilt = params_.tilt;
+  snapshot.iface = params_.iface;
+  snapshot.recorder = params_.recorder;
+  snapshot.low_carrier_hz = params_.resonance.low_carrier_hz;
+  snapshot.high_carrier_hz = params_.resonance.high_carrier_hz;
+  return snapshot;
+}
+
+void HapticPipeline::restoreRuntimeConfig(SystemParams& params, const RuntimeConfigSnapshot& snapshot) const {
+  params.features = snapshot.features;
+  params.pins = snapshot.pins;
+  params.audio = snapshot.audio;
+  params.tilt = snapshot.tilt;
+  params.iface = snapshot.iface;
+  params.recorder = snapshot.recorder;
+  params.resonance.low_carrier_hz = snapshot.low_carrier_hz;
+  params.resonance.high_carrier_hz = snapshot.high_carrier_hz;
+}
+
+void HapticPipeline::commitPresetParams(SystemParams next_params, const RuntimeConfigSnapshot& snapshot) {
+  restoreRuntimeConfig(next_params, snapshot);
+  params_ = next_params;
+  current_family_ = params_.container.family;
+  reconfigurePipeline();
+  tilt_model_.reset();
+}
+
 bool HapticPipeline::loadPresetByName(const char* preset_name) {
   if (preset_name == nullptr || preset_name[0] == '\0') {
     return false;
   }
 
-  const FeatureFlags saved_features = params_.features;
-  const PlatformPins saved_pins = params_.pins;
-  const AudioBackendParams saved_audio = params_.audio;
-  const TiltPlaneParams saved_tilt = params_.tilt;
-  const InterfaceParams saved_iface = params_.iface;
-  const RecorderParams saved_recorder = params_.recorder;
-  const auto saved_low_carrier_hz = params_.resonance.low_carrier_hz;
-  const auto saved_high_carrier_hz = params_.resonance.high_carrier_hz;
+  const auto runtime_config = captureRuntimeConfig();
 
   SystemParams next_params{};
   if (!preset_store_.loadPreset(preset_name, next_params)) {
     return false;
   }
 
-  next_params.features = saved_features;
-  next_params.pins = saved_pins;
-  next_params.audio = saved_audio;
-  next_params.tilt = saved_tilt;
-  next_params.iface = saved_iface;
-  next_params.recorder = saved_recorder;
-  next_params.resonance.low_carrier_hz = saved_low_carrier_hz;
-  next_params.resonance.high_carrier_hz = saved_high_carrier_hz;
-
-  params_ = next_params;
-  current_family_ = params_.container.family;
-  reconfigurePipeline();
-  tilt_model_.reset();
+  commitPresetParams(next_params, runtime_config);
   return true;
 }
 
 void HapticPipeline::applyPreset(MaterialFamily family) {
-  const FeatureFlags saved_features = params_.features;
-  const PlatformPins saved_pins = params_.pins;
-  const AudioBackendParams saved_audio = params_.audio;
-  const TiltPlaneParams saved_tilt = params_.tilt;
-  const InterfaceParams saved_iface = params_.iface;
-  const RecorderParams saved_recorder = params_.recorder;
-  const auto saved_low_carrier_hz = params_.resonance.low_carrier_hz;
-  const auto saved_high_carrier_hz = params_.resonance.high_carrier_hz;
+  const auto runtime_config = captureRuntimeConfig();
+  SystemParams next_params{};
 
   switch (family) {
     case MaterialFamily::Liquid:
-      params_ = makeDefaultLiquidPreset();
+      next_params = makeDefaultLiquidPreset();
       break;
     case MaterialFamily::Granular:
-      params_ = makeDefaultGranularPreset();
+      next_params = makeDefaultGranularPreset();
       break;
     case MaterialFamily::Hybrid:
-      params_ = makeDefaultHybridPreset();
+      next_params = makeDefaultHybridPreset();
       break;
     case MaterialFamily::Detented:
-      params_ = makeDefaultDetentedPreset();
+      next_params = makeDefaultDetentedPreset();
       break;
     case MaterialFamily::Custom:
     default:
       return;
   }
 
-  params_.features = saved_features;
-  params_.pins = saved_pins;
-  params_.audio = saved_audio;
-  params_.tilt = saved_tilt;
-  params_.iface = saved_iface;
-  params_.recorder = saved_recorder;
-  params_.resonance.low_carrier_hz = saved_low_carrier_hz;
-  params_.resonance.high_carrier_hz = saved_high_carrier_hz;
-  current_family_ = family;
-  reconfigurePipeline();
-  tilt_model_.reset();
+  commitPresetParams(next_params, runtime_config);
 }
 
 void HapticPipeline::cyclePreset() {
