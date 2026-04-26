@@ -11,19 +11,19 @@ const wallMaterial = new THREE.MeshPhysicalMaterial({
   transmission: 0.52,
   thickness: 0.025,
   clearcoat: 0.85,
-  clearcoatRoughness: 0.16
+  clearcoatRoughness: 0.16,
+  depthWrite: false
 });
 
 const edgeMaterial = new THREE.LineBasicMaterial({ color: "#e9fbff", transparent: true, opacity: 0.68 });
-const liquidMaterial = new THREE.MeshPhysicalMaterial({
+const liquidMaterial = new THREE.MeshStandardMaterial({
   color: "#24a9bd",
   transparent: true,
   opacity: 0.48,
   roughness: 0.08,
   metalness: 0.0,
-  transmission: 0.2,
-  clearcoat: 0.5,
-  clearcoatRoughness: 0.06
+  side: THREE.DoubleSide,
+  depthWrite: false
 });
 const liquidSurfaceMaterial = new THREE.MeshPhysicalMaterial({
   color: "#51d2dd",
@@ -32,9 +32,17 @@ const liquidSurfaceMaterial = new THREE.MeshPhysicalMaterial({
   roughness: 0.05,
   metalness: 0.0,
   clearcoat: 1.0,
-  clearcoatRoughness: 0.03
+  clearcoatRoughness: 0.03,
+  side: THREE.DoubleSide,
+  depthWrite: false
 });
-const foamMaterial = new THREE.MeshStandardMaterial({ color: "#edf8f7", roughness: 0.36, transparent: true, opacity: 0.88 });
+const foamMaterial = new THREE.MeshStandardMaterial({
+  color: "#edf8f7",
+  roughness: 0.42,
+  transparent: true,
+  opacity: 0.34,
+  depthWrite: false
+});
 const granularMaterial = new THREE.MeshStandardMaterial({ color: "#d8c071", roughness: 0.76 });
 const hybridMaterial = new THREE.MeshStandardMaterial({ color: "#e5f0f3", roughness: 0.36, metalness: 0.04 });
 const labelMaterial = new THREE.MeshStandardMaterial({ roughness: 0.58, metalness: 0.0 });
@@ -44,6 +52,9 @@ interface ParticleState {
   vel: THREE.Vector3;
   radius: number;
   seed: number;
+  friction: number;
+  rollingDrag: number;
+  restThreshold: number;
 }
 
 export class ContainerScene {
@@ -62,6 +73,7 @@ export class ContainerScene {
   private particleStates: ParticleState[] = [];
   private dimensions = new THREE.Vector3(0.06, 0.06, 0.06);
   private dummy = new THREE.Object3D();
+  private localGravity = new THREE.Vector3();
   private lastElapsed = 0;
   private liquidInset = 0.78;
 
@@ -112,11 +124,13 @@ export class ContainerScene {
 
     const geometry = new THREE.BoxGeometry(this.dimensions.x, this.dimensions.y, this.dimensions.z);
     this.shell = new THREE.Mesh(geometry, wallMaterial);
+    this.shell.renderOrder = 4;
     this.shell.castShadow = true;
     this.shell.receiveShadow = true;
     this.group.add(this.shell);
 
     this.edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edgeMaterial);
+    this.edges.renderOrder = 5;
     this.group.add(this.edges);
 
     const labelTexture = makeLabelTexture(this.preset.preset, this.preset.family);
@@ -125,6 +139,7 @@ export class ContainerScene {
     label.map = labelTexture;
     label.needsUpdate = true;
     this.label = new THREE.Mesh(new THREE.PlaneGeometry(this.dimensions.x * 0.6, this.dimensions.y * 0.34), label);
+    this.label.renderOrder = 6;
     this.label.position.set(0, -this.dimensions.y * 0.03, this.dimensions.z * 0.506);
     this.group.add(this.label);
 
@@ -134,6 +149,7 @@ export class ContainerScene {
         new THREE.BoxGeometry(this.dimensions.x * this.liquidInset, fillHeight, this.dimensions.z * this.liquidInset, 8, 2, 8),
         liquidMaterial
       );
+      this.liquid.renderOrder = 1;
       this.liquid.position.y = -this.dimensions.y * 0.5 + fillHeight * 0.5;
       this.group.add(this.liquid);
 
@@ -141,12 +157,14 @@ export class ContainerScene {
         new THREE.PlaneGeometry(this.dimensions.x * (this.liquidInset - 0.04), this.dimensions.z * (this.liquidInset - 0.04), 18, 18),
         liquidSurfaceMaterial
       );
+      this.liquidSurface.renderOrder = 2;
       this.liquidSurface.rotation.x = -Math.PI * 0.5;
       this.liquidSurface.position.y = -this.dimensions.y * 0.5 + fillHeight + 0.0008;
       this.group.add(this.liquidSurface);
 
-      this.foamCount = this.preset.family === "Hybrid" ? 18 : 28;
+      this.foamCount = this.preset.family === "Hybrid" ? 9 : 16;
       this.foam = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), foamMaterial, this.foamCount);
+      this.foam.renderOrder = 3;
       this.group.add(this.foam);
     } else {
       this.liquid = undefined;
@@ -164,6 +182,7 @@ export class ContainerScene {
         this.preset.family === "Hybrid" ? hybridMaterial : granularMaterial,
         this.particleCount
       );
+      this.particles.renderOrder = 3;
       this.particles.castShadow = true;
       this.particles.receiveShadow = true;
       this.particleStates = this.createParticleStates();
@@ -228,7 +247,8 @@ export class ContainerScene {
       const x = Math.cos(angle) * this.dimensions.x * 0.38 * edgeBias + content.surfaceOffsetX * this.dimensions.x * 0.13;
       const z = Math.sin(angle * 0.84) * this.dimensions.z * 0.38 * edgeBias - content.surfaceOffsetY * this.dimensions.z * 0.13;
       const y = -this.dimensions.y * 0.5 + fillHeight + 0.002 + Math.sin(elapsed * 2.8 + seed) * 0.0015;
-      const radius = (0.0015 + (i % 4) * 0.00055) * (0.4 + content.agitation * 0.9 + content.impactPulse * 0.4);
+      const visibility = THREE.MathUtils.smoothstep(content.agitation + content.impactPulse * 0.45, 0.12, 0.9);
+      const radius = (0.00075 + (i % 4) * 0.00028) * visibility;
       this.dummy.position.set(x, y, z);
       this.dummy.scale.setScalar(radius);
       this.dummy.updateMatrix();
@@ -243,15 +263,22 @@ export class ContainerScene {
     for (let i = 0; i < this.particleCount; i += 1) {
       const seed = i * 9.173 + 0.31;
       const radius = radiusBase * (this.preset?.family === "Hybrid" && i % 4 === 0 ? 1.75 : 1.0);
+      const fillHeight = this.dimensions.y * Math.max(0.04, this.preset?.container.fill ?? 0.5);
+      const liquidTopY = -this.dimensions.y * 0.5 + fillHeight;
       states.push({
         pos: new THREE.Vector3(
           Math.sin(seed * 1.7) * this.dimensions.x * 0.22,
-          -this.dimensions.y * 0.42 + radius * 1.8 + (i % 5) * radius * 0.28,
+          this.preset?.family === "Hybrid"
+            ? liquidTopY - radius * THREE.MathUtils.lerp(0.18, 0.52, this.hash01(seed * 8.19))
+            : -this.dimensions.y * 0.42 + radius * 1.8 + (i % 5) * radius * 0.28,
           Math.cos(seed * 1.3) * this.dimensions.z * 0.22
         ),
         vel: new THREE.Vector3(0, 0, 0),
         radius,
-        seed
+        seed,
+        friction: THREE.MathUtils.lerp(0.72, 1.22, this.hash01(seed * 2.17)),
+        rollingDrag: THREE.MathUtils.lerp(0.86, 0.985, this.hash01(seed * 4.31)),
+        restThreshold: THREE.MathUtils.lerp(0.0012, 0.0042, this.hash01(seed * 6.77))
       });
     }
     return states;
@@ -262,42 +289,78 @@ export class ContainerScene {
       return;
     }
     const hardness = this.preset.container.particle_hardness ?? 0.45;
-    const damping = THREE.MathUtils.lerp(0.82, 0.96, hardness);
-    const gravityX = tilt.x * 0.42 + content.surfaceOffsetX * 0.08;
-    const gravityZ = -tilt.y * 0.42 - content.surfaceOffsetY * 0.08;
-    const limitX = this.dimensions.x * 0.43;
-    const limitY = this.dimensions.y * 0.43;
-    const limitZ = this.dimensions.z * 0.43;
+    const baseDamping = THREE.MathUtils.lerp(0.78, 0.95, hardness);
+    this.localGravity.set(0, -1, 0).applyQuaternion(this.group.quaternion.clone().invert());
+    const gravityX = this.localGravity.x * 0.42 + content.surfaceOffsetX * 0.08;
+    const gravityZ = this.localGravity.z * 0.42 - content.surfaceOffsetY * 0.08;
+    const liquidLimitX = this.dimensions.x * this.liquidInset * 0.5;
+    const liquidLimitZ = this.dimensions.z * this.liquidInset * 0.5;
+    const limitX = this.preset.family === "Hybrid" ? liquidLimitX : this.dimensions.x * 0.5;
+    const limitY = this.dimensions.y * 0.5;
+    const limitZ = this.preset.family === "Hybrid" ? liquidLimitZ : this.dimensions.z * 0.5;
+    const fillHeight = this.dimensions.y * Math.max(0.04, this.preset.container.fill);
+    const liquidTopY = -this.dimensions.y * 0.5 + fillHeight;
 
     for (let i = 0; i < this.particleStates.length; i += 1) {
       const particle = this.particleStates[i];
-      particle.vel.x += gravityX * dt;
-      particle.vel.z += gravityZ * dt;
-      particle.vel.y -= 0.09 * dt;
-      particle.vel.x += Math.sin(this.lastElapsed * 12.7 + particle.seed) * content.impactPulse * 0.012 * dt;
-      particle.vel.z += Math.cos(this.lastElapsed * 10.1 + particle.seed) * content.impactPulse * 0.012 * dt;
+      const jitterPhase = this.lastElapsed * (1.3 + particle.seed * 0.017);
+      const microJitter = content.agitation * 0.0025 + content.impactPulse * 0.006;
+      particle.vel.x += gravityX * particle.friction * dt;
+      particle.vel.z += gravityZ * particle.friction * dt;
+      if (this.preset.family === "Hybrid") {
+        const floatDepth = particle.radius * THREE.MathUtils.lerp(0.2, 0.56, this.hash01(particle.seed * 8.19));
+        const targetY =
+          liquidTopY -
+          floatDepth +
+          Math.sin(this.lastElapsed * (1.1 + this.hash01(particle.seed * 3.7) * 0.7) + particle.seed) *
+            particle.radius *
+            (0.16 + content.agitation * 0.38);
+        particle.vel.y += (targetY - particle.pos.y) * 16.0 * dt;
+        particle.vel.y *= Math.pow(0.90, dt * 60);
+      } else {
+        particle.vel.y -= 0.09 * dt;
+      }
+      particle.vel.x += (Math.sin(jitterPhase + particle.seed) * microJitter + Math.sin(this.lastElapsed * 12.7 + particle.seed) * content.impactPulse * 0.012) * dt;
+      particle.vel.z += (Math.cos(jitterPhase * 1.19 + particle.seed) * microJitter + Math.cos(this.lastElapsed * 10.1 + particle.seed) * content.impactPulse * 0.012) * dt;
       particle.pos.addScaledVector(particle.vel, dt);
 
-      if (particle.pos.x > limitX) {
-        particle.pos.x = limitX;
+      const maxX = limitX - particle.radius * 1.35;
+      const maxZ = limitZ - particle.radius * 1.35;
+      if (particle.pos.x > maxX) {
+        particle.pos.x = maxX;
         particle.vel.x *= -hardness * 0.72;
-      } else if (particle.pos.x < -limitX) {
-        particle.pos.x = -limitX;
+      } else if (particle.pos.x < -maxX) {
+        particle.pos.x = -maxX;
         particle.vel.x *= -hardness * 0.72;
       }
-      if (particle.pos.z > limitZ) {
-        particle.pos.z = limitZ;
+      if (particle.pos.z > maxZ) {
+        particle.pos.z = maxZ;
         particle.vel.z *= -hardness * 0.72;
-      } else if (particle.pos.z < -limitZ) {
-        particle.pos.z = -limitZ;
+      } else if (particle.pos.z < -maxZ) {
+        particle.pos.z = -maxZ;
         particle.vel.z *= -hardness * 0.72;
       }
       const floorY = -limitY + particle.radius * 1.7;
+      const ceilingY =
+        this.preset.family === "Hybrid"
+          ? Math.min(limitY - particle.radius * 1.5, liquidTopY + particle.radius * 0.55)
+          : limitY - particle.radius * 1.5;
       if (particle.pos.y < floorY) {
         particle.pos.y = floorY;
         particle.vel.y = Math.abs(particle.vel.y) * hardness * 0.34 + content.impactPulse * 0.015;
+      } else if (particle.pos.y > ceilingY) {
+        particle.pos.y = ceilingY;
+        particle.vel.y *= -hardness * 0.3;
       }
-      particle.vel.multiplyScalar(Math.pow(damping, dt * 60));
+      const horizontalSpeed = Math.hypot(particle.vel.x, particle.vel.z);
+      if (horizontalSpeed < particle.restThreshold && content.agitation < 0.08) {
+        particle.vel.x *= 0.35;
+        particle.vel.z *= 0.35;
+      }
+      const individualDamping = baseDamping * particle.rollingDrag;
+      particle.vel.x *= Math.pow(individualDamping, dt * 60);
+      particle.vel.z *= Math.pow(individualDamping, dt * 60);
+      particle.vel.y *= Math.pow(baseDamping, dt * 60);
 
       const visualScale = particle.radius * (1 + Math.sin(this.lastElapsed * 2.1 + particle.seed) * 0.04);
       this.dummy.position.copy(particle.pos);
@@ -311,5 +374,10 @@ export class ContainerScene {
       this.particles.setMatrixAt(i, this.dummy.matrix);
     }
     this.particles.instanceMatrix.needsUpdate = true;
+  }
+
+  private hash01(value: number) {
+    const s = Math.sin(value * 127.1) * 43758.5453;
+    return s - Math.floor(s);
   }
 }

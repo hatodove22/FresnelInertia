@@ -35,6 +35,9 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.06;
 
 const scene = new THREE.Scene();
+const worldRoot = new THREE.Group();
+worldRoot.name = "demo-world-root";
+scene.add(worldRoot);
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.01, 20);
 camera.position.set(0, 1.18, 0.78);
 
@@ -64,17 +67,17 @@ floor.rotation.x = -Math.PI / 2;
 floor.position.y = 0.826;
 floor.position.z = -0.72;
 floor.receiveShadow = true;
-scene.add(floor);
+worldRoot.add(floor);
 
 const environment = new EnvironmentScene();
-scene.add(environment.group);
+worldRoot.add(environment.group);
 
 const container = new ContainerScene();
-scene.add(container.group);
+worldRoot.add(container.group);
 
 const simulator = new VisualSimulator();
 const phoneInput = new PhoneInput(canvas);
-const xrBridge = new WebXrBridge(renderer, scene, container.group, ui.modeBadge);
+const xrBridge = new WebXrBridge(renderer, scene, worldRoot, container.group, ui.modeBadge);
 let activePreset = findPreset("liquid_small_box");
 let lastTime = performance.now();
 
