@@ -5,16 +5,18 @@ interface PermissionDeviceOrientationEvent extends DeviceOrientationEvent {
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+type PhoneInputMode = "touch" | "orientation";
 
 export class PhoneInput {
   readonly tilt: TiltState = { x: 0, y: 0 };
 
+  private mode: PhoneInputMode = "touch";
   private dragging = false;
   private pointerId = -1;
   private startX = 0;
   private startY = 0;
   private startTilt: TiltState = { x: 0, y: 0 };
-  private usingOrientation = false;
+  private orientationListenerAttached = false;
 
   constructor(private readonly target: HTMLElement) {
     target.addEventListener("pointerdown", this.onPointerDown);
@@ -31,13 +33,25 @@ export class PhoneInput {
         return false;
       }
     }
-    window.addEventListener("deviceorientation", this.onOrientation, true);
-    this.usingOrientation = true;
+    if (!this.orientationListenerAttached) {
+      window.addEventListener("deviceorientation", this.onOrientation, true);
+      this.orientationListenerAttached = true;
+    }
+    this.mode = "orientation";
     return true;
   }
 
+  setTouchMode() {
+    this.mode = "touch";
+  }
+
+  resetTilt() {
+    this.tilt.x = 0;
+    this.tilt.y = 0;
+  }
+
   isOrientationEnabled() {
-    return this.usingOrientation;
+    return this.mode === "orientation";
   }
 
   dispose() {
@@ -49,7 +63,7 @@ export class PhoneInput {
   }
 
   private onPointerDown = (event: PointerEvent) => {
-    if (this.usingOrientation || this.dragging) {
+    if (this.mode !== "touch" || this.dragging) {
       return;
     }
     this.dragging = true;
@@ -79,6 +93,9 @@ export class PhoneInput {
   };
 
   private onOrientation = (event: DeviceOrientationEvent) => {
+    if (this.mode !== "orientation") {
+      return;
+    }
     const gamma = event.gamma ?? 0;
     const beta = event.beta ?? 0;
     this.tilt.x = clamp(gamma / 34, -1, 1);

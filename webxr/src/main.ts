@@ -1,10 +1,12 @@
 import * as THREE from "three";
 import { ContainerScene } from "./renderer/ContainerScene";
 import { EnvironmentScene } from "./renderer/EnvironmentScene";
+import { SpatialControlPanel } from "./renderer/SpatialControlPanel";
 import { PhoneInput } from "./input/PhoneInput";
 import { presets, findPreset } from "./presets";
 import { VisualSimulator } from "./simulator";
 import type { DemoUiElements, TiltState } from "./types";
+import type { SpatialPanelState } from "./types";
 import { WebXrBridge } from "./xr/WebXrBridge";
 import { iwsdkIntegrationNotes } from "./iwsdkNotes";
 import "./style.css";
@@ -19,6 +21,10 @@ const ui: DemoUiElements = {
   orientationButton: document.querySelector<HTMLButtonElement>("#orientation-button")!,
   xrButton: document.querySelector<HTMLButtonElement>("#xr-button")!,
   questButton: document.querySelector<HTMLButtonElement>("#quest-button")!,
+  touchModeButton: document.querySelector<HTMLButtonElement>("#touch-mode-button")!,
+  tiltModeButton: document.querySelector<HTMLButtonElement>("#tilt-mode-button")!,
+  handModeButton: document.querySelector<HTMLButtonElement>("#hand-mode-button")!,
+  resetButton: document.querySelector<HTMLButtonElement>("#reset-button")!,
   modeBadge: document.querySelector<HTMLElement>("#mode-badge")!,
   familyReadout: document.querySelector<HTMLElement>("#family-readout")!,
   fillReadout: document.querySelector<HTMLElement>("#fill-readout")!,
@@ -77,7 +83,20 @@ worldRoot.add(container.group);
 
 const simulator = new VisualSimulator();
 const phoneInput = new PhoneInput(canvas);
-const xrBridge = new WebXrBridge(renderer, scene, worldRoot, container.group, ui.modeBadge);
+let panelState: SpatialPanelState = { shakeBoost: 0.35, dampingPreview: 0.5 };
+const spatialPanel = new SpatialControlPanel({
+  presetNames: presets.map((preset) => preset.preset),
+  selectedPreset: "liquid_small_box",
+  onPresetSelected: (name) => {
+    ui.presetSelect.value = name;
+    applyPreset(name);
+  },
+  onStateChanged: (state) => {
+    panelState = state;
+  }
+});
+worldRoot.add(spatialPanel.group);
+const xrBridge = new WebXrBridge(renderer, scene, worldRoot, container.group, ui.modeBadge, spatialPanel);
 let activePreset = findPreset("liquid_small_box");
 let lastTime = performance.now();
 
@@ -92,15 +111,34 @@ for (const preset of presets) {
 
 ui.presetSelect.value = activePreset.preset;
 ui.presetSelect.addEventListener("change", () => {
-  activePreset = findPreset(ui.presetSelect.value);
-  container.setPreset(activePreset);
-  updateReadout({ x: 0, y: 0 });
+  applyPreset(ui.presetSelect.value);
 });
 
 ui.orientationButton.addEventListener("click", async () => {
-  const ok = await phoneInput.enableOrientation();
-  ui.orientationButton.textContent = ok ? "Tilt On" : "Tilt Blocked";
-  ui.orientationButton.disabled = ok;
+  await enableTiltMode();
+});
+
+ui.touchModeButton.addEventListener("click", () => {
+  phoneInput.setTouchMode();
+  setActiveMethod("touch");
+  ui.modeBadge.textContent = "Phone";
+});
+
+ui.tiltModeButton.addEventListener("click", async () => {
+  await enableTiltMode();
+});
+
+ui.handModeButton.addEventListener("click", () => {
+  ui.xrButton.click();
+});
+
+ui.resetButton.addEventListener("click", () => {
+  phoneInput.resetTilt();
+  xrBridge.resetTilt();
+  container.group.position.set(0, container.restY(), -0.72);
+  container.group.rotation.set(0, 0, 0);
+  container.group.quaternion.identity();
+  updateReadout({ x: 0, y: 0 });
 });
 
 ui.questButton.addEventListener("click", () => {
@@ -125,8 +163,9 @@ renderer.setAnimationLoop((time) => {
   xrBridge.update();
 
   const tilt = renderer.xr.isPresenting ? xrBridge.tilt : phoneInput.tilt;
-  const content = simulator.update(activePreset, tilt, dt);
+  const content = simulator.update(activePreset, tilt, dt, panelState);
   container.update(tilt, content, time * 0.001, dt);
+  spatialPanel.update();
   updateReadout(tilt);
   renderer.render(scene, camera);
 });
@@ -135,4 +174,28 @@ function updateReadout(tilt: TiltState) {
   ui.familyReadout.textContent = activePreset.family;
   ui.fillReadout.textContent = `${Math.round(activePreset.container.fill * 100)}%`;
   ui.tiltReadout.textContent = `${tilt.x.toFixed(2)} / ${tilt.y.toFixed(2)}`;
+}
+
+async function enableTiltMode() {
+  const ok = await phoneInput.enableOrientation();
+  ui.orientationButton.textContent = ok ? "Tilt On" : "Tilt Blocked";
+  ui.orientationButton.disabled = ok;
+  if (ok) {
+    setActiveMethod("tilt");
+    ui.modeBadge.textContent = "Tilt";
+  }
+}
+
+function setActiveMethod(method: "touch" | "tilt" | "hand") {
+  ui.touchModeButton.classList.toggle("active", method === "touch");
+  ui.tiltModeButton.classList.toggle("active", method === "tilt");
+  ui.handModeButton.classList.toggle("active", method === "hand");
+}
+
+function applyPreset(name: string) {
+  activePreset = findPreset(name);
+  ui.presetSelect.value = activePreset.preset;
+  spatialPanel.setSelectedPreset(activePreset.preset);
+  container.setPreset(activePreset);
+  updateReadout({ x: 0, y: 0 });
 }

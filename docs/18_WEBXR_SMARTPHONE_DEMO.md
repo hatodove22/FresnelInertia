@@ -6,7 +6,7 @@ This document defines the standalone visual client in `webxr/`.
 
 - The web client is a local visual/demo layer, not firmware.
 - The v1 app does not communicate with the StickS3.
-- Existing presets in `presets/` remain the source for container dimensions, material family, fill, viscosity, particle count, and hardness.
+- Existing presets in `presets/` remain the source for material family, fill, viscosity, particle count, and hardness. The WebXR renderer normalizes box visuals to 7 cm cubes for Quest hand-scale inspection.
 - Firmware `src/`, `include/haptics/`, and `schemas/` stay unchanged until live telemetry/control is added.
 - The client is intentionally self-contained under `webxr/` with its own `package.json`, `package-lock.json`, Vite config, TypeScript config, and Quest tunnel script.
 
@@ -20,8 +20,9 @@ This document defines the standalone visual client in `webxr/`.
 | `src/renderer/ContainerScene.ts` | transparent shell, sample label, liquid, foam, and granular/hybrid instancing |
 | `src/renderer/EnvironmentScene.ts` | lab-bench environment, mat, panel, small props, and cables |
 | `src/renderer/ProceduralAssets.ts` | in-browser canvas textures for wood, mat, liquid normals, and labels |
+| `src/renderer/SpatialControlPanel.ts` | in-scene experiment panel for ray/direct-touch preset rows and sliders |
 | `src/input/PhoneInput.ts` | touch-drag tilt and optional DeviceOrientation input |
-| `src/xr/WebXrBridge.ts` | WebXR AR button integration, hand model setup, pinch/grab pose bridge |
+| `src/xr/WebXrBridge.ts` | WebXR AR button integration, hand model setup, pinch/grab pose bridge, and lightweight panel ray/touch routing |
 | `scripts/start-quest-tunnel.ps1` | production preview plus Cloudflare Quick Tunnel launcher |
 
 ## 2. Runtime modes
@@ -39,6 +40,7 @@ This document defines the standalone visual client in `webxr/`.
 - Starts an `immersive-ar` WebXR session when available.
 - Requests hand tracking, hit test, anchors, plane detection, and mesh detection as optional features.
 - Uses pinch/grab to attach the virtual container to a hand pose.
+- Shows a spatial experiment panel near the container. Controller rays can select rows and drag sliders; index fingertips can directly touch the panel face when hand joints are available.
 - Uses the same visual simulator as phone mode so content response stays consistent.
 - For off-LAN demos, use `npm.cmd run quest` to start a production preview plus Cloudflare Quick Tunnel.
 
@@ -59,10 +61,25 @@ The v1 visual client uses procedural assets instead of external binary files:
 
 The environment is intentionally lab-like: table, mat, rear panel, small instrument block, sample pucks, and cables. This keeps the demo grounded for smartphone sharing while still being lightweight enough for Quest Browser.
 
+Visual container sizing:
+
+- box-shaped presets render as 7 cm cubes regardless of the source preset's haptic travel dimensions,
+- the firmware-facing preset JSON files are not rewritten by this visual normalization,
+- the WebXR-only `liquid_cylinder_bottle` entry adds a 7 cm diameter cylindrical bottle with a neck, cap, circular liquid body, and circular liquid surface,
+- the WebXR-only `liquid_plastic_tumbler` entry adds a 7 cm top-diameter tapered plastic cup with an open rim, small base, and tapered liquid body.
+
+The spatial experiment panel is intentionally separate from the smartphone HUD:
+
+- phone controls remain DOM-based for low-friction sharing,
+- MR controls live as a textured Three.js panel in the scene,
+- the panel currently exposes a preset list, motion-boost slider, and damping-preview slider,
+- the panel is a prototype surface for experimental controls, not the final firmware control protocol.
+
 Content behavior is visual-only but now follows the same intuition as the haptic model:
 
 - liquid and hybrid surfaces use a damped second-order slosh state with viscosity-dependent response,
 - the bulk liquid volume is inset and clamped inside the transparent container to avoid visible wall penetration,
+- round container liquid uses radial clamping for the body and liquid surface,
 - liquid surfaces add mesh waves, normal-map drift, and foam markers under agitation,
 - granular and hybrid particles integrate simple tilt-driven velocity with wall/floor bounce,
 - particle spread and bounce intensity are shaped by preset particle count and hardness.
@@ -107,14 +124,17 @@ The app follows the Meta Immersive Web SDK direction without coupling the firmwa
 
 - `@iwsdk/vite-plugin-dev` provides the local development and IWER emulation path.
 - `@iwsdk/core` and `@iwsdk/xr-input` are included as the IWSDK foundation packages.
-- The WebXR bridge is isolated in the web client so deeper IWSDK ECS/grab components can replace the current adapter later without changing the simulator or firmware.
+- The WebXR bridge is isolated in the web client so deeper IWSDK ECS/grab, MultiPointer, UIKit, and UIKitML components can replace the current adapter later without changing the simulator or firmware.
 - Local development uses HTTPS because WebXR requires a secure origin.
+- Meta's current IWSDK documentation organizes this area around Spatial UI/UIKit/UIKitML for panels and MultiPointer ray/grab routing for XR input. The current panel mirrors those concepts with a small Three.js implementation first, because it is easier to iterate in this repository before adopting the full ECS UI stack.
 
 Reference pages:
 
 - Immersive Web SDK overview: `https://developers.meta.com/horizon/documentation/web/iwsdk-overview/`
 - IWSDK project setup: `https://developers.meta.com/horizon/documentation/web/iwsdk-guide-project-setup/`
 - IWSDK testing experience: `https://developers.meta.com/horizon/documentation/web/iwsdk-guide-testing-experience/`
+- IWSDK Spatial UI/UIKit: `https://developers.meta.com/horizon/documentation/web/iwsdk-concept-spatial-ui-uikit/`
+- IWSDK XR Input pointers: `https://developers.meta.com/horizon/documentation/web/iwsdk-concept-xr-input-pointers/`
 - Web Launch: `https://developers.meta.com/horizon/documentation/web/web-launch/`
 
 ## 4. Validation
@@ -125,6 +145,7 @@ Required local checks:
 - `npm.cmd run build`
 - desktop browser smoke check with no console errors
 - mobile-size browser smoke check with preset switching and drag tilt
+- hand-scale check that box presets appear as 7 cm cubes and the cylindrical bottle / plastic tumbler presets appear in the selector
 
 Quest checks:
 
@@ -133,6 +154,9 @@ Quest checks:
 - `Enter MR` starts an immersive session when WebXR permissions are accepted,
 - hand models appear when hand tracking is available,
 - pinch/grab attaches the container to hand pose,
+- controller ray selection can activate spatial panel preset rows and adjust sliders,
+- fingertip direct touch can activate the same panel controls near the panel face,
+- grabbed box presets read as 7 cm hand-scale objects rather than oversized containers,
 - liquid/hybrid contents remain visually contained by the transparent shell under strong tilt.
 
 Firmware regression check:

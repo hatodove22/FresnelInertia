@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { XRHandModelFactory } from "three/examples/jsm/webxr/XRHandModelFactory.js";
+import type { SpatialControlPanel } from "../renderer/SpatialControlPanel";
 import type { TiltState } from "../types";
 
 type HandGroup = THREE.Group & {
@@ -15,6 +16,14 @@ export class WebXrBridge {
   private readonly tempPosition = new THREE.Vector3();
   private readonly tempLocalPosition = new THREE.Vector3();
   private readonly xrCameraPosition = new THREE.Vector3();
+  private readonly rayOrigin = new THREE.Vector3();
+  private readonly rayDirection = new THREE.Vector3();
+  private readonly rayQuaternion = new THREE.Quaternion();
+  private readonly directTouchPoint = new THREE.Vector3();
+  private readonly pinchPointA = new THREE.Vector3();
+  private readonly pinchPointB = new THREE.Vector3();
+  private readonly controllers: THREE.Group[] = [];
+  private readonly controllerPressed = [false, false];
   private grabOffset = new THREE.Vector3();
   private grabbed = false;
   private baseQuaternion = new THREE.Quaternion();
@@ -26,7 +35,8 @@ export class WebXrBridge {
     private readonly scene: THREE.Scene,
     private readonly worldRoot: THREE.Group,
     private readonly container: THREE.Group,
-    private readonly modeBadge: HTMLElement
+    private readonly modeBadge: HTMLElement,
+    private readonly spatialPanel?: SpatialControlPanel
   ) {
     this.renderer.xr.enabled = true;
     this.renderer.xr.setReferenceSpaceType("local-floor");
@@ -47,6 +57,7 @@ export class WebXrBridge {
     }
 
     this.updateWorldRootHeight();
+    this.updatePanelInteractions();
 
     const grabbingHand = this.findPinchingHand();
     if (!grabbingHand) {
@@ -76,6 +87,12 @@ export class WebXrBridge {
     this.tilt.y = THREE.MathUtils.clamp(this.container.rotation.x / 0.8, -1, 1);
   }
 
+  resetTilt() {
+    this.tilt.x = 0;
+    this.tilt.y = 0;
+    this.grabbed = false;
+  }
+
   private enter(button: HTMLButtonElement) {
     const generated = ARButton.createButton(this.renderer, {
       requiredFeatures: ["local-floor"],
@@ -87,6 +104,9 @@ export class WebXrBridge {
     generated.remove();
     button.textContent = "MR Active";
     this.modeBadge.textContent = "Quest MR";
+    document.querySelector("#hand-mode-button")?.classList.add("active");
+    document.querySelector("#touch-mode-button")?.classList.remove("active");
+    document.querySelector("#tilt-mode-button")?.classList.remove("active");
     this.attachHands();
   }
 
@@ -118,6 +138,52 @@ export class WebXrBridge {
       this.scene.add(hand);
       this.hands.push(hand);
     }
+    this.attachControllers();
+  }
+
+  private attachControllers() {
+    if (this.controllers.length > 0) {
+      return;
+    }
+    for (let i = 0; i < 2; i += 1) {
+      const controller = this.renderer.xr.getController(i);
+      controller.addEventListener("selectstart", () => {
+        this.controllerPressed[i] = true;
+      });
+      controller.addEventListener("selectend", () => {
+        this.controllerPressed[i] = false;
+      });
+      const rayLine = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -0.65)]),
+        new THREE.LineBasicMaterial({ color: "#8de5df", transparent: true, opacity: 0.75 })
+      );
+      controller.add(rayLine);
+      this.scene.add(controller);
+      this.controllers.push(controller);
+    }
+  }
+
+  private updatePanelInteractions() {
+    if (!this.spatialPanel) {
+      return;
+    }
+
+    for (let i = 0; i < this.controllers.length; i += 1) {
+      const controller = this.controllers[i];
+      controller.getWorldPosition(this.rayOrigin);
+      controller.getWorldQuaternion(this.rayQuaternion);
+      this.rayDirection.set(0, 0, -1).applyQuaternion(this.rayQuaternion).normalize();
+      this.spatialPanel.interactRay(this.rayOrigin, this.rayDirection, this.controllerPressed[i]);
+    }
+
+    for (const hand of this.hands) {
+      const indexTip = hand.joints["index-finger-tip"];
+      if (!indexTip) {
+        continue;
+      }
+      indexTip.getWorldPosition(this.directTouchPoint);
+      this.spatialPanel.interactPoint(this.directTouchPoint, true);
+    }
   }
 
   private findPinchingHand(): HandGroup | undefined {
@@ -127,7 +193,7 @@ export class WebXrBridge {
       if (!indexTip || !thumbTip) {
         continue;
       }
-      const distance = indexTip.getWorldPosition(new THREE.Vector3()).distanceTo(thumbTip.getWorldPosition(new THREE.Vector3()));
+      const distance = indexTip.getWorldPosition(this.pinchPointA).distanceTo(thumbTip.getWorldPosition(this.pinchPointB));
       if (distance < 0.032) {
         return hand;
       }

@@ -5,7 +5,7 @@ import hybridIceWater from "../../presets/hybrid_ice_water.json";
 import liquidDenseJar from "../../presets/liquid_dense_jar.json";
 import liquidHalfTube from "../../presets/liquid_half_tube.json";
 import liquidSmallBox from "../../presets/liquid_small_box.json";
-import type { ContainerPreset, MaterialFamily } from "./types";
+import type { ContainerPreset, MaterialFamily, VisualContainerShape } from "./types";
 
 const rawPresets = [
   liquidSmallBox,
@@ -20,7 +20,7 @@ const rawPresets = [
 const families = new Set<MaterialFamily>(["Liquid", "Granular", "Hybrid", "Detented", "Custom"]);
 
 function asPreset(value: unknown): ContainerPreset {
-  const candidate = value as Partial<ContainerPreset>;
+  const candidate = value as Partial<ContainerPreset> & { visual_shape?: VisualContainerShape };
   if (!candidate.preset || !candidate.family || !families.has(candidate.family)) {
     throw new Error("Invalid haptics preset metadata");
   }
@@ -31,6 +31,7 @@ function asPreset(value: unknown): ContainerPreset {
   return {
     preset: candidate.preset,
     family: candidate.family,
+    visual_shape: candidate.visual_shape,
     container: {
       span_x_m: container.span_x_m,
       span_y_m: container.span_y_m,
@@ -44,7 +45,36 @@ function asPreset(value: unknown): ContainerPreset {
   };
 }
 
-export const presets = rawPresets.map(asPreset);
+const basePresets = rawPresets.map(asPreset);
+const denseJarBase = asPreset(liquidDenseJar);
+const liquidBoxBase = asPreset(liquidSmallBox);
+const bottlePreset: ContainerPreset = {
+  ...denseJarBase,
+  preset: "liquid_cylinder_bottle",
+  visual_shape: "cylinder_bottle",
+  container: {
+    ...denseJarBase.container,
+    span_x_m: 0.07,
+    span_y_m: 0.07,
+    span_z_m: 0.09,
+    fill: 0.62
+  }
+};
+const tumblerPreset: ContainerPreset = {
+  ...liquidBoxBase,
+  preset: "liquid_plastic_tumbler",
+  visual_shape: "tumbler_cup",
+  container: {
+    ...liquidBoxBase.container,
+    span_x_m: 0.07,
+    span_y_m: 0.07,
+    span_z_m: 0.07,
+    fill: 0.52,
+    viscosity: 0.24
+  }
+};
+
+export const presets = [basePresets[0], bottlePreset, tumblerPreset, ...basePresets.slice(1)];
 
 export function findPreset(name: string): ContainerPreset {
   return presets.find((preset) => preset.preset === name) ?? presets[0];

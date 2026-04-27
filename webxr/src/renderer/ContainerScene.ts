@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { ContainerPreset, LocalContentState, TiltState } from "../types";
+import type { ContainerPreset, LocalContentState, TiltState, VisualContainerShape } from "../types";
 import { makeLabelTexture, makeLiquidNormalTexture } from "./ProceduralAssets";
 
 const wallMaterial = new THREE.MeshPhysicalMaterial({
@@ -46,6 +46,30 @@ const foamMaterial = new THREE.MeshStandardMaterial({
 const granularMaterial = new THREE.MeshStandardMaterial({ color: "#d8c071", roughness: 0.76 });
 const hybridMaterial = new THREE.MeshStandardMaterial({ color: "#e5f0f3", roughness: 0.36, metalness: 0.04 });
 const labelMaterial = new THREE.MeshStandardMaterial({ roughness: 0.58, metalness: 0.0 });
+const capMaterial = new THREE.MeshStandardMaterial({ color: "#d7dde0", roughness: 0.38, metalness: 0.18 });
+const plasticCupMaterial = new THREE.MeshPhysicalMaterial({
+  color: "#eff8fb",
+  transparent: true,
+  opacity: 0.34,
+  roughness: 0.28,
+  metalness: 0.0,
+  transmission: 0.32,
+  thickness: 0.012,
+  clearcoat: 0.55,
+  clearcoatRoughness: 0.22,
+  depthWrite: false
+});
+
+const boxVisualSizeM = 0.07;
+const bottleBodyDiameterM = 0.07;
+const bottleBodyHeightM = 0.086;
+const bottleNeckHeightM = 0.024;
+const bottleNeckRadiusM = 0.014;
+const tumblerTopDiameterM = 0.07;
+const tumblerBottomDiameterM = 0.052;
+const tumblerHeightM = 0.07;
+const tableTopY = 0.824;
+export const containerRestY = tableTopY + boxVisualSizeM * 0.5;
 
 interface ParticleState {
   pos: THREE.Vector3;
@@ -63,7 +87,7 @@ export class ContainerScene {
   private shell?: THREE.Mesh;
   private edges?: THREE.LineSegments;
   private liquid?: THREE.Mesh;
-  private liquidSurface?: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshPhysicalMaterial>;
+  private liquidSurface?: THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhysicalMaterial>;
   private foam?: THREE.InstancedMesh;
   private particles?: THREE.InstancedMesh;
   private label?: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
@@ -76,18 +100,31 @@ export class ContainerScene {
   private localGravity = new THREE.Vector3();
   private lastElapsed = 0;
   private liquidInset = 0.78;
+  private shape: VisualContainerShape = "box";
 
   constructor() {
     this.group.name = "haptics-container";
-    this.group.position.set(0, 1.03, -0.72);
+    this.group.position.set(0, containerRestY, -0.72);
     liquidSurfaceMaterial.normalMap = makeLiquidNormalTexture();
     liquidSurfaceMaterial.normalScale = new THREE.Vector2(0.18, 0.18);
   }
 
   setPreset(preset: ContainerPreset) {
     this.preset = preset;
-    this.dimensions.set(preset.container.span_x_m, preset.container.span_z_m, preset.container.span_y_m);
+    this.shape = preset.visual_shape ?? "box";
+    if (this.shape === "cylinder_bottle") {
+      this.dimensions.set(bottleBodyDiameterM, bottleBodyHeightM + bottleNeckHeightM, bottleBodyDiameterM);
+    } else if (this.shape === "tumbler_cup") {
+      this.dimensions.set(tumblerTopDiameterM, tumblerHeightM, tumblerTopDiameterM);
+    } else {
+      this.dimensions.set(boxVisualSizeM, boxVisualSizeM, boxVisualSizeM);
+    }
+    this.group.position.y = this.restY();
     this.rebuild();
+  }
+
+  restY() {
+    return tableTopY + this.dimensions.y * 0.5;
   }
 
   update(tilt: TiltState, content: LocalContentState, elapsed: number, dt: number) {
@@ -96,12 +133,13 @@ export class ContainerScene {
     this.group.rotation.z = THREE.MathUtils.lerp(this.group.rotation.z, -tilt.x * 0.62, 0.16);
 
     if (this.liquid && this.preset) {
-      const height = this.dimensions.y * Math.max(0.04, this.preset.container.fill);
+      const height = this.liquidHeight() * Math.max(0.04, this.preset.container.fill);
       const offsetLimitX = this.dimensions.x * (0.5 - this.liquidInset * 0.5) * 0.82;
       const offsetLimitZ = this.dimensions.z * (0.5 - this.liquidInset * 0.5) * 0.82;
       this.liquid.position.x = THREE.MathUtils.clamp(content.surfaceOffsetX * this.dimensions.x * 0.06, -offsetLimitX, offsetLimitX);
       this.liquid.position.z = THREE.MathUtils.clamp(-content.surfaceOffsetY * this.dimensions.z * 0.06, -offsetLimitZ, offsetLimitZ);
-      this.liquid.position.y = -this.dimensions.y * 0.5 + height * 0.5;
+      this.clampLiquidOffset(this.liquid.position);
+      this.liquid.position.y = this.liquidBottomY() + height * 0.5;
       this.liquid.rotation.set(0, 0, 0);
       this.liquid.scale.y = 1 + Math.sin(elapsed * 7.2) * content.agitation * 0.018;
     }
@@ -122,44 +160,64 @@ export class ContainerScene {
       return;
     }
 
-    const geometry = new THREE.BoxGeometry(this.dimensions.x, this.dimensions.y, this.dimensions.z);
-    this.shell = new THREE.Mesh(geometry, wallMaterial);
+    const geometry = this.makeShellGeometry();
+    this.shell = new THREE.Mesh(geometry, this.shape === "tumbler_cup" ? plasticCupMaterial : wallMaterial);
     this.shell.renderOrder = 4;
     this.shell.castShadow = true;
     this.shell.receiveShadow = true;
+    if (this.shape === "cylinder_bottle") {
+      this.shell.position.y = -this.dimensions.y * 0.5 + bottleBodyHeightM * 0.5;
+    }
     this.group.add(this.shell);
 
     this.edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edgeMaterial);
     this.edges.renderOrder = 5;
+    this.edges.position.copy(this.shell.position);
     this.group.add(this.edges);
+    if (this.shape === "cylinder_bottle") {
+      this.buildBottleTop();
+    } else if (this.shape === "tumbler_cup") {
+      this.buildTumblerRim();
+    }
 
     const labelTexture = makeLabelTexture(this.preset.preset, this.preset.family);
     labelTexture.repeat.set(1, 1);
     const label = labelMaterial.clone();
     label.map = labelTexture;
     label.needsUpdate = true;
-    this.label = new THREE.Mesh(new THREE.PlaneGeometry(this.dimensions.x * 0.6, this.dimensions.y * 0.34), label);
+    const labelWidth = this.isRoundContainer() ? this.dimensions.x * 0.54 : this.dimensions.x * 0.6;
+    const labelHeight = this.shape === "cylinder_bottle" ? bottleBodyHeightM * 0.34 : this.dimensions.y * 0.34;
+    this.label = new THREE.Mesh(new THREE.PlaneGeometry(labelWidth, labelHeight), label);
     this.label.renderOrder = 6;
-    this.label.position.set(0, -this.dimensions.y * 0.03, this.dimensions.z * 0.506);
+    this.label.position.set(
+      0,
+      this.isRoundContainer() ? -this.dimensions.y * 0.14 : -this.dimensions.y * 0.03,
+      this.dimensions.z * 0.506
+    );
     this.group.add(this.label);
 
     if (this.preset.family === "Liquid" || this.preset.family === "Hybrid") {
-      const fillHeight = Math.max(0.006, this.dimensions.y * this.preset.container.fill);
+      const fillHeight = Math.max(0.006, this.liquidHeight() * this.preset.container.fill);
+      const liquidGeometry = this.makeLiquidGeometry(fillHeight);
       this.liquid = new THREE.Mesh(
-        new THREE.BoxGeometry(this.dimensions.x * this.liquidInset, fillHeight, this.dimensions.z * this.liquidInset, 8, 2, 8),
+        liquidGeometry,
         liquidMaterial
       );
       this.liquid.renderOrder = 1;
-      this.liquid.position.y = -this.dimensions.y * 0.5 + fillHeight * 0.5;
+      this.liquid.position.y = this.liquidBottomY() + fillHeight * 0.5;
       this.group.add(this.liquid);
 
+      const surfaceGeometry =
+        this.isRoundContainer()
+          ? new THREE.CircleGeometry(this.liquidSurfaceRadius(fillHeight), 56)
+          : new THREE.PlaneGeometry(this.dimensions.x * (this.liquidInset - 0.04), this.dimensions.z * (this.liquidInset - 0.04), 18, 18);
       this.liquidSurface = new THREE.Mesh(
-        new THREE.PlaneGeometry(this.dimensions.x * (this.liquidInset - 0.04), this.dimensions.z * (this.liquidInset - 0.04), 18, 18),
+        surfaceGeometry,
         liquidSurfaceMaterial
       );
       this.liquidSurface.renderOrder = 2;
       this.liquidSurface.rotation.x = -Math.PI * 0.5;
-      this.liquidSurface.position.y = -this.dimensions.y * 0.5 + fillHeight + 0.0008;
+      this.liquidSurface.position.y = this.liquidBottomY() + fillHeight + 0.0008;
       this.group.add(this.liquidSurface);
 
       this.foamCount = this.preset.family === "Hybrid" ? 9 : 16;
@@ -193,8 +251,133 @@ export class ContainerScene {
       this.particleStates = [];
     }
 
-    const scale = 3.8;
-    this.group.scale.setScalar(scale);
+    this.group.scale.setScalar(1.0);
+  }
+
+  private makeShellGeometry() {
+    if (this.shape === "cylinder_bottle") {
+      return new THREE.CylinderGeometry(this.dimensions.x * 0.5, this.dimensions.x * 0.5, bottleBodyHeightM, 64, 1, true);
+    }
+    if (this.shape === "tumbler_cup") {
+      return new THREE.CylinderGeometry(tumblerTopDiameterM * 0.5, tumblerBottomDiameterM * 0.5, tumblerHeightM, 64, 1, true);
+    }
+    return new THREE.BoxGeometry(this.dimensions.x, this.dimensions.y, this.dimensions.z);
+  }
+
+  private makeLiquidGeometry(fillHeight: number) {
+    if (this.shape === "cylinder_bottle") {
+      return new THREE.CylinderGeometry(
+        this.dimensions.x * this.liquidInset * 0.5,
+        this.dimensions.x * this.liquidInset * 0.5,
+        fillHeight,
+        56,
+        1,
+        false
+      );
+    }
+    if (this.shape === "tumbler_cup") {
+      return new THREE.CylinderGeometry(
+        this.liquidSurfaceRadius(fillHeight),
+        tumblerBottomDiameterM * this.liquidInset * 0.5,
+        fillHeight,
+        56,
+        1,
+        false
+      );
+    }
+    return new THREE.BoxGeometry(this.dimensions.x * this.liquidInset, fillHeight, this.dimensions.z * this.liquidInset, 8, 2, 8);
+  }
+
+  private buildTumblerRim() {
+    const rimY = this.dimensions.y * 0.5;
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(tumblerTopDiameterM * 0.5, 0.0022, 8, 72),
+      plasticCupMaterial
+    );
+    rim.rotation.x = Math.PI * 0.5;
+    rim.position.y = rimY;
+    rim.renderOrder = 5;
+    this.group.add(rim);
+
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(tumblerBottomDiameterM * 0.42, tumblerBottomDiameterM * 0.46, 0.005, 48),
+      plasticCupMaterial
+    );
+    base.position.y = -this.dimensions.y * 0.5 + 0.0025;
+    base.renderOrder = 4;
+    this.group.add(base);
+  }
+
+  private buildBottleTop() {
+    const shoulderY = -this.dimensions.y * 0.5 + bottleBodyHeightM;
+    const neckY = shoulderY + bottleNeckHeightM * 0.5;
+    const neck = new THREE.Mesh(
+      new THREE.CylinderGeometry(bottleNeckRadiusM, bottleNeckRadiusM * 1.12, bottleNeckHeightM, 40, 1, true),
+      wallMaterial
+    );
+    neck.position.y = neckY;
+    neck.renderOrder = 4;
+    this.group.add(neck);
+
+    const neckEdges = new THREE.LineSegments(new THREE.EdgesGeometry(neck.geometry), edgeMaterial);
+    neckEdges.position.copy(neck.position);
+    neckEdges.renderOrder = 5;
+    this.group.add(neckEdges);
+
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(bottleNeckRadiusM * 1.16, bottleNeckRadiusM * 1.16, 0.008, 40),
+      capMaterial
+    );
+    cap.position.y = shoulderY + bottleNeckHeightM + 0.004;
+    cap.castShadow = true;
+    this.group.add(cap);
+
+    const shoulder = new THREE.Mesh(
+      new THREE.CylinderGeometry(bottleNeckRadiusM * 1.18, this.dimensions.x * 0.5, 0.014, 48, 1, true),
+      wallMaterial
+    );
+    shoulder.position.y = shoulderY + 0.007;
+    shoulder.renderOrder = 4;
+    this.group.add(shoulder);
+  }
+
+  private liquidBottomY() {
+    return -this.dimensions.y * 0.5;
+  }
+
+  private liquidHeight() {
+    if (this.shape === "cylinder_bottle") {
+      return bottleBodyHeightM;
+    }
+    if (this.shape === "tumbler_cup") {
+      return tumblerHeightM;
+    }
+    return this.dimensions.y;
+  }
+
+  private isRoundContainer() {
+    return this.shape === "cylinder_bottle" || this.shape === "tumbler_cup";
+  }
+
+  private liquidSurfaceRadius(fillHeight: number) {
+    if (this.shape === "tumbler_cup") {
+      const fillT = THREE.MathUtils.clamp(fillHeight / Math.max(tumblerHeightM, 0.001), 0, 1);
+      return THREE.MathUtils.lerp(tumblerBottomDiameterM, tumblerTopDiameterM, fillT) * (this.liquidInset - 0.04) * 0.5;
+    }
+    return this.dimensions.x * (this.liquidInset - 0.04) * 0.5;
+  }
+
+  private clampLiquidOffset(position: THREE.Vector3) {
+    if (!this.isRoundContainer()) {
+      return;
+    }
+    const maxRadius = this.dimensions.x * (0.5 - this.liquidInset * 0.5) * 0.82;
+    const radial = Math.hypot(position.x, position.z);
+    if (radial > maxRadius && radial > 0.000001) {
+      const scale = maxRadius / radial;
+      position.x *= scale;
+      position.z *= scale;
+    }
   }
 
   private updateLiquidSurface(content: LocalContentState, elapsed: number) {
@@ -217,14 +400,17 @@ export class ContainerScene {
 
     this.liquidSurface.position.x = content.surfaceOffsetX * this.dimensions.x * 0.18;
     this.liquidSurface.position.z = -content.surfaceOffsetY * this.dimensions.z * 0.18;
+    this.clampLiquidOffset(this.liquidSurface.position);
     const surfaceHalfX = this.dimensions.x * (this.liquidInset - 0.04) * 0.5;
     const surfaceHalfZ = this.dimensions.z * (this.liquidInset - 0.04) * 0.5;
     const offsetLimitX = this.dimensions.x * 0.5 - surfaceHalfX - 0.002;
     const offsetLimitZ = this.dimensions.z * 0.5 - surfaceHalfZ - 0.002;
-    this.liquidSurface.position.x = THREE.MathUtils.clamp(this.liquidSurface.position.x, -offsetLimitX, offsetLimitX);
-    this.liquidSurface.position.z = THREE.MathUtils.clamp(this.liquidSurface.position.z, -offsetLimitZ, offsetLimitZ);
-    const fillHeight = this.dimensions.y * Math.max(0.04, this.preset.container.fill);
-    const headroom = this.dimensions.y - fillHeight;
+    if (!this.isRoundContainer()) {
+      this.liquidSurface.position.x = THREE.MathUtils.clamp(this.liquidSurface.position.x, -offsetLimitX, offsetLimitX);
+      this.liquidSurface.position.z = THREE.MathUtils.clamp(this.liquidSurface.position.z, -offsetLimitZ, offsetLimitZ);
+    }
+    const fillHeight = this.liquidHeight() * Math.max(0.04, this.preset.container.fill);
+    const headroom = this.liquidHeight() - fillHeight;
     const maxTiltX = THREE.MathUtils.clamp((headroom * 0.42) / Math.max(surfaceHalfZ, 0.001), 0.08, 0.42);
     const maxTiltZ = THREE.MathUtils.clamp((headroom * 0.42) / Math.max(surfaceHalfX, 0.001), 0.08, 0.42);
     this.liquidSurface.rotation.x = -Math.PI * 0.5 + THREE.MathUtils.clamp(content.surfaceOffsetY * 0.34, -maxTiltX, maxTiltX);
@@ -238,7 +424,7 @@ export class ContainerScene {
     if (!this.foam || !this.liquidSurface || !this.preset) {
       return;
     }
-    const fillHeight = this.dimensions.y * Math.max(0.04, this.preset.container.fill);
+    const fillHeight = this.liquidHeight() * Math.max(0.04, this.preset.container.fill);
     for (let i = 0; i < this.foamCount; i += 1) {
       const seed = i * 17.31;
       const ring = i / Math.max(1, this.foamCount - 1);
@@ -246,7 +432,7 @@ export class ContainerScene {
       const edgeBias = 0.18 + ring * 0.78;
       const x = Math.cos(angle) * this.dimensions.x * 0.38 * edgeBias + content.surfaceOffsetX * this.dimensions.x * 0.13;
       const z = Math.sin(angle * 0.84) * this.dimensions.z * 0.38 * edgeBias - content.surfaceOffsetY * this.dimensions.z * 0.13;
-      const y = -this.dimensions.y * 0.5 + fillHeight + 0.002 + Math.sin(elapsed * 2.8 + seed) * 0.0015;
+      const y = this.liquidBottomY() + fillHeight + 0.002 + Math.sin(elapsed * 2.8 + seed) * 0.0015;
       const visibility = THREE.MathUtils.smoothstep(content.agitation + content.impactPulse * 0.45, 0.12, 0.9);
       const radius = (0.00075 + (i % 4) * 0.00028) * visibility;
       this.dummy.position.set(x, y, z);
@@ -263,8 +449,8 @@ export class ContainerScene {
     for (let i = 0; i < this.particleCount; i += 1) {
       const seed = i * 9.173 + 0.31;
       const radius = radiusBase * (this.preset?.family === "Hybrid" && i % 4 === 0 ? 1.75 : 1.0);
-      const fillHeight = this.dimensions.y * Math.max(0.04, this.preset?.container.fill ?? 0.5);
-      const liquidTopY = -this.dimensions.y * 0.5 + fillHeight;
+      const fillHeight = this.liquidHeight() * Math.max(0.04, this.preset?.container.fill ?? 0.5);
+      const liquidTopY = this.liquidBottomY() + fillHeight;
       states.push({
         pos: new THREE.Vector3(
           Math.sin(seed * 1.7) * this.dimensions.x * 0.22,
@@ -298,8 +484,8 @@ export class ContainerScene {
     const limitX = this.preset.family === "Hybrid" ? liquidLimitX : this.dimensions.x * 0.5;
     const limitY = this.dimensions.y * 0.5;
     const limitZ = this.preset.family === "Hybrid" ? liquidLimitZ : this.dimensions.z * 0.5;
-    const fillHeight = this.dimensions.y * Math.max(0.04, this.preset.container.fill);
-    const liquidTopY = -this.dimensions.y * 0.5 + fillHeight;
+    const fillHeight = this.liquidHeight() * Math.max(0.04, this.preset.container.fill);
+    const liquidTopY = this.liquidBottomY() + fillHeight;
 
     for (let i = 0; i < this.particleStates.length; i += 1) {
       const particle = this.particleStates[i];

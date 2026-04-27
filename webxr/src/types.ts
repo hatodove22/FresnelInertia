@@ -1,8 +1,10 @@
 export type MaterialFamily = "Liquid" | "Granular" | "Hybrid" | "Detented" | "Custom";
+export type VisualContainerShape = "box" | "cylinder_bottle" | "tumbler_cup";
 
 export interface ContainerPreset {
   preset: string;
   family: MaterialFamily;
+  visual_shape?: VisualContainerShape;
   container: {
     span_x_m: number;
     span_y_m: number;
@@ -38,11 +40,20 @@ export interface VisualRuntime {
   content: LocalContentState;
 }
 
+export interface SpatialPanelState {
+  shakeBoost: number;
+  dampingPreview: number;
+}
+
 export interface DemoUiElements {
   presetSelect: HTMLSelectElement;
   orientationButton: HTMLButtonElement;
   xrButton: HTMLButtonElement;
   questButton: HTMLButtonElement;
+  touchModeButton: HTMLButtonElement;
+  tiltModeButton: HTMLButtonElement;
+  handModeButton: HTMLButtonElement;
+  resetButton: HTMLButtonElement;
   modeBadge: HTMLElement;
   familyReadout: HTMLElement;
   fillReadout: HTMLElement;

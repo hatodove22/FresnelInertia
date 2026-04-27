@@ -1,4 +1,5 @@
 import type { ContainerPreset, LocalContentState, TiltState } from "./types";
+import type { SpatialPanelState } from "./types";
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const mix = (from: number, to: number, factor: number) => from + (to - from) * factor;
@@ -19,18 +20,20 @@ export class VisualSimulator {
   private previousTilt: TiltState = { x: 0, y: 0 };
   private phase = 0;
 
-  update(preset: ContainerPreset, tilt: TiltState, dt: number): LocalContentState {
+  update(preset: ContainerPreset, tilt: TiltState, dt: number, panelState?: SpatialPanelState): LocalContentState {
     const viscosity = preset.container.viscosity ?? 0.12;
     const particleCount = preset.container.particle_count ?? 0;
     const hardness = preset.container.particle_hardness ?? 0.3;
     const fill = preset.container.fill;
     const familyGain = preset.family === "Liquid" ? 0.86 : preset.family === "Hybrid" ? 0.64 : 0.42;
     const deltaTilt = Math.hypot(tilt.x - this.previousTilt.x, tilt.y - this.previousTilt.y);
+    const shakeBoost = 0.65 + (panelState?.shakeBoost ?? 0.35) * 1.4;
+    const dampingPreview = panelState?.dampingPreview ?? 0.5;
     const targetX = clamp(tilt.x * familyGain, -0.92, 0.92);
     const targetY = clamp(tilt.y * familyGain, -0.92, 0.92);
     const naturalHz = mix(2.8, 1.15, clamp(viscosity, 0, 1)) * mix(1.18, 0.82, fill);
     const omega = naturalHz * Math.PI * 2;
-    const damping = mix(0.34, 0.92, clamp(viscosity, 0, 1));
+    const damping = mix(0.34, 0.92, clamp(viscosity, 0, 1)) * mix(0.7, 1.3, dampingPreview);
 
     this.content.surfaceVelocityX += (targetX - this.content.surfaceOffsetX) * omega * omega * dt;
     this.content.surfaceVelocityY += (targetY - this.content.surfaceOffsetY) * omega * omega * dt;
@@ -41,7 +44,7 @@ export class VisualSimulator {
 
     this.content.agitation = mix(
       this.content.agitation,
-      clamp(deltaTilt * 13 + Math.hypot(this.content.surfaceVelocityX, this.content.surfaceVelocityY) * 0.1, 0, 1),
+      clamp(deltaTilt * 13 * shakeBoost + Math.hypot(this.content.surfaceVelocityX, this.content.surfaceVelocityY) * 0.1, 0, 1),
       clamp(dt * 4.6, 0.02, 0.25)
     );
     const wallContact = Math.max(Math.abs(this.content.surfaceOffsetX), Math.abs(this.content.surfaceOffsetY));

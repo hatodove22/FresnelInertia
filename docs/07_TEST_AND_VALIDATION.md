@@ -199,8 +199,15 @@
 - verify touch drag changes the virtual container tilt and the rendered content response
 - verify optional DeviceOrientation control only starts after explicit user permission
 - verify the preset selector changes liquid / granular / hybrid visual behavior using `presets/*.json`
+- verify box presets render as hand-scale 7 cm cubes in WebXR without changing the firmware preset files
+- verify the `liquid_cylinder_bottle` selector entry renders a cylindrical bottle with a circular liquid body/surface
+- verify the `liquid_plastic_tumbler` selector entry renders a tapered plastic cup with an open rim and tapered liquid body
 - verify the Quest 3/3S path starts from an HTTPS URL in Quest Browser
 - verify the MR path requests hand tracking as optional WebXR support and pinch/grab can attach the container to a hand pose
+- verify the spatial experiment panel is visible in MR and does not depend on the phone DOM HUD
+- verify controller ray selection can activate a preset row and move the panel sliders
+- verify index fingertip direct touch only activates the panel when the fingertip is near the panel face
+- verify panel slider changes visibly affect content motion boost / damping preview without changing repository presets
 - verify the IWSDK/IWER development path can open the app on desktop without a headset
 - verify `npm.cmd run quest` prints a Cloudflare Quick Tunnel URL and serves the production preview without Vite HMR errors
 - verify liquid and hybrid content remains visibly contained inside the transparent shell during strong tilt

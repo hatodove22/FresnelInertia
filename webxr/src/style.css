@@ -53,7 +53,9 @@ body {
 .title-row,
 .actions,
 .readout,
-.readout div {
+.readout div,
+.panel-header,
+.method-grid {
   display: flex;
 }
 
@@ -132,6 +134,70 @@ button:disabled {
   flex: 1 1 0;
 }
 
+.operation-panel {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.panel-header {
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+h2 {
+  margin: 0;
+  color: #dfe9ec;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.small-button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.method-grid {
+  gap: 8px;
+}
+
+.method {
+  flex: 1 1 0;
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 7px 9px;
+}
+
+.method.active {
+  border-color: rgba(114, 214, 207, 0.72);
+  background: rgba(63, 151, 146, 0.24);
+}
+
+.method span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.method small {
+  overflow: hidden;
+  width: 100%;
+  color: #9fb2b8;
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .readout {
   margin: 0;
   gap: 8px;
@@ -178,5 +244,13 @@ dd {
 
   .actions button {
     flex-basis: calc(50% - 4px);
+  }
+
+  .method-grid {
+    flex-wrap: wrap;
+  }
+
+  .method {
+    flex-basis: calc(33.333% - 6px);
   }
 }
