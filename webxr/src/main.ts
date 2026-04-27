@@ -93,10 +93,13 @@ const spatialPanel = new SpatialControlPanel({
   },
   onStateChanged: (state) => {
     panelState = state;
+  },
+  onReset: () => {
+    resetContainerToRest();
   }
 });
 worldRoot.add(spatialPanel.group);
-const xrBridge = new WebXrBridge(renderer, scene, worldRoot, container.group, ui.modeBadge, spatialPanel);
+const xrBridge = new WebXrBridge(renderer, scene, worldRoot, container.group, ui.modeBadge, spatialPanel, container.gripProxy);
 let activePreset = findPreset("liquid_small_box");
 let lastTime = performance.now();
 
@@ -133,12 +136,7 @@ ui.handModeButton.addEventListener("click", () => {
 });
 
 ui.resetButton.addEventListener("click", () => {
-  phoneInput.resetTilt();
-  xrBridge.resetTilt();
-  container.group.position.set(0, container.restY(), -0.72);
-  container.group.rotation.set(0, 0, 0);
-  container.group.quaternion.identity();
-  updateReadout({ x: 0, y: 0 });
+  resetContainerToRest();
 });
 
 ui.questButton.addEventListener("click", () => {
@@ -169,6 +167,15 @@ renderer.setAnimationLoop((time) => {
   updateReadout(tilt);
   renderer.render(scene, camera);
 });
+
+function resetContainerToRest() {
+  phoneInput.resetTilt();
+  xrBridge.resetTilt();
+  container.group.position.set(0, container.restY(), -0.72);
+  container.group.rotation.set(0, 0, 0);
+  container.group.quaternion.identity();
+  updateReadout({ x: 0, y: 0 });
+}
 
 function updateReadout(tilt: TiltState) {
   ui.familyReadout.textContent = activePreset.family;

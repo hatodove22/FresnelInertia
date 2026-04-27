@@ -19,10 +19,11 @@ This document defines the standalone visual client in `webxr/`.
 | `src/simulator.ts` | local visual-only content dynamics for slosh, agitation, waves, impacts, and particle spread |
 | `src/renderer/ContainerScene.ts` | transparent shell, sample label, liquid, foam, and granular/hybrid instancing |
 | `src/renderer/EnvironmentScene.ts` | lab-bench environment, mat, panel, small props, and cables |
+| `src/renderer/GripProxy.ts` | visual thumb/index contact markers used while an object is grabbed |
 | `src/renderer/ProceduralAssets.ts` | in-browser canvas textures for wood, mat, liquid normals, and labels |
-| `src/renderer/SpatialControlPanel.ts` | in-scene experiment panel for ray/direct-touch preset rows and sliders |
+| `src/renderer/SpatialControlPanel.ts` | in-scene experiment panel for ray/direct-touch preset rows, sliders, and reset |
 | `src/input/PhoneInput.ts` | touch-drag tilt and optional DeviceOrientation input |
-| `src/xr/WebXrBridge.ts` | WebXR AR button integration, hand model setup, pinch/grab pose bridge, and lightweight panel ray/touch routing |
+| `src/xr/WebXrBridge.ts` | WebXR AR button integration, hand model setup, near-grab position bridge, and lightweight panel ray/touch routing |
 | `scripts/start-quest-tunnel.ps1` | production preview plus Cloudflare Quick Tunnel launcher |
 
 ## 2. Runtime modes
@@ -39,8 +40,10 @@ This document defines the standalone visual client in `webxr/`.
 - Targets Meta Quest 3/3S in Quest Browser.
 - Starts an `immersive-ar` WebXR session when available.
 - Requests hand tracking, hit test, anchors, plane detection, and mesh detection as optional features.
-- Uses pinch/grab to attach the virtual container to a hand pose.
+- Uses near-grab to attach the virtual container when a tracked hand approaches the object. When thumb and index fingertips are separated enough to imply opposing contact, the bridge centers the object between those fingertips. Otherwise it estimates a grab position from wrist, thumb, index, and middle finger joints.
+- While near-grab is active, the app-rendered mesh for that tracked hand is hidden and replaced by two contact markers attached to the object. This only changes visualization; the raw WebXR hand joints remain the input source.
 - Shows a spatial experiment panel near the container. Controller rays can select rows and drag sliders; index fingertips can directly touch the panel face when hand joints are available.
+- The panel's fixed Reset Object button releases the active grab, applies a short re-grab cooldown, and respawns the object at the table rest pose.
 - Uses the same visual simulator as phone mode so content response stays consistent.
 - For off-LAN demos, use `npm.cmd run quest` to start a production preview plus Cloudflare Quick Tunnel.
 
@@ -72,8 +75,16 @@ The spatial experiment panel is intentionally separate from the smartphone HUD:
 
 - phone controls remain DOM-based for low-friction sharing,
 - MR controls live as a textured Three.js panel in the scene,
-- the panel currently exposes a preset list, motion-boost slider, and damping-preview slider,
+- the panel currently exposes a preset list, motion-boost slider, damping-preview slider, and fixed object reset button,
 - the panel is a prototype surface for experimental controls, not the final firmware control protocol.
+
+Grab visualization:
+
+- the active app-side hand mesh is hidden during near-grab,
+- a container-attached proxy displays only thumb and index contact pads around the object,
+- no synthetic finger bars are rendered, so the substitution reads as contact feedback rather than a fake hand,
+- the object is not forced into the hand's full quaternion pose; its visual tilt remains governed by the simulator path so liquid surfaces stay aligned inside the container,
+- releasing or resetting restores the hand mesh and hides the proxy.
 
 Content behavior is visual-only but now follows the same intuition as the haptic model:
 
@@ -153,8 +164,12 @@ Quest checks:
 - phone/desktop view loads before MR entry,
 - `Enter MR` starts an immersive session when WebXR permissions are accepted,
 - hand models appear when hand tracking is available,
-- pinch/grab attaches the container to hand pose,
-- controller ray selection can activate spatial panel preset rows and adjust sliders,
+- approaching a tracked hand attaches the container to the estimated grab position without requiring a pinch,
+- opening thumb and index around the object centers the object between the fingertips without forcing an unnatural object orientation,
+- active near-grab hides the app-side hand mesh and shows only the two contact markers,
+- release and Reset Object restore the app-side hand mesh and hide the proxy,
+- moving the hand away releases near-grab by hysteresis, and Reset Object forcibly releases then respawns the container at the table rest pose,
+- controller ray selection can activate spatial panel preset rows, adjust sliders, and trigger Reset Object,
 - fingertip direct touch can activate the same panel controls near the panel face,
 - grabbed box presets read as 7 cm hand-scale objects rather than oversized containers,
 - liquid/hybrid contents remain visually contained by the transparent shell under strong tilt.

@@ -9,7 +9,7 @@ The app is intentionally kept as a nested web project. Its Node dependencies, Vi
 ## Modes
 
 - Phone: normal browser mode with touch drag and optional device-orientation tilt.
-- Quest MR: WebXR AR session targeting Meta Quest 3/3S, with hand-tracking pinch/grab support and an in-scene experiment panel.
+- Quest MR: WebXR AR session targeting Meta Quest 3/3S, with hand-tracking near-grab support and an in-scene experiment panel.
 - Desktop: normal browser mode plus IWSDK/IWER emulation during local development.
 
 ## Project layout
@@ -25,6 +25,7 @@ webxr/
 |   |-- renderer/
 |   |   |-- ContainerScene.ts
 |   |   |-- EnvironmentScene.ts
+|   |   |-- GripProxy.ts
 |   |   |-- ProceduralAssets.ts
 |   |   `-- SpatialControlPanel.ts
 |   |-- xr/WebXrBridge.ts
@@ -39,7 +40,8 @@ webxr/
 
 - Procedural texture assets are generated in-browser for the wooden bench, calibration mat, liquid normals, and sample label.
 - The scene includes a small lab-bench environment so phone demos read as an object in space rather than a floating cube.
-- A lightweight spatial experiment panel is rendered as a Three.js canvas texture in the MR scene. It provides a preset list and two sliders so ray and fingertip direct-touch behavior can be evaluated before adopting a fuller IWSDK UIKit/UIKitML surface.
+- A lightweight spatial experiment panel is rendered as a Three.js canvas texture in the MR scene. It provides a preset list, two sliders, and a fixed Reset Object button so ray and fingertip direct-touch behavior can be evaluated before adopting a fuller IWSDK UIKit/UIKitML surface.
+- During near-grab, the app-side hand mesh for the active hand is hidden and replaced by simple contact markers attached to the container. Input still comes from the tracked WebXR hand joints.
 - Box presets are rendered as hand-scale 7 cm cubes in the WebXR demo so Quest hand tracking reads at a plausible physical size. This visual normalization does not rewrite the repository preset files.
 - A WebXR-only `liquid_cylinder_bottle` preset adds a cylindrical bottle body with a neck, cap, circular liquid volume, and circular liquid surface.
 - A WebXR-only `liquid_plastic_tumbler` preset adds a translucent tapered plastic cup with a raised rim, base, and slightly tapered liquid volume.
@@ -51,8 +53,10 @@ The visual state is local to the browser:
 - preset fields are imported from `../presets/*.json`,
 - `VisualSimulator` maps virtual tilt into slosh, agitation, impact pulse, waves, and particle spread,
 - `ContainerScene` renders the transparent container, label, liquid, foam, and particles,
+- `GripProxy` renders the thumb/index contact markers used during visual grab substitution,
 - `EnvironmentScene` provides the bench-like spatial context,
-- `SpatialControlPanel` provides the in-scene prototype UI for ray/direct-touch list and slider interaction,
+- `SpatialControlPanel` provides the in-scene prototype UI for ray/direct-touch list, slider, and reset interaction,
+- `WebXrBridge` prefers the thumb-index midpoint as the grab position when fingertips are separated enough to bracket the object, and falls back to a broader hand-position estimate when needed,
 - no live telemetry, WebSocket, or StickS3 control path is used in v1.
 
 ## Development
@@ -98,8 +102,8 @@ For Quest tunnel validation:
 2. Open the printed `trycloudflare.com` URL in Quest Browser.
 3. Confirm the phone/desktop view loads before entering MR.
 4. Press `Enter MR` and allow the browser's WebXR permissions.
-5. Pinch/grab the container and tilt it; the rendered content should stay inside the transparent shell.
-6. Aim a controller ray or bring an index fingertip near the spatial panel; preset rows and sliders should respond without requiring the phone HUD.
+5. Bring a tracked hand near the container; it should attach to the estimated grab position without requiring a pinch.
+6. Aim a controller ray or bring an index fingertip near the spatial panel; preset rows, sliders, and Reset Object should respond without requiring the phone HUD.
 
 The firmware baseline should still be validated from the repository root:
 

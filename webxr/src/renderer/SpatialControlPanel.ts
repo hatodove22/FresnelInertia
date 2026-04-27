@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { SpatialPanelState } from "../types";
 
-type PanelHitKind = "preset" | "slider";
+type PanelHitKind = "preset" | "slider" | "reset";
 
 interface PanelHit {
   kind: PanelHitKind;
@@ -14,6 +14,7 @@ interface SpatialControlPanelOptions {
   selectedPreset: string;
   onPresetSelected: (name: string) => void;
   onStateChanged: (state: SpatialPanelState) => void;
+  onReset: () => void;
 }
 
 const panelWidth = 0.42;
@@ -92,6 +93,7 @@ export class SpatialControlPanel {
       Math.abs(this.localPoint.y) <= panelHeight * 0.5 + 0.018 &&
       Math.abs(this.localPoint.z) <= 0.035;
     if (!inside) {
+      this.activeHitKey = "";
       return false;
     }
     return this.handleLocalPoint(this.localPoint.x, this.localPoint.y, pressed);
@@ -139,6 +141,9 @@ export class SpatialControlPanel {
         };
       }
     }
+    if (x >= 574 && x <= 940 && y >= 684 && y <= 744) {
+      return { kind: "reset", index: 0 };
+    }
     return undefined;
   }
 
@@ -156,6 +161,8 @@ export class SpatialControlPanel {
         this.state.dampingPreview = hit.value;
       }
       this.options.onStateChanged({ ...this.state });
+    } else if (hit.kind === "reset") {
+      this.options.onReset();
     }
     this.needsPaint = true;
   }
@@ -192,9 +199,7 @@ export class SpatialControlPanel {
     this.paintSlider(ctx, "Motion boost", this.state.shakeBoost, 500);
     this.paintSlider(ctx, "Damping preview", this.state.dampingPreview, 620);
 
-    ctx.fillStyle = "rgba(234, 243, 244, 0.56)";
-    ctx.font = "500 22px system-ui, sans-serif";
-    ctx.fillText("Prototype controls for study UI layout.", 574, 724);
+    this.paintResetButton(ctx);
 
     this.texture.needsUpdate = true;
     this.needsPaint = false;
@@ -231,6 +236,18 @@ export class SpatialControlPanel {
     ctx.fillStyle = "#9eb2b8";
     ctx.font = "600 20px system-ui, sans-serif";
     ctx.fillText(value.toFixed(2), 878, y - 38);
+  }
+
+  private paintResetButton(ctx: CanvasRenderingContext2D) {
+    ctx.fillStyle = "rgba(214, 100, 87, 0.34)";
+    this.roundRect(ctx, 574, 684, 366, 60, 18);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 190, 179, 0.56)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#fff3f0";
+    ctx.font = "750 26px system-ui, sans-serif";
+    ctx.fillText("Reset Object", 604, 723);
   }
 
   private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {

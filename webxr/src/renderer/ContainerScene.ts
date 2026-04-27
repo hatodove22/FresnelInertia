@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { ContainerPreset, LocalContentState, TiltState, VisualContainerShape } from "../types";
 import { makeLabelTexture, makeLiquidNormalTexture } from "./ProceduralAssets";
+import { GripProxy } from "./GripProxy";
 
 const wallMaterial = new THREE.MeshPhysicalMaterial({
   color: "#e8f8fb",
@@ -83,6 +84,7 @@ interface ParticleState {
 
 export class ContainerScene {
   readonly group = new THREE.Group();
+  readonly gripProxy = new GripProxy();
 
   private shell?: THREE.Mesh;
   private edges?: THREE.LineSegments;
@@ -105,6 +107,7 @@ export class ContainerScene {
   constructor() {
     this.group.name = "haptics-container";
     this.group.position.set(0, containerRestY, -0.72);
+    this.gripProxy.setVisible(false);
     liquidSurfaceMaterial.normalMap = makeLiquidNormalTexture();
     liquidSurfaceMaterial.normalScale = new THREE.Vector2(0.18, 0.18);
   }
@@ -129,6 +132,7 @@ export class ContainerScene {
 
   update(tilt: TiltState, content: LocalContentState, elapsed: number, dt: number) {
     this.lastElapsed = elapsed;
+    this.gripProxy.pulse(elapsed);
     this.group.rotation.x = THREE.MathUtils.lerp(this.group.rotation.x, tilt.y * 0.62, 0.16);
     this.group.rotation.z = THREE.MathUtils.lerp(this.group.rotation.z, -tilt.x * 0.62, 0.16);
 
@@ -156,6 +160,7 @@ export class ContainerScene {
 
   private rebuild() {
     this.group.clear();
+    this.gripProxy.setVisible(false);
     if (!this.preset) {
       return;
     }
@@ -252,6 +257,8 @@ export class ContainerScene {
     }
 
     this.group.scale.setScalar(1.0);
+    this.gripProxy.setSize(this.dimensions);
+    this.group.add(this.gripProxy.group);
   }
 
   private makeShellGeometry() {

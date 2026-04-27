@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { XRHandModelFactory } from "three/examples/jsm/webxr/XRHandModelFactory.js";
+import type { GripProxy } from "../renderer/GripProxy";
 import type { SpatialControlPanel } from "../renderer/SpatialControlPanel";
 import type { TiltState } from "../types";
 
@@ -8,13 +9,17 @@ type HandGroup = THREE.Group & {
   joints: Record<string, THREE.Object3D>;
 };
 
+const grabAcquireRadius = 0.095;
+const grabReleaseRadius = 0.18;
+const opposingGripMinSpan = 0.035;
+const opposingGripMaxSpan = 0.105;
+const resetGrabCooldownMs = 750;
+
 export class WebXrBridge {
   readonly tilt: TiltState = { x: 0, y: 0 };
-
   private readonly handFactory = new XRHandModelFactory();
   private readonly hands: HandGroup[] = [];
-  private readonly tempPosition = new THREE.Vector3();
-  private readonly tempLocalPosition = new THREE.Vector3();
+  private readonly handModels = new Map<HandGroup, THREE.Object3D>();
   private readonly xrCameraPosition = new THREE.Vector3();
   private readonly rayOrigin = new THREE.Vector3();
   private readonly rayDirection = new THREE.Vector3();
@@ -22,12 +27,18 @@ export class WebXrBridge {
   private readonly directTouchPoint = new THREE.Vector3();
   private readonly pinchPointA = new THREE.Vector3();
   private readonly pinchPointB = new THREE.Vector3();
+  private readonly wristWorldPosition = new THREE.Vector3();
+  private readonly containerWorldPosition = new THREE.Vector3();
+  private readonly gripWorldPosition = new THREE.Vector3();
+  private readonly gripLocalPosition = new THREE.Vector3();
+  private readonly handRight = new THREE.Vector3();
+  private readonly handForward = new THREE.Vector3();
+  private readonly handUp = new THREE.Vector3();
   private readonly controllers: THREE.Group[] = [];
   private readonly controllerPressed = [false, false];
-  private grabOffset = new THREE.Vector3();
+  private activeHand?: HandGroup;
   private grabbed = false;
-  private baseQuaternion = new THREE.Quaternion();
-  private initialGrabQuaternion = new THREE.Quaternion();
+  private grabCooldownUntil = 0;
   private referenceHeightSettled = false;
 
   constructor(
@@ -36,7 +47,8 @@ export class WebXrBridge {
     private readonly worldRoot: THREE.Group,
     private readonly container: THREE.Group,
     private readonly modeBadge: HTMLElement,
-    private readonly spatialPanel?: SpatialControlPanel
+    private readonly spatialPanel?: SpatialControlPanel,
+    private readonly gripProxy?: GripProxy
   ) {
     this.renderer.xr.enabled = true;
     this.renderer.xr.setReferenceSpaceType("local-floor");
@@ -59,38 +71,40 @@ export class WebXrBridge {
     this.updateWorldRootHeight();
     this.updatePanelInteractions();
 
-    const grabbingHand = this.findPinchingHand();
+    const grabbingHand = this.findNearHand();
     if (!grabbingHand) {
       this.grabbed = false;
+      this.activeHand = undefined;
+      this.updateHandVisibility();
       return;
     }
 
-    const wrist = grabbingHand.joints["wrist"];
-    if (!wrist) {
+    if (!this.getGripPose(grabbingHand, this.gripWorldPosition)) {
       return;
     }
 
-    wrist.getWorldPosition(this.tempPosition);
-    this.tempLocalPosition.copy(this.tempPosition);
-    this.container.parent?.worldToLocal(this.tempLocalPosition);
     if (!this.grabbed) {
       this.grabbed = true;
-      this.grabOffset.copy(this.container.position).sub(this.tempLocalPosition);
-      this.baseQuaternion.copy(this.container.quaternion);
-      this.initialGrabQuaternion.copy(wrist.quaternion);
+      this.activeHand = grabbingHand;
+      this.updateHandVisibility(grabbingHand);
     }
 
-    this.container.position.copy(this.tempLocalPosition).add(this.grabOffset);
-    const delta = this.initialGrabQuaternion.clone().invert().multiply(wrist.quaternion);
-    this.container.quaternion.copy(this.baseQuaternion).premultiply(delta);
-    this.tilt.x = THREE.MathUtils.clamp(-this.container.rotation.z / 0.8, -1, 1);
-    this.tilt.y = THREE.MathUtils.clamp(this.container.rotation.x / 0.8, -1, 1);
+    this.gripLocalPosition.copy(this.gripWorldPosition);
+    this.container.parent?.worldToLocal(this.gripLocalPosition);
+    this.container.position.lerp(this.gripLocalPosition, 0.34);
   }
 
   resetTilt() {
     this.tilt.x = 0;
     this.tilt.y = 0;
+    this.releaseGrab();
+  }
+
+  releaseGrab() {
     this.grabbed = false;
+    this.activeHand = undefined;
+    this.grabCooldownUntil = performance.now() + resetGrabCooldownMs;
+    this.updateHandVisibility();
   }
 
   private enter(button: HTMLButtonElement) {
@@ -134,9 +148,11 @@ export class WebXrBridge {
 
     for (let i = 0; i < 2; i += 1) {
       const hand = this.renderer.xr.getHand(i) as HandGroup;
-      hand.add(this.handFactory.createHandModel(hand, "mesh"));
+      const model = this.handFactory.createHandModel(hand, "mesh");
+      hand.add(model);
       this.scene.add(hand);
       this.hands.push(hand);
+      this.handModels.set(hand, model);
     }
     this.attachControllers();
   }
@@ -186,18 +202,92 @@ export class WebXrBridge {
     }
   }
 
-  private findPinchingHand(): HandGroup | undefined {
-    for (const hand of this.hands) {
-      const indexTip = hand.joints["index-finger-tip"];
-      const thumbTip = hand.joints["thumb-tip"];
-      if (!indexTip || !thumbTip) {
-        continue;
-      }
-      const distance = indexTip.getWorldPosition(this.pinchPointA).distanceTo(thumbTip.getWorldPosition(this.pinchPointB));
-      if (distance < 0.032) {
-        return hand;
+  private updateHandVisibility(activeHand?: HandGroup) {
+    for (const [hand, model] of this.handModels) {
+      model.visible = hand !== activeHand;
+    }
+    this.gripProxy?.setVisible(Boolean(activeHand));
+  }
+
+  private findNearHand(): HandGroup | undefined {
+    if (performance.now() < this.grabCooldownUntil) {
+      return undefined;
+    }
+
+    this.container.getWorldPosition(this.containerWorldPosition);
+    if (this.activeHand && this.getGripPose(this.activeHand, this.gripWorldPosition)) {
+      if (this.gripWorldPosition.distanceTo(this.containerWorldPosition) < grabReleaseRadius) {
+        return this.activeHand;
       }
     }
-    return undefined;
+
+    let nearestHand: HandGroup | undefined;
+    let nearestDistance = grabAcquireRadius;
+    for (const hand of this.hands) {
+      if (!this.getGripPose(hand, this.gripWorldPosition)) {
+        continue;
+      }
+      const distance = this.gripWorldPosition.distanceTo(this.containerWorldPosition);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestHand = hand;
+      }
+    }
+    return nearestHand;
+  }
+
+  private getGripPose(hand: HandGroup, outPosition: THREE.Vector3) {
+    const wrist = hand.joints["wrist"];
+    if (!wrist) {
+      return false;
+    }
+
+    const thumbTip = hand.joints["thumb-tip"];
+    const indexTip = hand.joints["index-finger-tip"];
+    const middleTip = hand.joints["middle-finger-tip"];
+    wrist.getWorldPosition(this.wristWorldPosition);
+
+    if (thumbTip && indexTip) {
+      thumbTip.getWorldPosition(this.pinchPointA);
+      indexTip.getWorldPosition(this.pinchPointB);
+      const pinchSpan = this.pinchPointA.distanceTo(this.pinchPointB);
+      if (pinchSpan >= opposingGripMinSpan && pinchSpan <= opposingGripMaxSpan) {
+        outPosition.addVectors(this.pinchPointA, this.pinchPointB).multiplyScalar(0.5);
+        this.handRight.subVectors(this.pinchPointB, this.pinchPointA).normalize();
+
+        if (middleTip) {
+          middleTip.getWorldPosition(this.handForward);
+          this.handForward.sub(this.wristWorldPosition).normalize();
+        } else {
+          this.handForward.set(0, 0, -1).applyQuaternion(wrist.quaternion).normalize();
+        }
+
+        this.handUp.crossVectors(this.handRight, this.handForward).normalize();
+        if (this.handRight.lengthSq() > 0.0001 && this.handForward.lengthSq() > 0.0001 && this.handUp.lengthSq() > 0.0001) {
+          return true;
+        }
+      }
+    }
+
+    outPosition.copy(this.wristWorldPosition).multiplyScalar(0.42);
+    let weight = 0.42;
+
+    if (thumbTip) {
+      thumbTip.getWorldPosition(this.pinchPointA);
+      outPosition.addScaledVector(this.pinchPointA, 0.22);
+      weight += 0.22;
+    }
+    if (indexTip) {
+      indexTip.getWorldPosition(this.pinchPointA);
+      outPosition.addScaledVector(this.pinchPointA, 0.22);
+      weight += 0.22;
+    }
+    if (middleTip) {
+      middleTip.getWorldPosition(this.pinchPointA);
+      outPosition.addScaledVector(this.pinchPointA, 0.14);
+      weight += 0.14;
+    }
+    outPosition.multiplyScalar(1 / weight);
+    return true;
   }
 }

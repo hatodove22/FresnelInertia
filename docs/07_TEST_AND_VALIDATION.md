@@ -203,9 +203,15 @@
 - verify the `liquid_cylinder_bottle` selector entry renders a cylindrical bottle with a circular liquid body/surface
 - verify the `liquid_plastic_tumbler` selector entry renders a tapered plastic cup with an open rim and tapered liquid body
 - verify the Quest 3/3S path starts from an HTTPS URL in Quest Browser
-- verify the MR path requests hand tracking as optional WebXR support and pinch/grab can attach the container to a hand pose
+- verify the MR path requests hand tracking as optional WebXR support and near-grab attaches the container when a tracked hand approaches
+- verify the grabbed container follows the estimated grab position without requiring pinch, using wrist-centered fallback when finger joints are incomplete
+- verify an open thumb-index opposing grasp centers the object between the fingertips without forcing an unnatural object orientation
+- verify near-grab hides the app-rendered raw hand mesh for the active hand and shows only the two contact markers around the object
+- verify release and Reset Object restore the app-rendered hand mesh and hide the contact markers
 - verify the spatial experiment panel is visible in MR and does not depend on the phone DOM HUD
 - verify controller ray selection can activate a preset row and move the panel sliders
+- verify controller ray selection or fingertip direct touch can trigger the spatial Reset Object button
+- verify Reset Object releases the active grab, applies a short re-grab cooldown, and respawns the object at the table rest pose
 - verify index fingertip direct touch only activates the panel when the fingertip is near the panel face
 - verify panel slider changes visibly affect content motion boost / damping preview without changing repository presets
 - verify the IWSDK/IWER development path can open the app on desktop without a headset
