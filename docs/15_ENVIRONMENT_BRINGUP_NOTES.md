@@ -196,6 +196,16 @@ The more reliable fallback was:
 If commands like `audio status` or `status` appear to do nothing, confirm
 the problem is not just the monitor UI swallowing input.
 
+On Windows, the PlatformIO CLI may also be available inside VS Code but missing
+from a normal terminal `PATH`. If `platformio` is not recognized, try the
+PlatformIO terminal first or call the user-local executable directly:
+
+- `%USERPROFILE%\.platformio\penv\Scripts\platformio.exe run -e m5stack-sticks3`
+
+For repeat validation outside VS Code, add
+`%USERPROFILE%\.platformio\penv\Scripts` to the user `PATH` so the same
+`platformio run -e <env>` commands used in the docs work everywhere.
+
 ## 5. USB CDC timing after upload is flaky
 
 After flashing, serial sometimes produced:

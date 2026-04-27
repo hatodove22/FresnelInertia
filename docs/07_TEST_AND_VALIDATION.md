@@ -1,6 +1,52 @@
 # 07 Test and Validation Plan
 
-## 1. Build validation
+## 1. No-hardware verification
+
+These checks are compile-only / host-only. They do not prove actuator routing,
+IMU behavior, WiFi range, flash persistence, or perceptual quality.
+
+### Schema samples
+
+- run `node test/schema/validate_schemas.mjs` from the repository root
+- verify `test/schema/control_messages.valid.jsonl` still covers every
+  `type` enum in `schemas/control_message.schema.json`
+- verify `test/schema/telemetry_frames.valid.jsonl` still matches
+  `schemas/telemetry_frame.schema.json`
+- note that `test/schema/validate_schemas.mjs` is intentionally small and only
+  covers the JSON Schema features currently used by the repo schemas:
+  `type`, `required`, `enum`, `properties`, `items`, `additionalProperties`,
+  `minimum`, `minItems`, and `maxItems`
+
+### WebXR typecheck / build
+
+- from `webxr/`, run `npm.cmd run typecheck`
+- from `webxr/`, run `npm.cmd run build`
+- these checks validate the standalone visual client only; they do not require
+  firmware, schema, or transport changes
+
+### PlatformIO compile matrix
+
+Run the relevant compile-only matrix before handoff:
+
+- baseline: `platformio run -e m5stack-sticks3`
+- main audio path: `platformio run -e m5stack-sticks3-audio`
+- storage A/B path: `platformio run -e m5stack-sticks3-audio-storageless`
+- remote transport path: `platformio run -e m5stack-sticks3-remote`
+- tilt compile-gated path: `platformio run -e m5stack-sticks3-tilt`
+
+Use the probe envs when work touches their area:
+
+- `platformio run -e m5stack-sticks3-audio-smoke`
+- `platformio run -e m5stack-sticks3-transducer-probe`
+- `platformio run -e m5stack-sticks3-raw-i2s-probe`
+- `platformio run -e m5stack-sticks3-display-probe`
+- `platformio run -e m5stack-sticks3-main-boot-probe`
+- `platformio run -e m5stack-sticks3-main-pipeline-probe`
+- `platformio run -e m5stack-sticks3-main-loop-probe`
+- `platformio run -e m5stack-sticks3-main-audio-probe`
+- `platformio run -e m5stack-sticks3-main-delta-probe`
+
+## 2. Build validation
 
 - PlatformIO build succeeds for the scaffold baseline.
 - PlatformIO build succeeds for `m5stack-sticks3-audio` with `HAPTICS_ENABLE_AUDIO_BACKEND=1`.
@@ -9,7 +55,31 @@
 - when the TDM backend is added, PlatformIO build succeeds for the TDM-enabled audio path without regressing the current dual-I2S path
 - No feature should require hardware-specific code to compile when disabled.
 
-## 2. Runtime validation (current scaffold)
+## 3. Hardware validation split
+
+### Flash / boot checks
+
+These require a connected StickS3 but do not require a fully characterized
+haptic bench.
+
+- flash only after the compile-only matrix passes for the affected env
+- confirm the target env boots and prints its expected serial banner
+- confirm USB serial commands respond after the known CDC settle / reconnect
+  delay if needed
+- confirm the SoftAP browser status page loads for remote-enabled envs
+- confirm flash-only smoke checks do not get counted as perceptual validation
+
+### Bench / perceptual checks
+
+These require the relevant transducers, amp wiring, and/or XL330 hardware.
+
+- verify actuator routing and channel independence on the bench
+- verify resonance sweeps against the physical transducer stack
+- verify wall events, texture atoms, and material-family differences by feel
+- verify tilt-plane safety, current limits, emergency stop, and sign
+  calibration only with the servo bench assembled
+
+## 4. Runtime validation (current scaffold)
 
 - StickS3 boots and initializes.
 - IMU polling works without crashing.
@@ -25,7 +95,7 @@
 - Recorder batching honors `recorder.flush_interval_frames` without losing tail frames on stop.
 - if LittleFS mount fails at boot, built-in preset listing/loading should still work and should not retry a crashing remount on every console command
 
-## 2.1 Minimal audio smoke test
+## 4.1 Minimal audio smoke test
 
 - build and flash `m5stack-sticks3-audio-smoke`
 - confirm the boot banner prints `Audio smoke test started.`
@@ -39,7 +109,7 @@
 - if the official `espressif32@6.12.0` build stays silent while the old demo worked, repeat the same test with `m5stack-sticks3-audio-smoke-pioarduino` to isolate core/platform differences
 - only after the smoke test is stable, move back to `m5stack-sticks3-audio` for full pipeline debugging
 
-## 2.2 Minimal transducer probe
+## 4.2 Minimal transducer probe
 
 - build and flash `m5stack-sticks3-transducer-probe`
 - confirm the boot banner prints `Transducer probe started.`
@@ -49,7 +119,7 @@
 - verify `sweep on` slowly scans the carrier while keeping the burst envelope intact
 - use this probe before blaming the full haptic pipeline when the amp path is still uncertain
 
-## 2.3 Raw I2S probe
+## 4.3 Raw I2S probe
 
 - build and flash `m5stack-sticks3-raw-i2s-probe`
 - confirm the StickS3 screen shows `RAW I2S PROBE`
@@ -60,19 +130,19 @@
 - verify `mode tone`, `amp 1.0`, and `tone 180` produce the strongest simple continuous test
 - only after the raw I2S probe is stable, move back up to `M5.Speaker` and then the full haptics pipeline
 
-## 2.4 Main firmware observability policy
+## 4.4 Main firmware observability policy
 
 - `m5stack-sticks3-audio` no longer treats the StickS3 panel as a supported runtime monitor
 - verify the main firmware can be operated entirely from USB serial plus the SoftAP browser page
 - keep any remaining display validation isolated to the probe envs below
 
-## 2.5 Display probe
+## 4.5 Display probe
 
 - flash `m5stack-sticks3-display-probe`
 - verify the screen steps through `M5.begin ok`, `IMU begin`, `EXT_5V on`, and `pipeline begin`
 - if the display disappears at a specific stage, treat the previous stage as the last known-good point for the main firmware
 
-## 2.6 Deterministic main-firmware probe ladder
+## 4.6 Deterministic main-firmware probe ladder
 
 - flash `m5stack-sticks3-main-boot-probe`
 - verify the screen stays alive for at least `10 s` and shows `M5.begin`, `IMU`, and `EXT_5V` success with a monotonically increasing heartbeat
@@ -90,7 +160,7 @@
 - verify it stays visible while phasing through `tick-only -> main-buttons -> poll-console -> verbose-serial`
 - if it blanks at a specific phase, treat the newly added main-loop condition for that phase as the prime suspect
 
-## 2.7 Main monitoring workflow
+## 4.7 Main monitoring workflow
 
 - for the normal `m5stack-sticks3-audio` firmware, treat USB serial and the SoftAP browser page as the only supported monitoring surfaces
 - do not use the StickS3 display as part of the main validation workflow
@@ -101,7 +171,7 @@
 - verify at least one synthetic mode is clearly perceptible without any live IMU motion
 - only after all four probe rungs are stable should changes be re-applied to `m5stack-sticks3-audio`
 
-## 3. Audio backend validation
+## 5. Audio backend validation
 
 ### Phase A: bus-level tests
 - build and flash `m5stack-sticks3-audio`
@@ -137,7 +207,7 @@
 - verify telemetry reports calibration wall, band, candidate frequency, and progress
 - verify channel independence
 
-## 4. Algorithm validation
+## 6. Algorithm validation
 
 ### Mass motion layer
 - confirm smaller container sizes reduce travel time and increase wall-contact opportunities
@@ -165,7 +235,7 @@
 - flow/ripple events should step across neighbors rather than collapsing into static bleed
 - Front / Back events should spread only toward Top / Bottom, and Top / Bottom events should spread only toward Front / Back
 
-## 5. Servo path validation
+## 7. Servo path validation
 
 - verify safe home position on both XL330 units
 - verify current-limited motion before full position control tests
@@ -186,12 +256,12 @@
   - total pseudo-force correction <= `6 deg`
   - final command <= `10 deg` unless intentionally retuned
 
-## 5.1 Remote transport robustness
+## 7.1 Remote transport robustness
 
 - verify a partial or malformed WebSocket frame does not stall IMU polling or haptics updates
 - verify both `iface.wifi_mode_ap=true` and `iface.wifi_mode_ap=false` bring up the remote transport as expected
 
-## 5.2 WebXR / smartphone visual demo
+## 7.2 WebXR / smartphone visual demo
 
 - from `webxr/`, verify `npm.cmd run typecheck` passes
 - from `webxr/`, verify `npm.cmd run build` passes
@@ -219,13 +289,13 @@
 - verify liquid and hybrid content remains visibly contained inside the transparent shell during strong tilt
 - verify the visual client does not require firmware, schema, or transport changes in v1
 
-## 6. Recorder / replay validation
+## 8. Recorder / replay validation
 
 - recorded sessions must replay latent state evolution deterministically enough for debugging
 - event counts and actuator summaries should match within expected tolerance
 - stop recording before `recorder.flush_interval_frames` is reached and verify the tail frames are still persisted
 
-## 7. Acceptance criteria for first full haptic milestone
+## 9. Acceptance criteria for first full haptic milestone
 
 The first meaningful milestone is reached when:
 - four-channel sweep and per-channel resonance storage work,

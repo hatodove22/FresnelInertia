@@ -21,6 +21,10 @@
           <span>Preset</span>
           <select id="preset-select"></select>
         </label>
+        <label class="control">
+          <span>Stimulus</span>
+          <select id="stimulus-select"></select>
+        </label>
         <div class="actions">
           <button id="orientation-button" type="button">Use Tilt</button>
           <button id="xr-button" type="button">Enter MR</button>
@@ -46,6 +50,18 @@
             </button>
           </div>
         </section>
+        <section class="tuning-panel" aria-label="Spatial tuning">
+          <label class="range-control">
+            <span>Motion</span>
+            <input id="shake-boost-slider" type="range" min="0" max="1" step="0.01" value="0.35" />
+            <output id="shake-boost-value" for="shake-boost-slider">0.35</output>
+          </label>
+          <label class="range-control">
+            <span>Damping</span>
+            <input id="damping-preview-slider" type="range" min="0" max="1" step="0.01" value="0.50" />
+            <output id="damping-preview-value" for="damping-preview-slider">0.50</output>
+          </label>
+        </section>
         <dl class="readout">
           <div>
             <dt>Family</dt>
@@ -60,6 +76,32 @@
             <dd id="tilt-readout">0 / 0</dd>
           </div>
         </dl>
+        <section class="trial-strip" aria-label="Experiment trial logger">
+          <div class="panel-header">
+            <h2>Trial</h2>
+            <time id="trial-elapsed" datetime="PT0S">00:00.0</time>
+          </div>
+          <div class="trial-fields">
+            <label>
+              <span>Condition</span>
+              <input id="condition-input" type="text" placeholder="condition" autocomplete="off" />
+            </label>
+            <label>
+              <span>Repeat</span>
+              <input id="repeat-input" type="number" min="1" step="1" value="1" inputmode="numeric" />
+            </label>
+          </div>
+          <div class="trial-actions">
+            <button id="trial-start-stop-button" type="button">Start</button>
+            <button id="trial-mark-button" type="button">Mark</button>
+            <button id="trial-next-button" type="button">Next</button>
+            <select id="export-format-select" aria-label="Export format">
+              <option value="json">JSON</option>
+              <option value="csv">CSV</option>
+            </select>
+            <button id="export-button" type="button">Export</button>
+          </div>
+        </section>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

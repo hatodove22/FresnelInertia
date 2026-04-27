@@ -5,8 +5,9 @@ import { SpatialControlPanel } from "./renderer/SpatialControlPanel";
 import { PhoneInput } from "./input/PhoneInput";
 import { presets, findPreset } from "./presets";
 import { VisualSimulator } from "./simulator";
-import type { DemoUiElements, TiltState } from "./types";
-import type { SpatialPanelState } from "./types";
+import { ExperimentRecorder } from "./experimentRecorder";
+import { scriptedTilt, stimulusScripts, type StimulusScriptName } from "./stimulusScripts";
+import type { DemoUiElements, SpatialPanelState, TiltState } from "./types";
 import { WebXrBridge } from "./xr/WebXrBridge";
 import { iwsdkIntegrationNotes } from "./iwsdkNotes";
 import "./style.css";
@@ -18,6 +19,19 @@ if (!canvas) {
 
 const ui: DemoUiElements = {
   presetSelect: document.querySelector<HTMLSelectElement>("#preset-select")!,
+  shakeBoostSlider: document.querySelector<HTMLInputElement>("#shake-boost-slider")!,
+  shakeBoostValue: document.querySelector<HTMLOutputElement>("#shake-boost-value")!,
+  dampingPreviewSlider: document.querySelector<HTMLInputElement>("#damping-preview-slider")!,
+  dampingPreviewValue: document.querySelector<HTMLOutputElement>("#damping-preview-value")!,
+  stimulusSelect: document.querySelector<HTMLSelectElement>("#stimulus-select")!,
+  conditionInput: document.querySelector<HTMLInputElement>("#condition-input")!,
+  repeatInput: document.querySelector<HTMLInputElement>("#repeat-input")!,
+  trialStartStopButton: document.querySelector<HTMLButtonElement>("#trial-start-stop-button")!,
+  trialMarkButton: document.querySelector<HTMLButtonElement>("#trial-mark-button")!,
+  trialNextButton: document.querySelector<HTMLButtonElement>("#trial-next-button")!,
+  trialElapsed: document.querySelector<HTMLElement>("#trial-elapsed")!,
+  exportFormatSelect: document.querySelector<HTMLSelectElement>("#export-format-select")!,
+  exportButton: document.querySelector<HTMLButtonElement>("#export-button")!,
   orientationButton: document.querySelector<HTMLButtonElement>("#orientation-button")!,
   xrButton: document.querySelector<HTMLButtonElement>("#xr-button")!,
   questButton: document.querySelector<HTMLButtonElement>("#quest-button")!,
@@ -83,16 +97,35 @@ worldRoot.add(container.group);
 
 const simulator = new VisualSimulator();
 const phoneInput = new PhoneInput(canvas);
+const recorder = new ExperimentRecorder();
 let panelState: SpatialPanelState = { shakeBoost: 0.35, dampingPreview: 0.5 };
+let activeInputMethod: "touch" | "tilt" | "hand" = "touch";
+let activeStimulus: StimulusScriptName = "manual";
+let stimulusStartedAt = performance.now();
+let currentTilt: TiltState = { x: 0, y: 0 };
 const spatialPanel = new SpatialControlPanel({
   presetNames: presets.map((preset) => preset.preset),
   selectedPreset: "liquid_small_box",
+  stimulusOptions: stimulusScripts,
+  selectedStimulus: activeStimulus,
   onPresetSelected: (name) => {
     ui.presetSelect.value = name;
     applyPreset(name);
   },
+  onStimulusSelected: (name) => {
+    setActiveStimulus(parseStimulus(name));
+  },
   onStateChanged: (state) => {
-    panelState = state;
+    setPanelState(state);
+  },
+  onTrialStartStop: () => {
+    toggleTrialRunning();
+  },
+  onTrialMark: () => {
+    markTrial();
+  },
+  onTrialNext: () => {
+    advanceTrialRepeat();
   },
   onReset: () => {
     resetContainerToRest();
@@ -112,9 +145,29 @@ for (const preset of presets) {
   ui.presetSelect.appendChild(option);
 }
 
+for (const script of stimulusScripts) {
+  const option = document.createElement("option");
+  option.value = script.value;
+  option.textContent = script.label;
+  ui.stimulusSelect.appendChild(option);
+}
+
 ui.presetSelect.value = activePreset.preset;
 ui.presetSelect.addEventListener("change", () => {
   applyPreset(ui.presetSelect.value);
+});
+
+ui.stimulusSelect.value = activeStimulus;
+ui.stimulusSelect.addEventListener("change", () => {
+  setActiveStimulus(parseStimulus(ui.stimulusSelect.value));
+});
+
+ui.shakeBoostSlider.addEventListener("input", () => {
+  setPanelState({ ...panelState, shakeBoost: Number(ui.shakeBoostSlider.value) });
+});
+
+ui.dampingPreviewSlider.addEventListener("input", () => {
+  setPanelState({ ...panelState, dampingPreview: Number(ui.dampingPreviewSlider.value) });
 });
 
 ui.orientationButton.addEventListener("click", async () => {
@@ -132,11 +185,28 @@ ui.tiltModeButton.addEventListener("click", async () => {
 });
 
 ui.handModeButton.addEventListener("click", () => {
+  setActiveMethod("hand");
   ui.xrButton.click();
 });
 
 ui.resetButton.addEventListener("click", () => {
   resetContainerToRest();
+});
+
+ui.trialStartStopButton.addEventListener("click", () => {
+  toggleTrialRunning();
+});
+
+ui.trialMarkButton.addEventListener("click", () => {
+  markTrial();
+});
+
+ui.trialNextButton.addEventListener("click", () => {
+  advanceTrialRepeat();
+});
+
+ui.exportButton.addEventListener("click", () => {
+  exportTrialRecords(ui.exportFormatSelect.value === "csv" ? "csv" : "json");
 });
 
 ui.questButton.addEventListener("click", () => {
@@ -147,6 +217,7 @@ ui.questButton.addEventListener("click", () => {
 
 xrBridge.installButton(ui.xrButton);
 container.setPreset(activePreset);
+setPanelState(panelState);
 updateReadout(phoneInput.tilt);
 
 window.addEventListener("resize", () => {
@@ -160,20 +231,27 @@ renderer.setAnimationLoop((time) => {
   lastTime = time;
   xrBridge.update();
 
-  const tilt = renderer.xr.isPresenting ? xrBridge.tilt : phoneInput.tilt;
+  const liveTilt = renderer.xr.isPresenting ? xrBridge.tilt : phoneInput.tilt;
+  const tilt =
+    activeStimulus === "manual" ? liveTilt : scriptedTilt(activeStimulus, (performance.now() - stimulusStartedAt) / 1000);
+  currentTilt = { ...tilt };
   const content = simulator.update(activePreset, tilt, dt, panelState);
   container.update(tilt, content, time * 0.001, dt);
   spatialPanel.update();
+  recorder.sample(makeTrialSnapshot());
+  updateTrialElapsed();
   updateReadout(tilt);
   renderer.render(scene, camera);
 });
 
 function resetContainerToRest() {
+  setActiveStimulus("manual");
   phoneInput.resetTilt();
   xrBridge.resetTilt();
   container.group.position.set(0, container.restY(), -0.72);
   container.group.rotation.set(0, 0, 0);
   container.group.quaternion.identity();
+  currentTilt = { x: 0, y: 0 };
   updateReadout({ x: 0, y: 0 });
 }
 
@@ -194,9 +272,17 @@ async function enableTiltMode() {
 }
 
 function setActiveMethod(method: "touch" | "tilt" | "hand") {
+  activeInputMethod = method;
   ui.touchModeButton.classList.toggle("active", method === "touch");
   ui.tiltModeButton.classList.toggle("active", method === "tilt");
   ui.handModeButton.classList.toggle("active", method === "hand");
+}
+
+function setActiveStimulus(stimulus: StimulusScriptName) {
+  activeStimulus = stimulus;
+  stimulusStartedAt = performance.now();
+  ui.stimulusSelect.value = activeStimulus;
+  spatialPanel.setStimulus(activeStimulus);
 }
 
 function applyPreset(name: string) {
@@ -205,4 +291,85 @@ function applyPreset(name: string) {
   spatialPanel.setSelectedPreset(activePreset.preset);
   container.setPreset(activePreset);
   updateReadout({ x: 0, y: 0 });
+}
+
+function setPanelState(state: SpatialPanelState) {
+  panelState = {
+    shakeBoost: THREE.MathUtils.clamp(state.shakeBoost, 0, 1),
+    dampingPreview: THREE.MathUtils.clamp(state.dampingPreview, 0, 1)
+  };
+  spatialPanel.setState(panelState);
+  ui.shakeBoostSlider.value = panelState.shakeBoost.toFixed(2);
+  ui.shakeBoostValue.textContent = panelState.shakeBoost.toFixed(2);
+  ui.dampingPreviewSlider.value = panelState.dampingPreview.toFixed(2);
+  ui.dampingPreviewValue.textContent = panelState.dampingPreview.toFixed(2);
+}
+
+function parseStimulus(value: string): StimulusScriptName {
+  return stimulusScripts.some((script) => script.value === value) ? (value as StimulusScriptName) : "manual";
+}
+
+function makeTrialSnapshot() {
+  return {
+    condition: ui.conditionInput.value.trim(),
+    repeat: readRepeatNumber(),
+    preset: activePreset.preset,
+    inputMode: activeStimulus === "manual" ? currentInputMode() : `script:${activeStimulus}`,
+    panelState,
+    tilt: currentTilt
+  };
+}
+
+function currentInputMode() {
+  return renderer.xr.isPresenting ? "hand" : activeInputMethod;
+}
+
+function readRepeatNumber() {
+  const repeat = Number.parseInt(ui.repeatInput.value, 10);
+  return Number.isFinite(repeat) ? Math.max(1, repeat) : 1;
+}
+
+function updateTrialElapsed() {
+  const elapsedMs = recorder.elapsedMs();
+  const totalSeconds = elapsedMs / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const elapsedLabel = `${minutes.toString().padStart(2, "0")}:${seconds.toFixed(1).padStart(4, "0")}`;
+  ui.trialElapsed.textContent = elapsedLabel;
+  ui.trialElapsed.setAttribute("datetime", `PT${Math.round(totalSeconds)}S`);
+  spatialPanel.setTrialState({
+    running: recorder.isRunning(),
+    elapsedLabel,
+    repeat: readRepeatNumber()
+  });
+}
+
+function toggleTrialRunning() {
+  if (recorder.isRunning()) {
+    recorder.stop(makeTrialSnapshot());
+    ui.trialStartStopButton.textContent = "Start";
+    return;
+  }
+  recorder.start(makeTrialSnapshot());
+  ui.trialStartStopButton.textContent = "Stop";
+}
+
+function markTrial() {
+  recorder.mark(makeTrialSnapshot());
+}
+
+function advanceTrialRepeat() {
+  recorder.next(makeTrialSnapshot());
+  ui.repeatInput.value = String(Math.max(1, readRepeatNumber() + 1));
+}
+
+function exportTrialRecords(format: "json" | "csv") {
+  const text = format === "csv" ? recorder.toCsv() : recorder.toJson();
+  const blob = new Blob([text], { type: format === "csv" ? "text/csv" : "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `webxr-trials-${new Date().toISOString().replaceAll(":", "-")}.${format}`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

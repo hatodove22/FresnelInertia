@@ -268,6 +268,17 @@ struct RuntimeCalibrationStatus {
   bool loaded_from_storage = false;
 };
 
+struct PipelineDebugStatus {
+  uint16_t event_count = 0;
+  uint16_t texture_count = 0;
+  uint16_t resonance_count = 0;
+  bool mass_enabled = false;
+  bool event_enabled = false;
+  bool texture_enabled = false;
+  bool resonance_enabled = false;
+  bool spatial_enabled = false;
+};
+
 struct TelemetrySnapshot {
   uint32_t timestamp_ms = 0;
   uint32_t frame_counter = 0;
@@ -282,6 +293,7 @@ struct TelemetrySnapshot {
   RuntimeCalibrationStatus calibration{};
   RecorderStatus recorder{};
   RemoteStatus remote{};
+  PipelineDebugStatus pipeline_debug{};
 };
 
 constexpr std::size_t kMaxEventsPerFrame = 16;

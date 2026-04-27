@@ -184,12 +184,23 @@ This is intended for additive runtime identification and will likely be refined 
 - `iface.reserve_udp_osc`
 - `features.*`
 - `features.enable_debug_display`
+- `features.enable_pipeline_debug_telemetry`
 
 `iface.wifi_mode_ap=true` starts the current SoftAP transport.
 `iface.wifi_mode_ap=false` starts the same HTTP/WebSocket monitoring stack in station mode and attempts to join the configured SSID.
 `iface.http_port` is the human-facing browser status page port.
 `iface.websocket_port` is the machine-facing JSON control / telemetry port.
 `features.enable_debug_display` is now probe-only. It is retained for isolated low-level panel experiments, not as part of the main firmware contract.
+`features.enable_pipeline_debug_telemetry=false` by default. When enabled at runtime, remote telemetry and recorder NDJSON include `pipeline_debug` counts for event, texture, and resonance frames plus per-frame booleans showing whether mass, event, texture, resonance, and spatial stages were active.
+
+The current `set_param` runtime surface intentionally includes the following experiment controls:
+- container spans: `container.span_x_m`, `container.span_y_m`, `container.span_z_m`
+- mass dynamics: `mass.natural_freq_x_hz`, `mass.natural_freq_y_hz`, `mass.damping_ratio_x`, `mass.damping_ratio_y`, `mass.energy_decay_s`, `mass.accel_to_energy_gain`, `mass.gyro_to_energy_gain`, `mass.rebound`
+- texture atoms: `texture.hard_ping_low_ms`, `texture.hard_ping_high_ms`, `texture.wet_burst_ms`, `texture.dry_rattle_ms`, `texture.scrape_noise_ms`, `texture.flow_ripple_soa_ms`, `texture.default_high_bias`
+- calibration sweep: `calibration.low_start_hz`, `calibration.low_stop_hz`, `calibration.low_step_hz`, `calibration.high_start_hz`, `calibration.high_stop_hz`, `calibration.high_step_hz`, `calibration.settle_ms`, `calibration.measure_ms`, `calibration.drive_level`
+- interface/recorder cadence: `iface.telemetry_period_ms`, `recorder.flush_interval_frames`
+
+For short client labels, the firmware also accepts aliases without units for mass natural frequency, texture durations, and calibration frequency bounds/steps, for example `mass.natural_freq_x`, `texture.hard_ping_low`, and `calibration.low_start`.
 
 ## 3. Material-family interpretation
 

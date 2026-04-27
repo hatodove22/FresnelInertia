@@ -176,7 +176,7 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
     return;
   }
 
-  StaticJsonDocument<2048> doc;
+  StaticJsonDocument<2304> doc;
   doc["timestamp_ms"] = snapshot.timestamp_ms;
   doc["preset"] = snapshot.active_preset;
   doc["run_mode"] = runModeToString(snapshot.run_mode);
@@ -251,6 +251,18 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
   calibration["candidate_score"] = snapshot.calibration.candidate_score;
   calibration["best_score"] = snapshot.calibration.best_score;
   calibration["progress"] = snapshot.calibration.progress;
+
+  if (params_.features.enable_pipeline_debug_telemetry) {
+    JsonObject pipeline_debug = doc.createNestedObject("pipeline_debug");
+    pipeline_debug["event_count"] = snapshot.pipeline_debug.event_count;
+    pipeline_debug["texture_count"] = snapshot.pipeline_debug.texture_count;
+    pipeline_debug["resonance_count"] = snapshot.pipeline_debug.resonance_count;
+    pipeline_debug["mass_enabled"] = snapshot.pipeline_debug.mass_enabled;
+    pipeline_debug["event_enabled"] = snapshot.pipeline_debug.event_enabled;
+    pipeline_debug["texture_enabled"] = snapshot.pipeline_debug.texture_enabled;
+    pipeline_debug["resonance_enabled"] = snapshot.pipeline_debug.resonance_enabled;
+    pipeline_debug["spatial_enabled"] = snapshot.pipeline_debug.spatial_enabled;
+  }
 
   serializeJson(doc, record_file_);
   record_file_.println();

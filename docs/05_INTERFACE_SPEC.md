@@ -31,6 +31,9 @@ The current firmware treats **USB serial + SoftAP browser status** as the main h
 - calibration status (`active`, `finished`, `aborted`, `wall`, `band`, `stage`, `candidate_hz`, `best_hz`, `best_score`, `progress`, `loaded_from_storage`)
 - recorder status (`recording`, `replaying`, `recorded_frames`, `replay_index`, `active_file`)
 - remote status (`runtime_enabled`, `connected_clients`, `received_messages`, `transmitted_messages`)
+- optional pipeline debug status, emitted only when `features.enable_pipeline_debug_telemetry=true`:
+  - `event_count`, `texture_count`, `resonance_count`
+  - `mass_enabled`, `event_enabled`, `texture_enabled`, `resonance_enabled`, `spatial_enabled`
 - thumb/index tilt command summary including:
   - final command angle
   - base tilt contribution
@@ -95,6 +98,38 @@ Typical live tuning paths for the revised tilt branch:
 - `tilt.max_delta_total_deg`
 - `tilt.max_total_cmd_deg`
 
+Runtime experiment/debug paths:
+- `features.enable_pipeline_debug_telemetry`
+- `container.span_x_m`
+- `container.span_y_m`
+- `container.span_z_m`
+- `mass.natural_freq_x_hz` or `mass.natural_freq_x`
+- `mass.natural_freq_y_hz` or `mass.natural_freq_y`
+- `mass.damping_ratio_x`
+- `mass.damping_ratio_y`
+- `mass.energy_decay_s`
+- `mass.accel_to_energy_gain`
+- `mass.gyro_to_energy_gain`
+- `mass.rebound`
+- `texture.hard_ping_low_ms` or `texture.hard_ping_low`
+- `texture.hard_ping_high_ms` or `texture.hard_ping_high`
+- `texture.wet_burst_ms` or `texture.wet_burst`
+- `texture.dry_rattle_ms` or `texture.dry_rattle`
+- `texture.scrape_noise_ms` or `texture.scrape_noise`
+- `texture.flow_ripple_soa_ms` or `texture.flow_ripple_soa`
+- `texture.default_high_bias`
+- `calibration.low_start_hz` or `calibration.low_start`
+- `calibration.low_stop_hz` or `calibration.low_stop`
+- `calibration.low_step_hz` or `calibration.low_step`
+- `calibration.high_start_hz` or `calibration.high_start`
+- `calibration.high_stop_hz` or `calibration.high_stop`
+- `calibration.high_step_hz` or `calibration.high_step`
+- `calibration.settle_ms`
+- `calibration.measure_ms`
+- `calibration.drive_level`
+- `iface.telemetry_period_ms`
+- `recorder.flush_interval_frames`
+
 Typical audio layout control paths:
 - `audio.output_layout = "quad_wall_4ch"`
 - `audio.output_layout = "front_back_2ch"`
@@ -128,6 +163,7 @@ The HMD or host application shall be able to:
 ### Development format
 Use NDJSON or line-delimited JSON first for readability.
 The current implementation records one telemetry snapshot per line and replays IMU + timestamp data back through the shared pipeline.
+When `features.enable_pipeline_debug_telemetry=true`, recorder lines include the same optional `pipeline_debug` object as remote telemetry; with the flag false, the record shape stays on the baseline fields.
 
 ### Binary format later
 If throughput becomes a problem, define a binary chunked format after the control-plane schemas stabilize.

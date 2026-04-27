@@ -21,6 +21,7 @@ struct FeatureFlags {
   bool enable_runtime_calibration = false;
   bool enable_verbose_serial = true;
   bool enable_debug_display = false;
+  bool enable_pipeline_debug_telemetry = false;
 };
 
 struct PlatformPins {

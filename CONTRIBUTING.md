@@ -15,3 +15,11 @@
 - default behavior remains safe when new features are disabled
 - hardware-specific code is compile-gated
 - validation notes mention what was and was not tested on hardware
+
+## Local validation tools
+
+- run `node test/schema/validate_schemas.mjs` after protocol-facing edits or
+  when touching schema samples
+- on Windows, if `platformio` is only available inside VS Code, use
+  `%USERPROFILE%\.platformio\penv\Scripts\platformio.exe` directly or add that
+  directory to the user `PATH`

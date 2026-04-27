@@ -15,13 +15,15 @@ This document defines the standalone visual client in `webxr/`.
 | Module | Role |
 |---|---|
 | `src/main.ts` | Three.js renderer setup, UI wiring, preset selection, animation loop |
+| `src/experimentRecorder.ts` | browser-local trial event/sample recorder plus JSON/CSV serialization |
 | `src/presets.ts` | imports selected repository preset JSON files and validates the visual subset |
 | `src/simulator.ts` | local visual-only content dynamics for slosh, agitation, waves, impacts, and particle spread |
+| `src/stimulusScripts.ts` | repeatable visual-only tilt scripts for phone/MR experiments |
 | `src/renderer/ContainerScene.ts` | transparent shell, sample label, liquid, foam, and granular/hybrid instancing |
 | `src/renderer/EnvironmentScene.ts` | lab-bench environment, mat, panel, small props, and cables |
 | `src/renderer/GripProxy.ts` | visual thumb/index contact markers used while an object is grabbed |
 | `src/renderer/ProceduralAssets.ts` | in-browser canvas textures for wood, mat, liquid normals, and labels |
-| `src/renderer/SpatialControlPanel.ts` | in-scene experiment panel for ray/direct-touch preset rows, sliders, and reset |
+| `src/renderer/SpatialControlPanel.ts` | in-scene experiment panel for ray/direct-touch preset rows, stimulus selection, trial controls, sliders, and reset |
 | `src/input/PhoneInput.ts` | touch-drag tilt and optional DeviceOrientation input |
 | `src/xr/WebXrBridge.ts` | WebXR AR button integration, hand model setup, near-grab position bridge, and lightweight panel ray/touch routing |
 | `scripts/start-quest-tunnel.ps1` | production preview plus Cloudflare Quick Tunnel launcher |
@@ -34,6 +36,9 @@ This document defines the standalone visual client in `webxr/`.
 - Uses touch drag for virtual tilt.
 - Can use DeviceOrientation after explicit user permission.
 - Shows preset selection and compact readouts for family, fill, and tilt.
+- Mirrors the spatial panel's motion-boost and damping-preview controls as DOM sliders. Both DOM and MR panel changes update the same visual `SpatialPanelState`.
+- Provides optional repeatable stimulus scripts: manual, gentle roll, wall tap, swirl, and settle. Manual is the default. Selected scripts override tilt only while selected; Reset returns to manual/rest.
+- Provides a browser-local trial strip with condition, repeat, start/stop, mark, next, elapsed timer, and JSON/CSV export.
 
 ### Quest MR mode
 
@@ -42,7 +47,9 @@ This document defines the standalone visual client in `webxr/`.
 - Requests hand tracking, hit test, anchors, plane detection, and mesh detection as optional features.
 - Uses near-grab to attach the virtual container when a tracked hand approaches the object. When thumb and index fingertips are separated enough to imply opposing contact, the bridge centers the object between those fingertips. Otherwise it estimates a grab position from wrist, thumb, index, and middle finger joints.
 - While near-grab is active, the app-rendered mesh for that tracked hand is hidden and replaced by two contact markers attached to the object. This only changes visualization; the raw WebXR hand joints remain the input source.
-- Shows a spatial experiment panel near the container. Controller rays can select rows and drag sliders; index fingertips can directly touch the panel face when hand joints are available.
+- Shows a spatial experiment panel near the container. Controller rays can select rows, cycle stimulus scripts, operate trial controls, and drag sliders; index fingertips can directly touch the panel face when hand joints are available.
+- The spatial panel's preset list is paged so all demo presets remain reachable without growing the panel.
+- The spatial panel mirrors the browser-local experiment controls needed during MR: stimulus script cycling plus trial start/stop, mark, next, repeat, and elapsed-time feedback.
 - The panel's fixed Reset Object button releases the active grab, applies a short re-grab cooldown, and respawns the object at the table rest pose.
 - Uses the same visual simulator as phone mode so content response stays consistent.
 - For off-LAN demos, use `npm.cmd run quest` to start a production preview plus Cloudflare Quick Tunnel.
@@ -75,8 +82,16 @@ The spatial experiment panel is intentionally separate from the smartphone HUD:
 
 - phone controls remain DOM-based for low-friction sharing,
 - MR controls live as a textured Three.js panel in the scene,
-- the panel currently exposes a preset list, motion-boost slider, damping-preview slider, and fixed object reset button,
+- the panel currently exposes a paged preset list, stimulus script selection, motion-boost slider, damping-preview slider, trial start/mark/next controls, and fixed object reset button,
+- the phone DOM mirrors the panel slider, stimulus, running-state, repeat, and elapsed-time values so a desktop/mobile observer can adjust or inspect the same state,
 - the panel is a prototype surface for experimental controls, not the final firmware control protocol.
+
+Experiment trial strip:
+
+- Trial records are in-memory browser data only and are cleared by a page refresh.
+- Start/stop, mark, next, and 250 ms running samples capture ISO timestamp, elapsed milliseconds, condition, repeat, active preset, input mode, `SpatialPanelState`, tilt, phase, and marker.
+- Export supports JSON and CSV with no additional runtime dependency.
+- This recorder is not the firmware telemetry recorder/replay path from the main haptic pipeline roadmap; it is only for WebXR/phone experiment notes.
 
 Grab visualization:
 
@@ -156,6 +171,9 @@ Required local checks:
 - `npm.cmd run build`
 - desktop browser smoke check with no console errors
 - mobile-size browser smoke check with preset switching and drag tilt
+- DOM/MR slider synchronization check in both directions
+- DOM/MR stimulus synchronization check that manual remains default, scripts override tilt only while selected, and Reset restores manual/rest
+- DOM/MR trial control check that start/mark/next/stop update elapsed state and JSON/CSV exports include timestamp, preset, input mode, panel state, tilt, phase, and marker
 - hand-scale check that box presets appear as 7 cm cubes and the cylindrical bottle / plastic tumbler presets appear in the selector
 
 Quest checks:
@@ -169,7 +187,7 @@ Quest checks:
 - active near-grab hides the app-side hand mesh and shows only the two contact markers,
 - release and Reset Object restore the app-side hand mesh and hide the proxy,
 - moving the hand away releases near-grab by hysteresis, and Reset Object forcibly releases then respawns the container at the table rest pose,
-- controller ray selection can activate spatial panel preset rows, adjust sliders, and trigger Reset Object,
+- controller ray selection can activate spatial panel preset rows, page the preset list, cycle stimulus scripts, operate trial buttons, adjust sliders, and trigger Reset Object,
 - fingertip direct touch can activate the same panel controls near the panel face,
 - grabbed box presets read as 7 cm hand-scale objects rather than oversized containers,
 - liquid/hybrid contents remain visually contained by the transparent shell under strong tilt.

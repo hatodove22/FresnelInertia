@@ -18,6 +18,18 @@ bool startsWith(const char* command, const char* prefix) {
   return std::strncmp(command, prefix, std::strlen(prefix)) == 0;
 }
 
+bool pathMatches(const char* path, const char* expected, const char* alias) {
+  return std::strcmp(path, expected) == 0 || std::strcmp(path, alias) == 0;
+}
+
+float clampf(float value, float lo, float hi) {
+  return std::max(lo, std::min(value, hi));
+}
+
+uint16_t clampU16(float value, uint16_t lo, uint16_t hi) {
+  return static_cast<uint16_t>(clampf(value, static_cast<float>(lo), static_cast<float>(hi)));
+}
+
 bool isTwoChannelLayout(AudioOutputLayout layout) {
   return layout == AudioOutputLayout::FrontBack2Ch;
 }
@@ -414,37 +426,71 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
   }
 
   if (std::strcmp(path, "container.fill") == 0 && value.has_number) {
-    params_.container.fill = value.number;
+    params_.container.fill = clampf(value.number, 0.0f, 1.0f);
   } else if (std::strcmp(path, "container.headspace") == 0 && value.has_number) {
-    params_.container.headspace = value.number;
+    params_.container.headspace = clampf(value.number, 0.0f, 1.0f);
   } else if (std::strcmp(path, "container.viscosity") == 0 && value.has_number) {
-    params_.container.viscosity = value.number;
+    params_.container.viscosity = clampf(value.number, 0.0f, 1.0f);
   } else if (std::strcmp(path, "container.particle_count") == 0 && value.has_number) {
-    params_.container.particle_count = value.number;
+    params_.container.particle_count = clampf(value.number, 0.0f, 1.0f);
   } else if (std::strcmp(path, "container.particle_hardness") == 0 && value.has_number) {
-    params_.container.particle_hardness = value.number;
+    params_.container.particle_hardness = clampf(value.number, 0.0f, 1.0f);
+  } else if (std::strcmp(path, "container.span_x_m") == 0 && value.has_number) {
+    params_.container.span_x_m = clampf(value.number, 0.020f, 0.300f);
+  } else if (std::strcmp(path, "container.span_y_m") == 0 && value.has_number) {
+    params_.container.span_y_m = clampf(value.number, 0.020f, 0.300f);
+  } else if (std::strcmp(path, "container.span_z_m") == 0 && value.has_number) {
+    params_.container.span_z_m = clampf(value.number, 0.020f, 0.300f);
   } else if (std::strcmp(path, "container.shell_mass_kg") == 0 && value.has_number) {
-    params_.container.shell_mass_kg = value.number;
+    params_.container.shell_mass_kg = std::max(0.0f, value.number);
   } else if (std::strcmp(path, "container.content_mass_full_kg") == 0 && value.has_number) {
-    params_.container.content_mass_full_kg = value.number;
+    params_.container.content_mass_full_kg = std::max(0.0f, value.number);
   } else if (std::strcmp(path, "container.shell_cg_x_m") == 0 && value.has_number) {
     params_.container.shell_cg_x_m = value.number;
   } else if (std::strcmp(path, "container.shell_cg_y_m") == 0 && value.has_number) {
     params_.container.shell_cg_y_m = value.number;
   } else if (std::strcmp(path, "container.enable_roof_contact") == 0 && value.has_bool) {
     params_.container.enable_roof_contact = value.boolean;
+  } else if (pathMatches(path, "mass.natural_freq_x_hz", "mass.natural_freq_x") && value.has_number) {
+    params_.mass.natural_freq_x_hz = clampf(value.number, 0.10f, 20.0f);
+  } else if (pathMatches(path, "mass.natural_freq_y_hz", "mass.natural_freq_y") && value.has_number) {
+    params_.mass.natural_freq_y_hz = clampf(value.number, 0.10f, 20.0f);
+  } else if (std::strcmp(path, "mass.damping_ratio_x") == 0 && value.has_number) {
+    params_.mass.damping_ratio_x = clampf(value.number, 0.0f, 2.0f);
+  } else if (std::strcmp(path, "mass.damping_ratio_y") == 0 && value.has_number) {
+    params_.mass.damping_ratio_y = clampf(value.number, 0.0f, 2.0f);
+  } else if (std::strcmp(path, "mass.energy_decay_s") == 0 && value.has_number) {
+    params_.mass.energy_decay_s = clampf(value.number, 0.001f, 10.0f);
+  } else if (std::strcmp(path, "mass.accel_to_energy_gain") == 0 && value.has_number) {
+    params_.mass.accel_to_energy_gain = clampf(value.number, 0.0f, 10.0f);
+  } else if (std::strcmp(path, "mass.gyro_to_energy_gain") == 0 && value.has_number) {
+    params_.mass.gyro_to_energy_gain = clampf(value.number, 0.0f, 1.0f);
+  } else if (std::strcmp(path, "mass.rebound") == 0 && value.has_number) {
+    params_.mass.rebound = clampf(value.number, 0.0f, 1.0f);
   } else if (std::strcmp(path, "event.roll_rate_hz") == 0 && value.has_number) {
-    params_.event.roll_rate_hz = value.number;
+    params_.event.roll_rate_hz = clampf(value.number, 0.0f, 200.0f);
   } else if (std::strcmp(path, "event.impact_rate_hz") == 0 && value.has_number) {
-    params_.event.impact_rate_hz = value.number;
+    params_.event.impact_rate_hz = clampf(value.number, 0.0f, 300.0f);
   } else if (std::strcmp(path, "event.droplet_rate_hz") == 0 && value.has_number) {
-    params_.event.droplet_rate_hz = value.number;
+    params_.event.droplet_rate_hz = clampf(value.number, 0.0f, 300.0f);
   } else if (std::strcmp(path, "event.scrape_threshold") == 0 && value.has_number) {
-    params_.event.scrape_threshold = value.number;
+    params_.event.scrape_threshold = clampf(value.number, 0.0f, 2.0f);
   } else if (std::strcmp(path, "event.roof_slap_threshold") == 0 && value.has_number) {
-    params_.event.roof_slap_threshold = value.number;
-  } else if (std::strcmp(path, "texture.flow_ripple_soa_ms") == 0 && value.has_number) {
-    params_.texture.flow_ripple_soa_ms = value.number;
+    params_.event.roof_slap_threshold = clampf(value.number, 0.0f, 2.0f);
+  } else if (pathMatches(path, "texture.hard_ping_low_ms", "texture.hard_ping_low") && value.has_number) {
+    params_.texture.hard_ping_low_ms = clampf(value.number, 1.0f, 250.0f);
+  } else if (pathMatches(path, "texture.hard_ping_high_ms", "texture.hard_ping_high") && value.has_number) {
+    params_.texture.hard_ping_high_ms = clampf(value.number, 1.0f, 250.0f);
+  } else if (pathMatches(path, "texture.wet_burst_ms", "texture.wet_burst") && value.has_number) {
+    params_.texture.wet_burst_ms = clampf(value.number, 1.0f, 250.0f);
+  } else if (pathMatches(path, "texture.dry_rattle_ms", "texture.dry_rattle") && value.has_number) {
+    params_.texture.dry_rattle_ms = clampf(value.number, 1.0f, 250.0f);
+  } else if (pathMatches(path, "texture.scrape_noise_ms", "texture.scrape_noise") && value.has_number) {
+    params_.texture.scrape_noise_ms = clampf(value.number, 1.0f, 250.0f);
+  } else if (pathMatches(path, "texture.flow_ripple_soa_ms", "texture.flow_ripple_soa") && value.has_number) {
+    params_.texture.flow_ripple_soa_ms = clampf(value.number, 0.0f, 250.0f);
+  } else if (std::strcmp(path, "texture.default_high_bias") == 0 && value.has_number) {
+    params_.texture.default_high_bias = clampf(value.number, 0.0f, 1.0f);
   } else if (std::strcmp(path, "spatial.neighbor_bleed") == 0 && value.has_number) {
     params_.spatial.neighbor_bleed = value.number;
   } else if (std::strcmp(path, "spatial.opposite_bleed") == 0 && value.has_number) {
@@ -483,6 +529,30 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
     params_.features.enable_recorder = value.boolean;
   } else if (std::strcmp(path, "features.enable_tilt_plane") == 0 && value.has_bool) {
     params_.features.enable_tilt_plane = value.boolean;
+  } else if (std::strcmp(path, "features.enable_pipeline_debug_telemetry") == 0 && value.has_bool) {
+    params_.features.enable_pipeline_debug_telemetry = value.boolean;
+  } else if (pathMatches(path, "calibration.low_start_hz", "calibration.low_start") && value.has_number) {
+    params_.calibration.low_start_hz = clampf(value.number, 20.0f, 1000.0f);
+  } else if (pathMatches(path, "calibration.low_stop_hz", "calibration.low_stop") && value.has_number) {
+    params_.calibration.low_stop_hz = clampf(value.number, 20.0f, 1000.0f);
+  } else if (pathMatches(path, "calibration.low_step_hz", "calibration.low_step") && value.has_number) {
+    params_.calibration.low_step_hz = clampf(value.number, 1.0f, 500.0f);
+  } else if (pathMatches(path, "calibration.high_start_hz", "calibration.high_start") && value.has_number) {
+    params_.calibration.high_start_hz = clampf(value.number, 20.0f, 1000.0f);
+  } else if (pathMatches(path, "calibration.high_stop_hz", "calibration.high_stop") && value.has_number) {
+    params_.calibration.high_stop_hz = clampf(value.number, 20.0f, 1000.0f);
+  } else if (pathMatches(path, "calibration.high_step_hz", "calibration.high_step") && value.has_number) {
+    params_.calibration.high_step_hz = clampf(value.number, 1.0f, 500.0f);
+  } else if (std::strcmp(path, "calibration.settle_ms") == 0 && value.has_number) {
+    params_.calibration.settle_ms = clampU16(value.number, 10, 5000);
+  } else if (std::strcmp(path, "calibration.measure_ms") == 0 && value.has_number) {
+    params_.calibration.measure_ms = clampU16(value.number, 10, 5000);
+  } else if (std::strcmp(path, "calibration.drive_level") == 0 && value.has_number) {
+    params_.calibration.drive_level = clampf(value.number, 0.0f, 1.0f);
+  } else if (std::strcmp(path, "iface.telemetry_period_ms") == 0 && value.has_number) {
+    params_.iface.telemetry_period_ms = clampU16(value.number, 10, 5000);
+  } else if (std::strcmp(path, "recorder.flush_interval_frames") == 0 && value.has_number) {
+    params_.recorder.flush_interval_frames = clampU16(value.number, 1, 1024);
   } else if (std::strcmp(path, "tilt.max_tilt_deg") == 0 && value.has_number) {
     params_.tilt.max_tilt_deg = value.number;
   } else if (std::strcmp(path, "tilt.enable_pseudoforce") == 0 && value.has_bool) {
@@ -641,19 +711,19 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   }
 
   const bool idle_mode = currentRunMode() == RunMode::Idle;
-  const MassState mass = (!idle_mode && params_.features.enable_mass_layer) ? mass_layer_.update(sample, dt_s)
-                                                                            : makeDefaultMassState();
+  const bool mass_enabled = !idle_mode && params_.features.enable_mass_layer;
+  const bool event_enabled = !idle_mode && params_.features.enable_event_layer;
+  const bool texture_enabled = !idle_mode && params_.features.enable_texture_layer;
+  const bool resonance_enabled = !idle_mode && params_.features.enable_resonance_layer;
+  const bool spatial_enabled = !idle_mode && params_.features.enable_spatial_renderer;
+  const MassState mass = mass_enabled ? mass_layer_.update(sample, dt_s) : makeDefaultMassState();
   const auto events =
-      (!idle_mode && params_.features.enable_event_layer) ? event_layer_.update(mass, dt_s) : EventFrame<kMaxEventsPerFrame>{};
+      event_enabled ? event_layer_.update(mass, dt_s) : EventFrame<kMaxEventsPerFrame>{};
   const auto textures =
-      (!idle_mode && params_.features.enable_texture_layer) ? texture_layer_.update(events, dt_s)
-                                                            : TextureFrame<kMaxTexturesPerFrame>{};
+      texture_enabled ? texture_layer_.update(events, dt_s) : TextureFrame<kMaxTexturesPerFrame>{};
   const auto resonances =
-      (!idle_mode && params_.features.enable_resonance_layer)
-          ? resonance_layer_.update(textures)
-          : ResonanceFrame<kMaxResonanceVoicesPerFrame>{};
-  const auto spatial =
-      (!idle_mode && params_.features.enable_spatial_renderer) ? spatial_renderer_.update(resonances, dt_s) : SpatialFrame4{};
+      resonance_enabled ? resonance_layer_.update(textures) : ResonanceFrame<kMaxResonanceVoicesPerFrame>{};
+  const auto spatial = spatial_enabled ? spatial_renderer_.update(resonances, dt_s) : SpatialFrame4{};
   const auto tilt_cmd = updateTiltCommand(sample, mass, dt_s);
   const HapticEvent last_event = params_.features.enable_event_layer ? event_layer_.lastEvent() : HapticEvent{};
 
@@ -680,6 +750,14 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   telemetry_.calibration = calibrator_.status();
   telemetry_.recorder = recorder_.status();
   telemetry_.remote = remote_.status();
+  telemetry_.pipeline_debug.event_count = static_cast<uint16_t>(events.count);
+  telemetry_.pipeline_debug.texture_count = static_cast<uint16_t>(textures.count);
+  telemetry_.pipeline_debug.resonance_count = static_cast<uint16_t>(resonances.count);
+  telemetry_.pipeline_debug.mass_enabled = mass_enabled;
+  telemetry_.pipeline_debug.event_enabled = event_enabled;
+  telemetry_.pipeline_debug.texture_enabled = texture_enabled;
+  telemetry_.pipeline_debug.resonance_enabled = resonance_enabled;
+  telemetry_.pipeline_debug.spatial_enabled = spatial_enabled;
 
   recorder_.append(telemetry_);
   remote_.publishTelemetry(telemetry_);

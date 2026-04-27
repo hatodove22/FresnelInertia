@@ -133,6 +133,30 @@
         "transmitted_messages": {"type": "integer", "minimum": 0}
       },
       "additionalProperties": true
+    },
+    "pipeline_debug": {
+      "type": "object",
+      "properties": {
+        "event_count": {"type": "integer", "minimum": 0},
+        "texture_count": {"type": "integer", "minimum": 0},
+        "resonance_count": {"type": "integer", "minimum": 0},
+        "mass_enabled": {"type": "boolean"},
+        "event_enabled": {"type": "boolean"},
+        "texture_enabled": {"type": "boolean"},
+        "resonance_enabled": {"type": "boolean"},
+        "spatial_enabled": {"type": "boolean"}
+      },
+      "required": [
+        "event_count",
+        "texture_count",
+        "resonance_count",
+        "mass_enabled",
+        "event_enabled",
+        "texture_enabled",
+        "resonance_enabled",
+        "spatial_enabled"
+      ],
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

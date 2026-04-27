@@ -47,6 +47,19 @@ export interface SpatialPanelState {
 
 export interface DemoUiElements {
   presetSelect: HTMLSelectElement;
+  shakeBoostSlider: HTMLInputElement;
+  shakeBoostValue: HTMLOutputElement;
+  dampingPreviewSlider: HTMLInputElement;
+  dampingPreviewValue: HTMLOutputElement;
+  stimulusSelect: HTMLSelectElement;
+  conditionInput: HTMLInputElement;
+  repeatInput: HTMLInputElement;
+  trialStartStopButton: HTMLButtonElement;
+  trialMarkButton: HTMLButtonElement;
+  trialNextButton: HTMLButtonElement;
+  trialElapsed: HTMLElement;
+  exportFormatSelect: HTMLSelectElement;
+  exportButton: HTMLButtonElement;
   orientationButton: HTMLButtonElement;
   xrButton: HTMLButtonElement;
   questButton: HTMLButtonElement;
