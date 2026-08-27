@@ -18,7 +18,9 @@ Current samples:
 See `schema/README.md` for the intentionally supported JSON Schema subset.
 Expected-invalid fixtures must be rejected for exactly their committed error
 codes; an accidental rejection for a different reason does not pass. Numeric
-upper bounds such as `audio.output_peak_limit <= 1` are enforced.
+upper bounds such as `audio.output_peak_limit <= 1`, `new_evt <= 16`, and the
+JavaScript-safe boot-counter limit are enforced. Current coverage is 11 valid
+and 5 invalid control messages, plus 4 valid and 12 invalid telemetry frames.
 
 ## Native baseline and required next fixtures
 

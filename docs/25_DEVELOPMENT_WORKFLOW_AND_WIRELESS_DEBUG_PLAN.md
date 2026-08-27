@@ -75,8 +75,9 @@ Implementation checkpoint on `2026-08-27`:
   `reset()` as well.
 - `MassMotionLayer.cpp` no longer carries its unused `Arduino.h` dependency and
   is directly compiled by the host harness without changing its legacy output.
-- `TelemetrySnapshot` already contains `frame_counter` and current-frame
-  `pipeline_debug.event_count`.
+- `TelemetrySnapshot` and every serializer now carry always-present
+  `frame_counter`, current-frame `new_evt`, and boot-cumulative `evt_total`;
+  optional `pipeline_debug.event_count` mirrors `new_evt` for compatibility.
 - `RemoteInterface` already provides SoftAP/station setup, an HTTP status page,
   WebSocket JSON telemetry, bounded client buffers, and a control-message
   queue for retained StickS3 targets.
@@ -86,8 +87,8 @@ Implementation checkpoint on `2026-08-27`:
 
 - the native layer environment and legacy fingerprint exist; the extended
   orientation/noise/motion/alias/pulse fixture library is not complete yet
-- `event_count` is not printed as `new_evt`, and `frame_counter` is not emitted
-  in remote JSON
+- build/profile identity, boot identity, IMU age, loop timing, and bounded
+  transport/drop counters are not yet part of the canonical frame
 - JSON codec and command policy are embedded in `RemoteInterface.cpp`
 - missing or invalid `run_mode` currently falls back to Live
 - the existing remote control path can enable audio, start calibration, and
@@ -262,10 +263,18 @@ Acceptance at fixed `dt=0.004 s`:
 
 ### Slice 3 - Add the minimum diagnostic contract
 
+Implementation checkpoint on `2026-08-27`: the first three event/sequence
+items below are complete across `TelemetrySnapshot`, serial, Recorder, Remote,
+schema, and positive/expected-invalid fixtures. The wider identity, timing,
+heap, and transport-health portion remains open.
+
 Scope:
 
 - print current-frame event count as `new_evt`; retain `last_event` as history
-- emit `frame_counter` or a monotonic telemetry sequence
+- emit `frame_counter` and a boot-cumulative `evt_total`, with both saturated
+  at the JSON safe-integer limit
+- preserve `evt_total` while clearing `new_evt` on Safe Idle, stale stop,
+  preset/reconfiguration, Record, and Replay transitions
 - add schema/build/profile identity needed to associate a log with firmware
 - expose a per-boot `boot_id`, reset reason/count, IMU sample age, and a
   bounded loop-period summary including p99, p99.9, maximum, and missed 4 ms

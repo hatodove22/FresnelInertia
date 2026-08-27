@@ -23,6 +23,12 @@ USB serial while the local hardware path is validated.
 
 ### Telemetry
 - timestamp
+- always-present diagnostic counters:
+  - `frame_counter`: accepted pipeline frames since boot, saturated at the
+    JSON safe-integer limit
+  - `new_evt`: events generated in this frame, in the range 0--16
+  - `evt_total`: boot-lifetime generated-event count, saturated at the JSON
+    safe-integer limit `9007199254740991`
 - active preset
 - run mode
 - IMU sample summary, including `valid`
@@ -47,7 +53,8 @@ USB serial while the local hardware path is validated.
 - remote status (`compile_enabled`, `runtime_enabled`, `connected_clients`,
   `received_messages`, `transmitted_messages`)
 - optional pipeline debug status, emitted only when `features.enable_pipeline_debug_telemetry=true`:
-  - `event_count`, `texture_count`, `resonance_count`
+  - `event_count`, a compatibility mirror of top-level `new_evt`, plus
+    `texture_count` and `resonance_count`
   - `mass_enabled`, `event_enabled`, `texture_enabled`, `resonance_enabled`, `spatial_enabled`
   - `imu_stale_safe_stop`
 - thumb/index tilt command summary including:
@@ -271,11 +278,15 @@ After Safe Idle, `live` changes only the run mode. Physical output remains OFF
 and zero asserted until a new explicit `audio on`. This prevents a mode change
 from replaying stale dynamic energy or silently re-arming hardware.
 
-The serial `status` line exposes `imu_stop` and `zero`. Gate 1 in document 08
-also requires current-frame `pipeline_debug.event_count` to be exposed there as
-`new_evt`, because `last_event` is historical/latched. JSON/NDJSON clients use
-the always-present top-level `safety` object; pipeline-debug telemetry is not
-required for safety acceptance.
+The serial verbose and `status` lines expose `frame`, `new_evt`, `evt_total`,
+`imu_stop`, and `zero`. `last_event` is historical/latched, so a prior event can
+remain visible while `new_evt=0`. Remote JSON and recorder NDJSON emit the same
+three counters at top level regardless of the pipeline-debug flag. Safe Idle,
+preset/reconfiguration, stale-stop, Record, and Replay transitions clear only
+the current-frame event count; they preserve the boot total. A rejected
+processing interval does not advance any counter.
+Top-level `safety` remains always present and pipeline-debug telemetry is not
+required for either safety or event acceptance.
 
 ## 4. Smartphone integration requirements
 
@@ -307,7 +318,8 @@ Use NDJSON or line-delimited JSON first for readability.
 The current implementation records one telemetry snapshot per line and replays IMU + timestamp data back through the shared pipeline.
 When `features.enable_pipeline_debug_telemetry=true`, recorder lines include the same optional `pipeline_debug` object as remote telemetry; with the flag false, the record shape stays on the baseline fields.
 
-Recorder rows include the preset name, IMU validity bit, and audio
+Recorder rows always include `frame_counter`, `new_evt`, and `evt_total` in
+addition to the preset name, IMU validity bit, and audio
 driver/transport/effective peak-limit/zero status plus the top-level safety
 object. They do not capture
 `preset_source`, `preset_path`, a fully resolved parameter snapshot/hash,

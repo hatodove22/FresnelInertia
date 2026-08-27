@@ -80,9 +80,12 @@ transport work:
    pulse-to-silence checks
 7. repeat the 8% powered settling test from document 24
 
-Step 1 is implemented: the pinned `native-layers` suite has seven passing
-production-layer tests and a reviewed legacy fingerprint, while schema checks
-now include eleven expected-invalid fixtures. The active code task is step 2.
+Steps 1 and 5 are implemented: the pinned `native-layers` suite has seven
+passing production-layer tests and a reviewed legacy fingerprint, while schema
+checks now include seventeen expected-invalid fixtures. Canonical serial,
+Recorder, and Remote telemetry always carry `frame_counter`, `new_evt`, and
+boot-cumulative `evt_total`; optional pipeline debug mirrors `new_evt`. The
+active motion code task is step 2.
 
 The milestone passes only when static six-orientation tests generate no new
 events or perceived vibration, and one deliberate movement settles to tactile

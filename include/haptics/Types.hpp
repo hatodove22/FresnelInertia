@@ -299,7 +299,9 @@ struct PipelineDebugStatus {
 
 struct TelemetrySnapshot {
   uint32_t timestamp_ms = 0;
-  uint32_t frame_counter = 0;
+  uint64_t frame_counter = 0;
+  uint16_t new_evt = 0;
+  uint64_t evt_total = 0;
   char active_preset[32]{};
   RunMode run_mode = RunMode::Idle;
   ImuSample imu{};
@@ -314,6 +316,10 @@ struct TelemetrySnapshot {
   RemoteStatus remote{};
   PipelineDebugStatus pipeline_debug{};
 };
+
+// JSON numbers are exactly integral only through Number.MAX_SAFE_INTEGER.
+// Keep boot-lifetime counters portable to JavaScript telemetry tools.
+constexpr uint64_t kTelemetryJsonSafeIntegerMax = 9007199254740991ULL;
 
 constexpr std::size_t kMaxEventsPerFrame = 16;
 constexpr std::size_t kMaxTexturesPerFrame = 16;

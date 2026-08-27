@@ -132,8 +132,14 @@ column so implemented cannot be read as production hardware passed.
   pass, including reset equivalence and a reviewed 400-frame legacy
   fingerprint that normal test execution cannot regenerate.
 - Schema validation now enforces the numeric `maximum` keyword and verifies
-  five control plus six telemetry expected-invalid fixtures for their exact
-  rejection reasons, in addition to the retained 11+3 valid samples.
+  five control plus twelve telemetry expected-invalid fixtures for their exact
+  rejection reasons, in addition to 11+4 valid samples.
+- Canonical telemetry now always emits `frame_counter`, current-frame
+  `new_evt`, and boot-cumulative `evt_total` through serial status/verbose,
+  recorder NDJSON, and remote JSON. Both boot counters saturate at the
+  JavaScript safe-integer limit; `evt_total` survives Safe Idle and mode or
+  preset transitions. Optional `pipeline_debug.event_count` remains as a
+  compatibility mirror.
 
 ## 5. Implemented but not yet proven enough
 

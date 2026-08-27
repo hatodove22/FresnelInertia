@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include <algorithm>
+#include <cinttypes>
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -12,6 +13,19 @@ namespace haptics {
 namespace {
 
 constexpr uint32_t kImuStaleSafeStopMs = 300;
+
+void clearCurrentEventTelemetry(TelemetrySnapshot& telemetry) {
+  telemetry.new_evt = 0;
+  telemetry.pipeline_debug.event_count = 0;
+}
+
+uint64_t addTelemetryCountSaturating(uint64_t total, uint64_t increment) {
+  if (total >= kTelemetryJsonSafeIntegerMax ||
+      increment >= kTelemetryJsonSafeIntegerMax - total) {
+    return kTelemetryJsonSafeIntegerMax;
+  }
+  return total + increment;
+}
 
 bool isCommand(const char* command, const char* expected) {
   return std::strcmp(command, expected) == 0;
@@ -184,6 +198,7 @@ WallId parseWallId(const char* text) {
 }  // namespace
 
 bool HapticPipeline::begin(const SystemParams& params) {
+  telemetry_ = {};
   params_ = params;
   current_family_ = params.container.family;
   requested_run_mode_ = RunMode::Live;
@@ -224,6 +239,7 @@ bool HapticPipeline::begin(const SystemParams& params) {
 }
 
 bool HapticPipeline::reconfigurePipeline() {
+  clearCurrentEventTelemetry(telemetry_);
   mass_layer_.configure(params_);
   event_layer_.configure(params_);
   texture_layer_.configure(params_);
@@ -246,6 +262,7 @@ void HapticPipeline::refreshOutputConfig() {
 }
 
 void HapticPipeline::resetDynamicPipelineState() {
+  clearCurrentEventTelemetry(telemetry_);
   mass_layer_.configure(params_);
   event_layer_.configure(params_);
   texture_layer_.configure(params_);
@@ -295,6 +312,7 @@ void HapticPipeline::enterSafeIdle() {
   tilt_.configure(params_);
 
   telemetry_.run_mode = RunMode::Idle;
+  clearCurrentEventTelemetry(telemetry_);
   telemetry_.mass = makeDefaultMassState();
   telemetry_.last_event = {};
   telemetry_.actuators = {};
@@ -809,6 +827,7 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
         case RunMode::Live:
           requested_run_mode_ = RunMode::Live;
           recorder_.stopReplay();
+          clearCurrentEventTelemetry(telemetry_);
           return true;
         case RunMode::Calibration:
           return startRuntimeCalibration();
@@ -817,6 +836,7 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
           recorder_.configure(params_);
           if (recorder_.startRecording(millis(), message.argument[0] != '\0' ? message.argument : nullptr)) {
             requested_run_mode_ = RunMode::Record;
+            clearCurrentEventTelemetry(telemetry_);
             return true;
           }
           return false;
@@ -825,6 +845,7 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
           recorder_.configure(params_);
           if (recorder_.startReplay(message.argument, millis())) {
             requested_run_mode_ = RunMode::Replay;
+            clearCurrentEventTelemetry(telemetry_);
             return true;
           }
           return false;
@@ -858,24 +879,28 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
       recorder_.configure(params_);
       if (recorder_.startRecording(millis(), message.argument[0] != '\0' ? message.argument : nullptr)) {
         requested_run_mode_ = RunMode::Record;
+        clearCurrentEventTelemetry(telemetry_);
         return true;
       }
       return false;
     case ControlMessageType::RecordStop:
       recorder_.stopRecording();
       requested_run_mode_ = RunMode::Live;
+      clearCurrentEventTelemetry(telemetry_);
       return true;
     case ControlMessageType::ReplayStart:
       params_.features.enable_recorder = true;
       recorder_.configure(params_);
       if (recorder_.startReplay(message.argument, millis())) {
         requested_run_mode_ = RunMode::Replay;
+        clearCurrentEventTelemetry(telemetry_);
         return true;
       }
       return false;
     case ControlMessageType::ReplayStop:
       recorder_.stopReplay();
       requested_run_mode_ = RunMode::Live;
+      clearCurrentEventTelemetry(telemetry_);
       return true;
     case ControlMessageType::None:
     default:
@@ -971,7 +996,9 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   }
 
   telemetry_.timestamp_ms = millis();
-  telemetry_.frame_counter++;
+  telemetry_.frame_counter = addTelemetryCountSaturating(telemetry_.frame_counter, 1);
+  telemetry_.new_evt = static_cast<uint16_t>(events.count);
+  telemetry_.evt_total = addTelemetryCountSaturating(telemetry_.evt_total, telemetry_.new_evt);
   std::strncpy(telemetry_.active_preset, params_.preset_name, sizeof(telemetry_.active_preset) - 1);
   telemetry_.run_mode = run_mode;
   telemetry_.imu = checked_sample;
@@ -986,7 +1013,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   telemetry_.calibration = calibrator_.status();
   telemetry_.recorder = recorder_.status();
   telemetry_.remote = remote_.status();
-  telemetry_.pipeline_debug.event_count = static_cast<uint16_t>(events.count);
+  telemetry_.pipeline_debug.event_count = telemetry_.new_evt;
   telemetry_.pipeline_debug.texture_count = static_cast<uint16_t>(textures.count);
   telemetry_.pipeline_debug.resonance_count = static_cast<uint16_t>(resonances.count);
   telemetry_.pipeline_debug.mass_enabled = mass_enabled;
@@ -1016,9 +1043,12 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   if (params_.features.enable_verbose_serial && millis() - last_print_ms_ > 250) {
     last_print_ms_ = millis();
     Serial.printf(
-        "preset=%s mode=%u energy=%.3f pos=(%.2f,%.2f) vel=(%.2f,%.2f) evt=%u ch=[%.2f %.2f %.2f %.2f] rec=%u replay=%u remote=%u\n",
+        "preset=%s mode=%u frame=%" PRIu64 " new_evt=%u evt_total=%" PRIu64 " energy=%.3f pos=(%.2f,%.2f) vel=(%.2f,%.2f) evt=%u ch=[%.2f %.2f %.2f %.2f] rec=%u replay=%u remote=%u\n",
         params_.preset_name,
         static_cast<unsigned>(telemetry_.run_mode),
+        telemetry_.frame_counter,
+        static_cast<unsigned>(telemetry_.new_evt),
+        telemetry_.evt_total,
         mass.energy,
         mass.pos_norm.x,
         mass.pos_norm.y,
@@ -1100,9 +1130,12 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     char remote_status[192]{};
     remote_.describeStatus(remote_status, sizeof(remote_status));
     Serial.printf(
-        "status: preset=%s mode=%s evt=%s/%s energy=%.3f pos=(%.2f,%.2f) imu_stop=%u audio=%u zero=%u driver=%u transport=%s diag=%u layout=%s gain=%.2f limit=%.3f rec=%u replay=%u tilt=%u\n",
+        "status: preset=%s mode=%s frame=%" PRIu64 " new_evt=%u evt_total=%" PRIu64 " evt=%s/%s energy=%.3f pos=(%.2f,%.2f) imu_stop=%u audio=%u zero=%u driver=%u transport=%s diag=%u layout=%s gain=%.2f limit=%.3f rec=%u replay=%u tilt=%u\n",
         telemetry_.active_preset,
         runModeToString(telemetry_.run_mode),
+        telemetry_.frame_counter,
+        static_cast<unsigned>(telemetry_.new_evt),
+        telemetry_.evt_total,
         eventTypeToString(telemetry_.last_event.type),
         wallToString(telemetry_.last_event.primary_wall),
         telemetry_.mass.energy,
@@ -1131,6 +1164,7 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
   }
   if (isCommand(command, "live")) {
     requested_run_mode_ = RunMode::Live;
+    clearCurrentEventTelemetry(telemetry_);
     Serial.println("pipeline: live; physical outputs remain explicitly gated");
     return;
   }
@@ -1181,6 +1215,7 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     recorder_.configure(params_);
     if (recorder_.startRecording(millis())) {
       requested_run_mode_ = RunMode::Record;
+      clearCurrentEventTelemetry(telemetry_);
       Serial.println("record: started");
     }
     return;
@@ -1188,6 +1223,7 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
   if (isCommand(command, "record stop")) {
     recorder_.stopRecording();
     requested_run_mode_ = RunMode::Live;
+    clearCurrentEventTelemetry(telemetry_);
     Serial.println("record: stopped");
     return;
   }
@@ -1207,6 +1243,7 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     recorder_.configure(params_);
     if (recorder_.startReplay(command + 13, millis())) {
       requested_run_mode_ = RunMode::Replay;
+      clearCurrentEventTelemetry(telemetry_);
       Serial.println("replay: started");
     } else {
       Serial.println("replay: start failed");
@@ -1216,6 +1253,7 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
   if (isCommand(command, "replay stop")) {
     recorder_.stopReplay();
     requested_run_mode_ = RunMode::Live;
+    clearCurrentEventTelemetry(telemetry_);
     Serial.println("replay: stopped");
     return;
   }

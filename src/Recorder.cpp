@@ -182,6 +182,9 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
 
   StaticJsonDocument<2560> doc;
   doc["timestamp_ms"] = snapshot.timestamp_ms;
+  doc["frame_counter"] = snapshot.frame_counter;
+  doc["new_evt"] = snapshot.new_evt;
+  doc["evt_total"] = snapshot.evt_total;
   doc["preset"] = snapshot.active_preset;
   doc["run_mode"] = runModeToString(snapshot.run_mode);
 

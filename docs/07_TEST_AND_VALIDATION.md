@@ -12,15 +12,20 @@ IMU behavior, WiFi range, flash persistence, or perceptual quality.
   `type` enum in `schemas/control_message.schema.json`
 - verify `test/schema/telemetry_frames.valid.jsonl` still matches
   `schemas/telemetry_frame.schema.json`
-- require every telemetry sample to include `audio.output_silenced` and the
-  top-level `safety` object even when `pipeline_debug` is omitted
+- require every telemetry sample to include top-level `frame_counter`,
+  `new_evt`, `evt_total`, and `safety` even when `pipeline_debug` is omitted;
+  samples containing audio must also include `audio.output_silenced`
 - note that `test/schema/validate_schemas.mjs` is intentionally small and only
   covers this subset today:
   `type`, `required`, `enum`, `properties`, `items`, `additionalProperties`,
   `minimum`, `maximum`, `minItems`, and `maxItems`
 - the local validator enforces `maximum` and checks committed expected-invalid
   fixtures for required fields, unknown properties, enums, actuator count,
-  numeric lower bounds, and peak-limit overflow
+  numeric lower bounds, peak-limit overflow, a missing diagnostic counter,
+  negative `evt_total`, and `new_evt > 16`
+- the valid counter-boundary sample must accept both boot counters at
+  `9007199254740991` and `new_evt=16`; another valid sample keeps a latched
+  `last_event` while reporting `new_evt=0`
 
 ### Native deterministic harness
 

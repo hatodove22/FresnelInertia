@@ -31,12 +31,14 @@ or extend this script before treating these samples as complete validation.
 Files:
 
 - `control_messages.valid.jsonl` covers every current control `type` enum.
-- `telemetry_frames.valid.jsonl` contains representative telemetry snapshots
+- `telemetry_frames.valid.jsonl` contains representative telemetry snapshots,
+  including counter boundaries and a latched `last_event` with `new_evt=0`,
   matching the documented telemetry frame shape.
 - `control_messages.invalid.jsonl` covers required fields, unknown properties,
   enums, and numeric lower bounds.
 - `telemetry_frames.invalid.jsonl` covers required fields, unknown properties,
-  enums, the exact four-actuator count, and output peak-limit overflow.
+  enums, the exact four-actuator count, output peak-limit overflow, negative
+  event totals, and current-frame event-count overflow.
 
 Each expected-invalid line is a fixture object with `name`, `value`, and
 `expected_error_codes`. The runner compares the complete actual and expected

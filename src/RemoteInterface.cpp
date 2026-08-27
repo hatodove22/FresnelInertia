@@ -302,6 +302,9 @@ ControlMessage parseControlPayload(const char* payload) {
 template <typename TDoc>
 void populateTelemetryDocument(TDoc& doc, const TelemetrySnapshot& telemetry, bool include_pipeline_debug) {
   doc["timestamp_ms"] = telemetry.timestamp_ms;
+  doc["frame_counter"] = telemetry.frame_counter;
+  doc["new_evt"] = telemetry.new_evt;
+  doc["evt_total"] = telemetry.evt_total;
   doc["preset"] = telemetry.active_preset;
   doc["run_mode"] = runModeToString(telemetry.run_mode);
 
