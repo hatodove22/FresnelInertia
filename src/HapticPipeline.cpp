@@ -3,12 +3,15 @@
 #include <Arduino.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
 
 namespace haptics {
 namespace {
+
+constexpr uint32_t kImuStaleSafeStopMs = 300;
 
 bool isCommand(const char* command, const char* expected) {
   return std::strcmp(command, expected) == 0;
@@ -26,6 +29,13 @@ float clampf(float value, float lo, float hi) {
   return std::max(lo, std::min(value, hi));
 }
 
+bool isFiniteImuSample(const ImuSample& sample) {
+  return sample.valid && std::isfinite(sample.accel_g.x) &&
+         std::isfinite(sample.accel_g.y) && std::isfinite(sample.accel_g.z) &&
+         std::isfinite(sample.gyro_dps.x) &&
+         std::isfinite(sample.gyro_dps.y) && std::isfinite(sample.gyro_dps.z);
+}
+
 uint16_t clampU16(float value, uint16_t lo, uint16_t hi) {
   return static_cast<uint16_t>(clampf(value, static_cast<float>(lo), static_cast<float>(hi)));
 }
@@ -41,15 +51,21 @@ bool layoutAllowsWall(AudioOutputLayout layout, WallId wall) {
   return wall == WallId::Front || wall == WallId::Back;
 }
 
-AudioOutputLayout parseAudioOutputLayout(const char* text) {
+bool parseAudioOutputLayout(const char* text, AudioOutputLayout& layout) {
   if (text == nullptr) {
-    return AudioOutputLayout::QuadWall4Ch;
+    return false;
   }
   if (std::strcmp(text, "front_back_2ch") == 0 || std::strcmp(text, "2ch") == 0 ||
       std::strcmp(text, "front_back") == 0) {
-    return AudioOutputLayout::FrontBack2Ch;
+    layout = AudioOutputLayout::FrontBack2Ch;
+    return true;
   }
-  return AudioOutputLayout::QuadWall4Ch;
+  if (std::strcmp(text, "quad_wall_4ch") == 0 ||
+      std::strcmp(text, "4ch") == 0 || std::strcmp(text, "quad_wall") == 0) {
+    layout = AudioOutputLayout::QuadWall4Ch;
+    return true;
+  }
+  return false;
 }
 
 const char* audioOutputLayoutToString(AudioOutputLayout layout) {
@@ -60,6 +76,28 @@ const char* audioOutputLayoutToString(AudioOutputLayout layout) {
     default:
       return "quad_wall_4ch";
   }
+}
+
+bool parseAudioTransport(const char* text, AudioTransport& transport) {
+  if (text == nullptr) {
+    return false;
+  }
+  if (std::strcmp(text, "tdm8") == 0 ||
+      std::strcmp(text, "tdm8_slot") == 0 ||
+      std::strcmp(text, "tdm") == 0) {
+    transport = AudioTransport::Tdm8Slot;
+    return true;
+  }
+  if (std::strcmp(text, "dual_i2s") == 0 ||
+      std::strcmp(text, "dual-i2s") == 0) {
+    transport = AudioTransport::DualI2s;
+    return true;
+  }
+  return false;
+}
+
+const char* audioTransportToString(AudioTransport transport) {
+  return transport == AudioTransport::Tdm8Slot ? "tdm8_slot" : "dual_i2s";
 }
 
 const char* wallToString(WallId wall) {
@@ -152,39 +190,52 @@ bool HapticPipeline::begin(const SystemParams& params) {
 
   preset_store_.begin();
   calibrator_.loadStoredCarriers(params_);
-  imu_.begin();
+  const bool imu_ready = imu_.begin();
   mass_layer_.configure(params_);
   event_layer_.configure(params_);
   texture_layer_.configure(params_);
   resonance_layer_.configure(params_);
   calibrator_.configure(params_);
   spatial_renderer_.configure(params_);
-  audio_.begin(params_);
+  const bool audio_ready = audio_.begin(params_);
   tilt_model_.configure(params_);
   tilt_model_.reset();
-  tilt_.begin(params_);
-  remote_.begin(params_);
-  recorder_.begin(params_);
+  const bool tilt_ready = tilt_.begin(params_);
+  const bool remote_ready = remote_.begin(params_);
+  const bool recorder_ready = recorder_.begin(params_);
+
+  if (!imu_ready || !audio_ready || !tilt_ready) {
+    requested_run_mode_ = RunMode::Idle;
+    audio_.submitSilence();
+    tilt_.setRuntimeEnabled(false);
+  }
 
   last_tick_us_ = micros();
-  last_print_ms_ = millis();
+  last_valid_imu_ms_ = millis();
+  last_print_ms_ = last_valid_imu_ms_;
+  imu_stale_safe_stop_ = false;
   std::strncpy(telemetry_.active_preset, params_.preset_name, sizeof(telemetry_.active_preset) - 1);
   telemetry_.run_mode = currentRunMode();
-  return true;
+  telemetry_.audio = audio_.status();
+  telemetry_.safety.imu_stale_safe_stop = false;
+  telemetry_.safety.audio_zero_asserted = telemetry_.audio.output_silenced;
+  telemetry_.safety.tilt_disarmed = !tilt_.isEnabled();
+  return imu_ready && audio_ready && tilt_ready && remote_ready && recorder_ready;
 }
 
-void HapticPipeline::reconfigurePipeline() {
+bool HapticPipeline::reconfigurePipeline() {
   mass_layer_.configure(params_);
   event_layer_.configure(params_);
   texture_layer_.configure(params_);
   resonance_layer_.configure(params_);
   calibrator_.configure(params_);
   spatial_renderer_.configure(params_);
-  audio_.configure(params_);
+  const bool audio_ready = audio_.configure(params_);
   tilt_model_.configure(params_);
   tilt_.configure(params_);
   remote_.configure(params_);
   recorder_.configure(params_);
+  return audio_ready;
 }
 
 void HapticPipeline::refreshOutputConfig() {
@@ -192,6 +243,69 @@ void HapticPipeline::refreshOutputConfig() {
   calibrator_.configure(params_);
   spatial_renderer_.configure(params_);
   audio_.configure(params_);
+}
+
+void HapticPipeline::resetDynamicPipelineState() {
+  mass_layer_.configure(params_);
+  event_layer_.configure(params_);
+  texture_layer_.configure(params_);
+  resonance_layer_.configure(params_);
+  spatial_renderer_.configure(params_);
+  tilt_model_.configure(params_);
+  tilt_model_.reset();
+}
+
+bool HapticPipeline::applyAudioConfigOrRollback(
+    const SystemParams& previous_params) {
+  if (audio_.configure(params_)) {
+    return true;
+  }
+  params_ = previous_params;
+  if (!audio_.configure(params_)) {
+    params_.features.enable_audio_output = false;
+    params_.audio.runtime_enable = false;
+    params_.audio.channel_test_enable = false;
+    params_.audio.channel_test_wall = WallId::None;
+    audio_.configure(params_);
+    audio_.submitSilence();
+  }
+  return false;
+}
+
+void HapticPipeline::enterSafeIdle() {
+  audio_.submitSilence();
+  tilt_.setRuntimeEnabled(false);
+
+  if (calibrator_.isActive()) {
+    calibrator_.stop(params_, false);
+  }
+  recorder_.stopRecording();
+  recorder_.stopReplay();
+
+  params_.features.enable_runtime_calibration = false;
+  params_.features.enable_audio_output = false;
+  params_.features.enable_tilt_plane = false;
+  params_.audio.runtime_enable = false;
+  params_.audio.channel_test_enable = false;
+  params_.audio.channel_test_wall = WallId::None;
+  requested_run_mode_ = RunMode::Idle;
+
+  resetDynamicPipelineState();
+  audio_.configure(params_);
+  tilt_.configure(params_);
+
+  telemetry_.run_mode = RunMode::Idle;
+  telemetry_.mass = makeDefaultMassState();
+  telemetry_.last_event = {};
+  telemetry_.actuators = {};
+  telemetry_.tilt = {};
+  telemetry_.audio = audio_.status();
+  telemetry_.safety.imu_stale_safe_stop = imu_stale_safe_stop_;
+  telemetry_.safety.audio_zero_asserted = telemetry_.audio.output_silenced;
+  telemetry_.safety.tilt_disarmed = !tilt_.isEnabled();
+  telemetry_.calibration = calibrator_.status();
+  telemetry_.recorder = recorder_.status();
+  telemetry_.pipeline_debug = {};
 }
 
 HapticPipeline::RuntimeConfigSnapshot HapticPipeline::captureRuntimeConfig() const {
@@ -295,6 +409,7 @@ void HapticPipeline::cycleAudioTestMode() {
   if (calibrator_.isActive()) {
     return;
   }
+  const SystemParams previous_params = params_;
 
   if (isTwoChannelLayout(params_.audio.output_layout)) {
     switch (params_.audio.channel_test_wall) {
@@ -337,21 +452,25 @@ void HapticPipeline::cycleAudioTestMode() {
         break;
     }
   }
-  audio_.configure(params_);
+  applyAudioConfigOrRollback(previous_params);
 }
 
 void HapticPipeline::toggleAudioRuntimeEnable() {
   if (calibrator_.isActive()) {
     return;
   }
+  const SystemParams previous_params = params_;
   const bool next_state = !(params_.features.enable_audio_output && params_.audio.runtime_enable);
+  if (next_state && !audio_.isCompileEnabled()) {
+    return;
+  }
   params_.features.enable_audio_output = next_state;
   params_.audio.runtime_enable = next_state;
   if (!next_state) {
     params_.audio.channel_test_enable = false;
     params_.audio.channel_test_wall = WallId::None;
   }
-  audio_.configure(params_);
+  applyAudioConfigOrRollback(previous_params);
 }
 
 bool HapticPipeline::startRuntimeCalibration() {
@@ -425,6 +544,8 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
     return false;
   }
 
+  const SystemParams previous_params = params_;
+
   if (std::strcmp(path, "container.fill") == 0 && value.has_number) {
     params_.container.fill = clampf(value.number, 0.0f, 1.0f);
   } else if (std::strcmp(path, "container.headspace") == 0 && value.has_number) {
@@ -496,13 +617,32 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
   } else if (std::strcmp(path, "spatial.opposite_bleed") == 0 && value.has_number) {
     params_.spatial.opposite_bleed = value.number;
   } else if (std::strcmp(path, "resonance.master_gain") == 0 && value.has_number) {
-    params_.resonance.master_gain = value.number;
+    params_.resonance.master_gain = clampf(value.number, 0.0f, 4.0f);
   } else if (std::strcmp(path, "audio.runtime_enable") == 0 && value.has_bool) {
+    if (value.boolean && !audio_.isCompileEnabled()) {
+      return false;
+    }
     params_.audio.runtime_enable = value.boolean;
     params_.features.enable_audio_output = value.boolean;
   } else if (std::strcmp(path, "audio.output_gain") == 0 && value.has_number) {
-    params_.audio.output_gain = std::max(0.0f, value.number);
+    params_.audio.output_gain = clampf(value.number, 0.0f, 4.0f);
+  } else if (std::strcmp(path, "audio.output_peak_limit") == 0 && value.has_number) {
+    params_.audio.output_peak_limit = clampf(value.number, 0.0f, 1.0f);
+  } else if (std::strcmp(path, "audio.transport") == 0 && value.has_text) {
+    if (params_.audio.runtime_enable) {
+      return false;
+    }
+    AudioTransport transport = params_.audio.transport;
+    if (!parseAudioTransport(value.text, transport) ||
+        !audio_.supportsTransport(transport)) {
+      return false;
+    }
+    params_.audio.transport = transport;
   } else if (std::strcmp(path, "audio.demo_compat_mode") == 0 && value.has_bool) {
+    if (params_.audio.runtime_enable ||
+        (value.boolean && params_.audio.transport == AudioTransport::Tdm8Slot)) {
+      return false;
+    }
     params_.audio.demo_compat_mode = value.boolean;
     if (params_.audio.demo_compat_mode) {
       params_.audio.output_layout = AudioOutputLayout::FrontBack2Ch;
@@ -512,9 +652,20 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
       params_.audio.channel_test_enable = false;
     }
   } else if (std::strcmp(path, "audio.output_layout") == 0 && (value.has_text || value.has_number)) {
-    params_.audio.output_layout =
-        value.has_text ? parseAudioOutputLayout(value.text)
-                       : (value.number <= 2.5f ? AudioOutputLayout::FrontBack2Ch : AudioOutputLayout::QuadWall4Ch);
+    if (params_.audio.runtime_enable) {
+      return false;
+    }
+    if (value.has_text) {
+      AudioOutputLayout layout = params_.audio.output_layout;
+      if (!parseAudioOutputLayout(value.text, layout)) {
+        return false;
+      }
+      params_.audio.output_layout = layout;
+    } else {
+      params_.audio.output_layout =
+          value.number <= 2.5f ? AudioOutputLayout::FrontBack2Ch
+                               : AudioOutputLayout::QuadWall4Ch;
+    }
     if (!layoutAllowsWall(params_.audio.output_layout, params_.audio.channel_test_wall)) {
       params_.audio.channel_test_wall = WallId::None;
       params_.audio.channel_test_enable = false;
@@ -528,9 +679,27 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
   } else if (std::strcmp(path, "features.enable_recorder") == 0 && value.has_bool) {
     params_.features.enable_recorder = value.boolean;
   } else if (std::strcmp(path, "features.enable_tilt_plane") == 0 && value.has_bool) {
-    params_.features.enable_tilt_plane = value.boolean;
+    // Generic set_param traffic may always disarm, but must never arm a
+    // physical actuator. Arming requires the explicit local tilt command or
+    // the separately gated SetTiltMode control message.
+    if (value.boolean) {
+      return false;
+    }
+    params_.features.enable_tilt_plane = false;
+    tilt_.setRuntimeEnabled(false);
   } else if (std::strcmp(path, "features.enable_pipeline_debug_telemetry") == 0 && value.has_bool) {
     params_.features.enable_pipeline_debug_telemetry = value.boolean;
+  } else if (std::strcmp(path, "features.enable_physical_master_gain") == 0 && value.has_bool) {
+    params_.features.enable_physical_master_gain = value.boolean;
+  } else if (std::strcmp(path, "features.enable_attack_preserving_texture") == 0 && value.has_bool) {
+    params_.features.enable_attack_preserving_texture = value.boolean;
+  } else if (std::strcmp(path, "features.enable_single_shot_spatial_delay") == 0 && value.has_bool) {
+    params_.features.enable_single_shot_spatial_delay = value.boolean;
+  } else if (std::strcmp(path, "features.enable_imu_stale_safe_stop") == 0 && value.has_bool) {
+    params_.features.enable_imu_stale_safe_stop = value.boolean;
+    if (!value.boolean) {
+      imu_stale_safe_stop_ = false;
+    }
   } else if (pathMatches(path, "calibration.low_start_hz", "calibration.low_start") && value.has_number) {
     params_.calibration.low_start_hz = clampf(value.number, 20.0f, 1000.0f);
   } else if (pathMatches(path, "calibration.low_stop_hz", "calibration.low_stop") && value.has_number) {
@@ -607,7 +776,18 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
     return false;
   }
 
-  reconfigurePipeline();
+  if (!reconfigurePipeline()) {
+    params_ = previous_params;
+    if (!reconfigurePipeline()) {
+      params_.features.enable_audio_output = false;
+      params_.audio.runtime_enable = false;
+      params_.audio.channel_test_enable = false;
+      params_.audio.channel_test_wall = WallId::None;
+      reconfigurePipeline();
+      audio_.submitSilence();
+    }
+    return false;
+  }
   return true;
 }
 
@@ -624,7 +804,7 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
     case ControlMessageType::SetRunMode:
       switch (message.run_mode) {
         case RunMode::Idle:
-          requested_run_mode_ = RunMode::Idle;
+          enterSafeIdle();
           return true;
         case RunMode::Live:
           requested_run_mode_ = RunMode::Live;
@@ -659,6 +839,13 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
       remote_.publishTelemetry(telemetry_);
       return true;
     case ControlMessageType::SetTiltMode:
+      if (message.tilt_enable &&
+          (!tilt_.isCompileEnabled() ||
+           !params_.features.allow_remote_tilt_arm ||
+           (currentRunMode() != RunMode::Live &&
+            currentRunMode() != RunMode::Record))) {
+        return false;
+      }
       params_.features.enable_tilt_plane = message.tilt_enable;
       tilt_.configure(params_);
       tilt_.setRuntimeEnabled(message.tilt_enable);
@@ -700,8 +887,39 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   if (dt_s <= 0.0f) {
     return;
   }
+  const float nominal_dt_s = 1.0f / std::max(1.0f, params_.mass.control_rate_hz);
+  if (dt_s > 0.050f) {
+    dt_s = nominal_dt_s;
+  }
 
-  const bool calibration_params_changed = calibrator_.update(sample, millis(), params_);
+  ImuSample checked_sample = sample;
+  if (!isFiniteImuSample(sample)) {
+    checked_sample = {};
+    checked_sample.timestamp_us = sample.timestamp_us;
+  }
+  const uint32_t now_ms = millis();
+  if (checked_sample.valid) {
+    last_valid_imu_ms_ = now_ms;
+  }
+  const bool next_imu_stale_safe_stop =
+      params_.features.enable_imu_stale_safe_stop &&
+      now_ms - last_valid_imu_ms_ > kImuStaleSafeStopMs;
+  bool calibration_params_changed = false;
+  if (next_imu_stale_safe_stop && !imu_stale_safe_stop_) {
+    if (calibrator_.isActive()) {
+      calibration_params_changed = calibrator_.stop(params_, false);
+      params_.features.enable_runtime_calibration = false;
+      requested_run_mode_ = RunMode::Live;
+    }
+    resetDynamicPipelineState();
+  }
+  imu_stale_safe_stop_ = next_imu_stale_safe_stop;
+
+  if (!imu_stale_safe_stop_) {
+    calibration_params_changed =
+        calibrator_.update(checked_sample, now_ms, params_) ||
+        calibration_params_changed;
+  }
   if (calibration_params_changed) {
     if (!calibrator_.isActive()) {
       params_.features.enable_runtime_calibration = false;
@@ -710,13 +928,19 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
     refreshOutputConfig();
   }
 
-  const bool idle_mode = currentRunMode() == RunMode::Idle;
-  const bool mass_enabled = !idle_mode && params_.features.enable_mass_layer;
-  const bool event_enabled = !idle_mode && params_.features.enable_event_layer;
-  const bool texture_enabled = !idle_mode && params_.features.enable_texture_layer;
-  const bool resonance_enabled = !idle_mode && params_.features.enable_resonance_layer;
-  const bool spatial_enabled = !idle_mode && params_.features.enable_spatial_renderer;
-  const MassState mass = mass_enabled ? mass_layer_.update(sample, dt_s) : makeDefaultMassState();
+  const RunMode run_mode = currentRunMode();
+  const bool idle_mode = run_mode == RunMode::Idle;
+  const bool safe_output_stop = idle_mode || imu_stale_safe_stop_;
+  const bool tilt_mode_allowed =
+      (run_mode == RunMode::Live || run_mode == RunMode::Record) &&
+      !imu_stale_safe_stop_ &&
+      params_.features.enable_tilt_plane;
+  const bool mass_enabled = !safe_output_stop && params_.features.enable_mass_layer;
+  const bool event_enabled = !safe_output_stop && params_.features.enable_event_layer;
+  const bool texture_enabled = !safe_output_stop && params_.features.enable_texture_layer;
+  const bool resonance_enabled = !safe_output_stop && params_.features.enable_resonance_layer;
+  const bool spatial_enabled = !safe_output_stop && params_.features.enable_spatial_renderer;
+  const MassState mass = mass_enabled ? mass_layer_.update(checked_sample, dt_s) : makeDefaultMassState();
   const auto events =
       event_enabled ? event_layer_.update(mass, dt_s) : EventFrame<kMaxEventsPerFrame>{};
   const auto textures =
@@ -724,8 +948,9 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   const auto resonances =
       resonance_enabled ? resonance_layer_.update(textures) : ResonanceFrame<kMaxResonanceVoicesPerFrame>{};
   const auto spatial = spatial_enabled ? spatial_renderer_.update(resonances, dt_s) : SpatialFrame4{};
-  const auto tilt_cmd = updateTiltCommand(sample, mass, dt_s);
-  const HapticEvent last_event = params_.features.enable_event_layer ? event_layer_.lastEvent() : HapticEvent{};
+  const auto tilt_cmd =
+      tilt_mode_allowed ? updateTiltCommand(checked_sample, mass, dt_s) : TiltPlaneCommand{};
+  const HapticEvent last_event = event_enabled ? event_layer_.lastEvent() : HapticEvent{};
 
   DriveFrame4 audio_drive = spatial.drive;
   ActuatorFrame4 actuator_summary = spatial.summary;
@@ -734,19 +959,30 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
     actuator_summary = summarizeDriveFrame(audio_drive);
   }
 
-  audio_.submit(audio_drive);
-  tilt_.submit(tilt_cmd);
+  if (safe_output_stop) {
+    audio_.submitSilence();
+  } else {
+    audio_.submit(audio_drive);
+  }
+  if (tilt_mode_allowed && tilt_.isEnabled()) {
+    tilt_.submit(tilt_cmd);
+  } else if (tilt_.isEnabled()) {
+    tilt_.setRuntimeEnabled(false);
+  }
 
   telemetry_.timestamp_ms = millis();
   telemetry_.frame_counter++;
   std::strncpy(telemetry_.active_preset, params_.preset_name, sizeof(telemetry_.active_preset) - 1);
-  telemetry_.run_mode = currentRunMode();
-  telemetry_.imu = sample;
+  telemetry_.run_mode = run_mode;
+  telemetry_.imu = checked_sample;
   telemetry_.mass = mass;
   telemetry_.last_event = last_event;
   telemetry_.actuators = actuator_summary;
   telemetry_.tilt = tilt_cmd;
   telemetry_.audio = audio_.status();
+  telemetry_.safety.imu_stale_safe_stop = imu_stale_safe_stop_;
+  telemetry_.safety.audio_zero_asserted = telemetry_.audio.output_silenced;
+  telemetry_.safety.tilt_disarmed = !tilt_.isEnabled();
   telemetry_.calibration = calibrator_.status();
   telemetry_.recorder = recorder_.status();
   telemetry_.remote = remote_.status();
@@ -758,6 +994,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   telemetry_.pipeline_debug.texture_enabled = texture_enabled;
   telemetry_.pipeline_debug.resonance_enabled = resonance_enabled;
   telemetry_.pipeline_debug.spatial_enabled = spatial_enabled;
+  telemetry_.pipeline_debug.imu_stale_safe_stop = imu_stale_safe_stop_;
 
   recorder_.append(telemetry_);
   remote_.publishTelemetry(telemetry_);
@@ -828,39 +1065,42 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     if (calibrator_.isActive()) {
       return false;
     }
+    if (enabled && !audio_.isCompileEnabled()) {
+      return false;
+    }
+    const SystemParams previous_params = params_;
     params_.features.enable_audio_output = enabled;
     params_.audio.runtime_enable = enabled;
     if (!enabled) {
       params_.audio.channel_test_enable = false;
       params_.audio.channel_test_wall = WallId::None;
     }
-    audio_.configure(params_);
-    return true;
+    return applyAudioConfigOrRollback(previous_params);
   };
   const auto setAudioTestWall = [this](WallId wall) {
     if (calibrator_.isActive()) {
       return false;
     }
     if (wall == WallId::None) {
+      const SystemParams previous_params = params_;
       params_.audio.channel_test_enable = false;
       params_.audio.channel_test_wall = WallId::None;
-      audio_.configure(params_);
-      return true;
+      return applyAudioConfigOrRollback(previous_params);
     }
     if (!layoutAllowsWall(params_.audio.output_layout, wall)) {
       return false;
     }
+    const SystemParams previous_params = params_;
     params_.audio.channel_test_enable = true;
     params_.audio.channel_test_wall = wall;
-    audio_.configure(params_);
-    return true;
+    return applyAudioConfigOrRollback(previous_params);
   };
 
   if (isCommand(command, "status")) {
     char remote_status[192]{};
     remote_.describeStatus(remote_status, sizeof(remote_status));
     Serial.printf(
-        "status: preset=%s mode=%s evt=%s/%s energy=%.3f pos=(%.2f,%.2f) audio=%u diag=%u layout=%s gain=%.2f rec=%u replay=%u tilt=%u\n",
+        "status: preset=%s mode=%s evt=%s/%s energy=%.3f pos=(%.2f,%.2f) imu_stop=%u audio=%u zero=%u driver=%u transport=%s diag=%u layout=%s gain=%.2f limit=%.3f rec=%u replay=%u tilt=%u\n",
         telemetry_.active_preset,
         runModeToString(telemetry_.run_mode),
         eventTypeToString(telemetry_.last_event.type),
@@ -868,14 +1108,30 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
         telemetry_.mass.energy,
         telemetry_.mass.pos_norm.x,
         telemetry_.mass.pos_norm.y,
+        static_cast<unsigned>(telemetry_.safety.imu_stale_safe_stop),
         static_cast<unsigned>(telemetry_.audio.runtime_enabled),
+        static_cast<unsigned>(telemetry_.audio.output_silenced),
+        static_cast<unsigned>(telemetry_.audio.driver_installed),
+        audioTransportToString(telemetry_.audio.transport),
         static_cast<unsigned>(telemetry_.audio.demo_compat_mode),
         audioOutputLayoutToString(telemetry_.audio.output_layout),
         params_.audio.output_gain,
+        telemetry_.audio.output_peak_limit,
         static_cast<unsigned>(telemetry_.recorder.recording),
         static_cast<unsigned>(telemetry_.recorder.replaying),
         static_cast<unsigned>(tilt_.isEnabled()));
     Serial.println(remote_status);
+    return;
+  }
+
+  if (isCommand(command, "idle") || isCommand(command, "stop")) {
+    enterSafeIdle();
+    Serial.println("pipeline: safe idle; audio muted and tilt disarmed");
+    return;
+  }
+  if (isCommand(command, "live")) {
+    requested_run_mode_ = RunMode::Live;
+    Serial.println("pipeline: live; physical outputs remain explicitly gated");
     return;
   }
 
@@ -973,6 +1229,15 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     return;
   }
   if (isCommand(command, "tilt on")) {
+    if (!tilt_.isCompileEnabled()) {
+      Serial.println("tilt: arm rejected; physical backend is not compiled");
+      return;
+    }
+    if (currentRunMode() != RunMode::Live &&
+        currentRunMode() != RunMode::Record) {
+      Serial.println("tilt: arm rejected outside live/record mode");
+      return;
+    }
     params_.features.enable_tilt_plane = true;
     tilt_.configure(params_);
     tilt_.setRuntimeEnabled(true);
@@ -1007,11 +1272,15 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
   if (isCommand(command, "audio status")) {
     const auto audio_status = audio_.status();
     Serial.printf(
-        "audio: enabled=%u diag=%u layout=%s gain=%.2f active_channels=%u test=%u wall=%s level=%.2f underruns=%lu\n",
+        "audio: enabled=%u zero=%u driver=%u transport=%s diag=%u layout=%s gain=%.2f limit=%.3f active_channels=%u test=%u wall=%s level=%.2f errors=%lu\n",
         static_cast<unsigned>(audio_status.runtime_enabled),
+        static_cast<unsigned>(audio_status.output_silenced),
+        static_cast<unsigned>(audio_status.driver_installed),
+        audioTransportToString(audio_status.transport),
         static_cast<unsigned>(audio_status.demo_compat_mode),
         audioOutputLayoutToString(audio_status.output_layout),
         params_.audio.output_gain,
+        audio_status.output_peak_limit,
         static_cast<unsigned>(audio_status.active_output_channels),
         static_cast<unsigned>(audio_status.test_mode),
         wallToString(audio_status.test_wall),
@@ -1020,48 +1289,86 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     return;
   }
   if (isCommand(command, "audio diag on")) {
+    if (params_.audio.runtime_enable ||
+        params_.audio.transport == AudioTransport::Tdm8Slot) {
+      Serial.println("audio: diagnostic mode rejected; mute first and use dual_i2s transport");
+      return;
+    }
+    const SystemParams previous_params = params_;
     params_.audio.demo_compat_mode = true;
     params_.audio.output_layout = AudioOutputLayout::FrontBack2Ch;
     if (!layoutAllowsWall(params_.audio.output_layout, params_.audio.channel_test_wall)) {
       params_.audio.channel_test_wall = WallId::None;
       params_.audio.channel_test_enable = false;
     }
-    audio_.configure(params_);
-    Serial.println("audio: diagnostic demo-compat mode enabled");
+    Serial.println(applyAudioConfigOrRollback(previous_params)
+                       ? "audio: diagnostic demo-compat mode enabled"
+                       : "audio: diagnostic mode failed; inspect audio status");
     return;
   }
   if (isCommand(command, "audio diag off")) {
+    if (params_.audio.runtime_enable) {
+      Serial.println("audio: diagnostic mode change rejected; mute first");
+      return;
+    }
+    const SystemParams previous_params = params_;
     params_.audio.demo_compat_mode = false;
-    audio_.configure(params_);
-    Serial.println("audio: diagnostic demo-compat mode disabled");
+    Serial.println(applyAudioConfigOrRollback(previous_params)
+                       ? "audio: diagnostic demo-compat mode disabled"
+                       : "audio: diagnostic mode failed; inspect audio status");
     return;
   }
   if (isCommand(command, "audio on")) {
-    Serial.println(setAudioRuntimeEnabled(true) ? "audio: enabled" : "audio: busy");
+    Serial.println(setAudioRuntimeEnabled(true) ? "audio: enabled" : "audio: enable rejected");
     return;
   }
   if (isCommand(command, "audio off")) {
-    Serial.println(setAudioRuntimeEnabled(false) ? "audio: disabled" : "audio: busy");
+    Serial.println(setAudioRuntimeEnabled(false)
+                       ? "audio: disabled"
+                       : "audio: disable incomplete; inspect audio status");
     return;
   }
   if (startsWith(command, "audio gain ")) {
+    const SystemParams previous_params = params_;
     const float gain = std::strtof(command + 11, nullptr);
     params_.audio.output_gain = std::max(0.0f, std::min(gain, 4.0f));
-    audio_.configure(params_);
+    if (!applyAudioConfigOrRollback(previous_params)) {
+      Serial.println("audio: gain update failed");
+      return;
+    }
     Serial.printf("audio: gain=%.2f\n", params_.audio.output_gain);
+    return;
+  }
+  if (startsWith(command, "audio limit ")) {
+    const SystemParams previous_params = params_;
+    const float limit = std::strtof(command + 12, nullptr);
+    params_.audio.output_peak_limit = clampf(limit, 0.0f, 1.0f);
+    if (!applyAudioConfigOrRollback(previous_params)) {
+      Serial.println("audio: limit update failed");
+      return;
+    }
+    Serial.printf("audio: requested limit=%.3f effective=%.3f\n",
+                  params_.audio.output_peak_limit,
+                  audio_.status().output_peak_limit);
     return;
   }
   if (startsWith(command, "audio test ")) {
     const char* wall_text = command + 11;
     if (startsWith(wall_text, "level ")) {
+      const SystemParams previous_params = params_;
       const float level = std::strtof(wall_text + 6, nullptr);
       params_.audio.channel_test_level = std::max(0.0f, std::min(level, 1.0f));
-      audio_.configure(params_);
+      if (!applyAudioConfigOrRollback(previous_params)) {
+        Serial.println("audio: test level update failed");
+        return;
+      }
       Serial.printf("audio: test level=%.2f\n", params_.audio.channel_test_level);
       return;
     }
     if (std::strcmp(wall_text, "off") == 0 || std::strcmp(wall_text, "none") == 0) {
-      Serial.println(setAudioTestWall(WallId::None) ? "audio: test=None" : "audio: busy");
+      Serial.println(setAudioTestWall(WallId::None)
+                         ? "audio: test=None"
+                         : "audio: test change failed; inspect audio status");
       return;
     }
 
@@ -1079,24 +1386,36 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     return;
   }
   if (isCommand(command, "audio layout 2ch")) {
+    if (params_.audio.runtime_enable) {
+      Serial.println("audio: layout change rejected; mute first");
+      return;
+    }
+    const SystemParams previous_params = params_;
     params_.audio.output_layout = AudioOutputLayout::FrontBack2Ch;
     if (!layoutAllowsWall(params_.audio.output_layout, params_.audio.channel_test_wall)) {
       params_.audio.channel_test_wall = WallId::None;
       params_.audio.channel_test_enable = false;
     }
-    audio_.configure(params_);
-    Serial.println("audio: layout=front_back_2ch");
+    Serial.println(applyAudioConfigOrRollback(previous_params)
+                       ? "audio: layout=front_back_2ch"
+                       : "audio: layout change failed; inspect audio status");
     return;
   }
   if (isCommand(command, "audio layout 4ch")) {
+    if (params_.audio.runtime_enable) {
+      Serial.println("audio: layout change rejected; mute first");
+      return;
+    }
+    const SystemParams previous_params = params_;
     params_.audio.output_layout = AudioOutputLayout::QuadWall4Ch;
-    audio_.configure(params_);
-    Serial.println("audio: layout=quad_wall_4ch");
+    Serial.println(applyAudioConfigOrRollback(previous_params)
+                       ? "audio: layout=quad_wall_4ch"
+                       : "audio: layout change failed; inspect audio status");
     return;
   }
 
   Serial.println(
-      "commands: status, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status, audio diag on|off, audio on|off|status|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status");
+      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status");
 }
 
 }  // namespace haptics

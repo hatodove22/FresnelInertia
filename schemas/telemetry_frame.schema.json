@@ -3,7 +3,7 @@
   "$id": "https://example.org/schemas/telemetry_frame.schema.json",
   "title": "TelemetryFrame",
   "type": "object",
-  "required": ["timestamp_ms", "preset", "run_mode", "mass", "actuators"],
+  "required": ["timestamp_ms", "preset", "run_mode", "mass", "actuators", "safety"],
   "properties": {
     "timestamp_ms": {"type": "integer", "minimum": 0},
     "preset": {"type": "string"},
@@ -14,6 +14,7 @@
     "imu": {
       "type": "object",
       "properties": {
+        "valid": {"type": "boolean"},
         "accel_g": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
         "gyro_dps": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
       },
@@ -69,9 +70,15 @@
       "type": "object",
       "properties": {
         "compile_enabled": {"type": "boolean"},
+        "driver_installed": {"type": "boolean"},
         "runtime_enabled": {"type": "boolean"},
+        "output_silenced": {"type": "boolean"},
         "test_mode": {"type": "boolean"},
         "demo_compat_mode": {"type": "boolean"},
+        "transport": {
+          "type": "string",
+          "enum": ["dual_i2s", "tdm8_slot"]
+        },
         "output_layout": {
           "type": "string",
           "enum": ["quad_wall_4ch", "front_back_2ch"]
@@ -81,9 +88,20 @@
           "type": "string",
           "enum": ["None", "Front", "Back", "Top", "Bottom"]
         },
+        "output_peak_limit": {"type": "number", "minimum": 0, "maximum": 1},
         "underrun_count": {"type": "integer", "minimum": 0}
       },
       "additionalProperties": true
+    },
+    "safety": {
+      "type": "object",
+      "properties": {
+        "imu_stale_safe_stop": {"type": "boolean"},
+        "audio_zero_asserted": {"type": "boolean"},
+        "tilt_disarmed": {"type": "boolean"}
+      },
+      "required": ["imu_stale_safe_stop", "audio_zero_asserted", "tilt_disarmed"],
+      "additionalProperties": false
     },
     "calibration": {
       "type": "object",
@@ -144,7 +162,8 @@
         "event_enabled": {"type": "boolean"},
         "texture_enabled": {"type": "boolean"},
         "resonance_enabled": {"type": "boolean"},
-        "spatial_enabled": {"type": "boolean"}
+        "spatial_enabled": {"type": "boolean"},
+        "imu_stale_safe_stop": {"type": "boolean"}
       },
       "required": [
         "event_count",
@@ -154,7 +173,8 @@
         "event_enabled",
         "texture_enabled",
         "resonance_enabled",
-        "spatial_enabled"
+        "spatial_enabled",
+        "imu_stale_safe_stop"
       ],
       "additionalProperties": false
     }

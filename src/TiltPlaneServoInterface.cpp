@@ -6,6 +6,14 @@
 #define HAPTICS_ENABLE_TILT_SERVO 0
 #endif
 
+#ifndef HAPTICS_ATOMS3_CUSTOM_BOARD_PROFILE
+#define HAPTICS_ATOMS3_CUSTOM_BOARD_PROFILE 0
+#endif
+
+#if HAPTICS_ENABLE_TILT_SERVO && HAPTICS_ATOMS3_CUSTOM_BOARD_PROFILE
+#error "The legacy DIR-pin tilt backend is incompatible with the as-built AtomS3 DXL2 board"
+#endif
+
 namespace haptics {
 namespace {
 
@@ -118,7 +126,8 @@ void writeU32(uint8_t id, uint16_t address, uint32_t value, int dir_pin) {
 bool TiltPlaneServoInterface::begin(const SystemParams& params) {
   params_ = params;
   enabled_ = HAPTICS_ENABLE_TILT_SERVO != 0;
-  runtime_enabled_ = enabled_ && params.features.enable_tilt_plane;
+  // Physical actuation is never armed implicitly during boot.
+  runtime_enabled_ = false;
   last_command_ = {};
   last_submit_ms_ = millis();
 
@@ -126,10 +135,6 @@ bool TiltPlaneServoInterface::begin(const SystemParams& params) {
   pinMode(params_.pins.dynamixel_direction, OUTPUT);
   digitalWrite(params_.pins.dynamixel_direction, LOW);
   kTiltSerial.begin(params_.tilt.bus_baud, SERIAL_8N1, params_.pins.dynamixel_halfduplex_data, params_.pins.dynamixel_halfduplex_data);
-  if (runtime_enabled_) {
-    configure(params_);
-    home();
-  }
 #endif
   return true;
 }
@@ -147,17 +152,9 @@ void TiltPlaneServoInterface::configure(const SystemParams& params) {
     runtime_enabled_ = false;
     return;
   }
-
-  const uint8_t operating_mode =
-      params_.tilt.current_based_position_mode ? kModeCurrentBasedPosition : kModePosition;
-  for (const uint8_t servo_id : {params_.tilt.thumb_servo_id, params_.tilt.index_servo_id}) {
-    writeU8(servo_id, kAddrTorqueEnable, 0, params_.pins.dynamixel_direction);
-    writeU8(servo_id, kAddrOperatingMode, operating_mode, params_.pins.dynamixel_direction);
-    writeU8(servo_id, kAddrTorqueEnable, 1, params_.pins.dynamixel_direction);
-  }
-  last_submit_ms_ = millis();
 #endif
-  runtime_enabled_ = next_runtime_enabled;
+  // Updating parameters must not torque-cycle or arm hardware. An explicit
+  // setRuntimeEnabled(true) transition owns those side effects.
 }
 
 void TiltPlaneServoInterface::setRuntimeEnabled(bool enabled) {
@@ -167,8 +164,19 @@ void TiltPlaneServoInterface::setRuntimeEnabled(bool enabled) {
     zeroCurrents();
     setTorqueEnabled(false);
   } else if (!runtime_enabled_ && next_runtime_enabled) {
-    runtime_enabled_ = next_runtime_enabled;
-    configure(params_);
+    const uint8_t operating_mode =
+        params_.tilt.current_based_position_mode ? kModeCurrentBasedPosition : kModePosition;
+    for (const uint8_t servo_id : {params_.tilt.thumb_servo_id,
+                                   params_.tilt.index_servo_id}) {
+      writeU8(servo_id, kAddrTorqueEnable, 0,
+              params_.pins.dynamixel_direction);
+      writeU8(servo_id, kAddrOperatingMode, operating_mode,
+              params_.pins.dynamixel_direction);
+      writeU8(servo_id, kAddrTorqueEnable, 1,
+              params_.pins.dynamixel_direction);
+    }
+    last_submit_ms_ = millis();
+    runtime_enabled_ = true;
     return;
   }
 #endif

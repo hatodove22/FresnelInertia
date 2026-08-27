@@ -12,6 +12,8 @@ IMU behavior, WiFi range, flash persistence, or perceptual quality.
   `type` enum in `schemas/control_message.schema.json`
 - verify `test/schema/telemetry_frames.valid.jsonl` still matches
   `schemas/telemetry_frame.schema.json`
+- require every telemetry sample to include `audio.output_silenced` and the
+  top-level `safety` object even when `pipeline_debug` is omitted
 - note that `test/schema/validate_schemas.mjs` is intentionally small and only
   covers the JSON Schema features currently used by the repo schemas:
   `type`, `required`, `enum`, `properties`, `items`, `additionalProperties`,
@@ -21,6 +23,7 @@ IMU behavior, WiFi range, flash persistence, or perceptual quality.
 
 - from `webxr/`, run `npm.cmd run typecheck`
 - from `webxr/`, run `npm.cmd run build`
+- verify `webxr/dist/webusb.html` is emitted when testing the WebUSB probe
 - these checks validate the standalone visual client only; they do not require
   firmware, schema, or transport changes
 
@@ -33,6 +36,15 @@ Run the relevant compile-only matrix before handoff:
 - storage A/B path: `platformio run -e m5stack-sticks3-audio-storageless`
 - remote transport path: `platformio run -e m5stack-sticks3-remote`
 - tilt compile-gated path: `platformio run -e m5stack-sticks3-tilt`
+- DXL2 board safe probe: `platformio run -e m5stack-atoms3-dxl2-probe`
+- DXL2 one-shot ID provisioner: `platformio run -e m5stack-atoms3-dxl2-provision-id2`
+- DXL2 unloaded motion probe: `platformio run -e m5stack-atoms3-dxl2-motion-probe`
+- AtomS3 MAX98357A TDM safe probe:
+  `platformio run -e m5stack-atoms3-max98357a-tdm-probe`
+- AtomS3 IMU + XL330x2 + 4CH TDM combined probe:
+  `platformio run -e m5stack-atoms3-combined-probe`
+- AtomS3 production-integration pipeline:
+  `platformio run -e m5stack-atoms3-pipeline`
 
 Use the probe envs when work touches their area:
 
@@ -52,10 +64,193 @@ Use the probe envs when work touches their area:
 - PlatformIO build succeeds for `m5stack-sticks3-audio` with `HAPTICS_ENABLE_AUDIO_BACKEND=1`.
 - PlatformIO build succeeds for `m5stack-sticks3-remote`.
 - PlatformIO build succeeds for `m5stack-sticks3-tilt`.
-- when the TDM backend is added, PlatformIO build succeeds for the TDM-enabled audio path without regressing the current dual-I2S path
+- PlatformIO build succeeds for `m5stack-atoms3-max98357a-tdm-probe` while
+  existing environments compile its source to an empty feature-gated unit.
+- PlatformIO build succeeds for `m5stack-atoms3-pipeline` with the TDM backend
+  compiled in and the servo backend compiled out.
 - No feature should require hardware-specific code to compile when disabled.
 
+Recorded final build result on `2026-08-22` for
+`m5stack-atoms3-pipeline`, including Safe Idle, safety telemetry, and the IMU
+stale safe-stop:
+
+- result: SUCCESS
+- RAM: `40,524 / 327,680 bytes` (`12.4%`)
+- flash: `568,297 / 3,342,336 bytes` (`17.0%`)
+
+The same image was uploaded to the assembled AtomS3 board over COM3 with S1 OFF
+and 12 V OFF. The USB-only gate reported `audio=0`, `zero=1`, `driver=1`,
+`transport=tdm8_slot`, `layout=quad_wall_4ch`, `limit=0.080`, `errors=0`,
+`imu_stop=0`, and `tilt=0`. This passes the software-zero boot gate only; no
+powered-amplifier or live four-layer output is implied.
+
 ## 3. Hardware validation split
+
+Use the following evidence labels consistently:
+
+- **implemented**: source exists and its relevant build passes
+- **probe hardware pass**: a dedicated bounded probe passed on the stated bench
+- **production hardware pass**: the shared `HapticPipeline` image passed the
+  stated on-device test
+
+A raw transport or combined probe pass must not be promoted to a production
+pipeline pass.
+
+### AtomS3 MAX98357A 4-channel TDM safe probe
+
+- follow the power-off connection order in `21_MAX98357A_TDM_BRINGUP.md`
+- begin with one unloaded transducer on CH1 and leave the XL330 path torque-off
+- keep manual amplifier switch S1 OFF before applying 12 V and during wiring
+  changes; firmware cannot read or control S1
+- confirm boot sends only digital zeros and requires an explicit `start`, `go`,
+  or button click before generating a nonzero sample
+- before enabling S1, confirm `status` reports `i2s=1`, `digital_silence=1`,
+  increasing writes, and zero errors
+- verify silent clocks show PCM-short `48 kHz`, `16-bit`, eight-slot framing:
+  `6.144 MHz` BCLK and a one-BCLK LRCLK pulse
+- use `ch N` plus `start` to test CH1 through CH4 independently
+- verify each single-channel run uses only its matching slot, ends after `1.2 s`,
+  and returns automatically to digital silence
+- only after independent tests pass, use `go` and verify
+  `CH1 -> CH2 -> CH3 -> CH4` with digitally silent gaps
+- use `ch N` plus `sweep` for a representative-channel qualitative comparison
+  at `120`, `160`, `200`, `240`, `280`, and `320 Hz`, using 1.5 s per point and
+  the separately bounded 4.0% sweep level
+- verify every sweep step is reported, the `12 s` sweep watchdog remains armed,
+  and completion returns automatically to digital silence with zero I2S errors
+- treat an unloaded subjective sweep with no clear peak as transport validation
+  only; repeat after final mounting or with a mechanically coupled accelerometer
+  before changing stored resonance carriers
+- for subjective intensity testing, use `level PCT` only while idle and increase
+  from the known-good 2.5% in small steps, running one 1.2 s `start` test after
+  each change; verify values outside `0.5..20.0%` and changes during a run are rejected
+- verify reset restores 2.5% rather than persisting a raised bench-test level
+- current unloaded CH1 bench result: 15% is a practical-level candidate and 20%
+  passed only as a short-duration ceiling; repeat thermal/current validation
+  after mounting before using either value for sustained rendering
+- confirm `stop`, `mute`, an AtomS3 button hold, DMA failure, and the run watchdog
+  all request digital silence; switch S1 OFF separately for hardware mute
+
+### DXL2 board safe probe
+
+- follow the power-off connection order in `20_DXL2_BOARD_BRINGUP.md`
+- begin with one mechanically unloaded XL330 and keep the audio outputs muted
+- confirm the AtomS3 display shows `DXL2 SAFE PROBE`
+- confirm GPIO1 is used only as DYNAMIXEL TX and GPIO2 only as DYNAMIXEL RX;
+  the PCB supplies automatic half-duplex direction control
+- confirm the boot scan checks IDs `0..10` at `57,600 bps` and `1 Mbps`
+- confirm the detected device reports model/firmware, input voltage,
+  temperature, present current, position, and hardware error
+- require `torque=OFF`, `off_confirmed=1`, and no physical motion for a pass
+- confirm a button hold and the `torqueoff` console command both send the safe
+  stop at both supported baud rates
+- inspect the probe source to confirm it contains no torque-on, goal-position,
+  goal-velocity, or other motion command before flashing
+- for ID provisioning, connect exactly one verified model-1190 XL330, require
+  source ID 1 only, and verify target ID 2 plus torque OFF by read-back
+- reset the provisioner once and confirm it recognizes ID 2 without another
+  EEPROM write
+- for unloaded motion, require IDs 1 and 2 as model 1190 in position mode,
+  verify automatic torque-on is disabled, and require explicit `go`
+- move only one servo at a time by 40 pulses (3.52 degrees), return to the
+  measured starting position, and require torque-off read-back after each
+- abort both servos if absolute current exceeds 350 mA, temperature exceeds
+  45 C, voltage leaves 4.5--5.6 V, status reads fail, or hardware error is set
+- after the motion image finishes, restore the normal safe-probe image and
+  verify both IDs are present with torque OFF
+
+### AtomS3 combined probe: recorded pass on 2026-08-22
+
+The dedicated `m5stack-atoms3-combined-probe` used one fixed bounded workload:
+
+- IMU sampled throughout the run
+- XL330 IDs 1 and 2, model 1190, `57,600 bps`, position mode 3
+- both servos moved 40 pulses relative to their measured homes and returned
+- all four TDM channels received the same `180 Hz` waveform
+- haptic envelope was `50 ms ON / 300 ms period`
+- every exit path returned to digital zero and DYNAMIXEL torque-off
+
+Measured results:
+
+| Haptic level | ID1 peak | ID2 peak | Servo rail | Final temperature ID1/ID2 | IMU updates | I2S errors | Result |
+|---|---:|---:|---|---:|---:|---:|---|
+| 8% | 15 mA | 13 mA | 5.1 V | 32 / 31 C | 302 | 0 | home return, torque-off, no observed abnormality |
+| 15% | 14 mA | 13 mA | 5.1--5.2 V | 32 / 31 C | 282 | 0 | home return, torque-off, no observed abnormality |
+
+This is a **probe hardware pass** only. It used equal waveforms, unloaded
+servos/transducers, a low-duty-cycle burst, and fixed relative position-mode
+motion. It does not validate spatial rendering, material layers, a mounted
+mechanism, current-based servo behavior, continuous-wave drive, or the
+production firmware.
+
+### AtomS3 production pipeline: first hardware acceptance gate
+
+Follow `23_ATOMS3_PRODUCTION_INTEGRATION.md`. The minimum pass requires:
+
+- upload `m5stack-atoms3-pipeline` with S1 OFF and 12 V OFF
+- USB-only boot reports successful IMU/pipeline initialization and the AtomS3
+  as-built profile
+- `audio status` reports `driver=1`, `transport=tdm8_slot`,
+  `enabled=0`, `zero=1`, `layout=quad_wall_4ch`, effective `limit=0.080`, and
+  zero errors
+- always-present telemetry reports `audio.output_silenced=true` and
+  `safety.audio_zero_asserted=true`, `safety.tilt_disarmed=true`
+- the servo backend remains compile-disabled and no production DYNAMIXEL
+  torque or motion packet is sent
+- applying 12 V and then S1 ON while runtime audio is disabled produces no
+  unexpected vibration or pop
+- an explicit `audio on` is required before any nonzero signal
+- each Front/Back/Top/Bottom channel-test command excites only its mapped wall
+  and `audio off` returns to digital zero
+- live IMU-driven output runs at the initial 8% effective peak limit without
+  reset, I2S error growth, rail anomaly, or self-excited feedback
+- controlled IMU fault injection produces no valid finite sample for more than
+  300 ms; require neutral Mass/Event/Texture/Resonance/Spatial/Tilt state,
+  zero-filled TDM, and servo disarm; observe either serial
+  `status: ... imu_stop=1 ... zero=1 ...` or top-level
+  `safety.{imu_stale_safe_stop,audio_zero_asserted,tilt_disarmed}=true`
+- when valid IMU data returns, require a neutral restart without replaying
+  stale texture/event energy; any servo remains disarmed until explicitly armed
+- from Calibration, Replay, and Record separately, invoke `stop` and require
+  Safe Idle: the active operation ends, audio runtime turns OFF, zero remains
+  asserted, tilt is disarmed, channel-test is cleared, and dynamic state is
+  neutral
+- on AtomS3, repeat Safe Idle with BtnA hold
+- after Safe Idle, issue `live` alone and require output to remain OFF/zero;
+  only a subsequent explicit `audio on` may restore haptic output
+- while audio runtime is ON, reject transport, demo-mode, and layout changes;
+  while muted, accept only supported configurations, and always reject demo
+  compatibility while the selected transport is `tdm8_slot`
+- reject unknown `audio.transport` strings without changing the selected
+  transport, and unknown string layouts without changing the selected layout;
+  inject zero-fill, uninstall, and rollback failures and require configuration
+  failure, forced-OFF logical gates when restoration fails, plus truthful
+  `driver_installed` / `output_silenced` telemetry
+- in a build with `HAPTICS_ENABLE_AUDIO_BACKEND=0`, reject every audio-arm
+  request without changing the logical runtime/feature flags
+- requesting `audio limit 0.20` reports an effective limit of `0.15`; this
+  verifies the clamp and does not authorize a 15% mounted run
+- at least one liquid and one granular preset exercise the shared pipeline,
+  and recorded actuator/event statistics differ in the expected direction
+- output remains stable during an agreed soak and after repeated arm/disarm
+  cycles
+
+As of `2026-08-22`, build, upload, and the USB-only software-zero boot subset
+have passed. Powered-amplifier muted startup also produced no anomaly, and the
+unloaded Front/Back/Top/Bottom channel mapping passed with one actuator active
+at a time and zero audio errors. `stop` from a live channel test asserted zero,
+cleared dynamic/test state, and `live` alone did not re-arm output. An initial
+live run of `liquid_small_box` at the 8% limit produced a weak response after
+the operator moved the device. A following eight-second software-muted,
+stationary Live observation produced no event and no four-channel drive; mass
+energy settled near `0.058`, below the `0.16` droplet threshold, before `stop`
+returned the system to `energy=0`, `audio=0`, and `zero=1`. The subsequent
+powered closed-loop settling check failed: after one light movement, vibration
+decayed but did not stop while the device was held still. Safe Idle again
+returned `energy=0`, `audio=0`, `zero=1`, `test=0`, `errors=0`, and `tilt=0`.
+Do not continue material, directional, or soak validation until the
+feature-gated gravity-separated activity correction and the acceptance sequence
+in `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md` pass.
 
 ### Flash / boot checks
 
@@ -88,12 +283,25 @@ These require the relevant transducers, amp wiring, and/or XL330 hardware.
 - Verbose telemetry toggle works via `BtnB` click.
 - Audio runtime enable toggle works via `BtnB` hold.
 - Audio test-wall cycling works via `BtnA` hold.
+- on the AtomS3 custom profile, BtnA hold invokes Safe Idle instead of cycling
+  the channel test
 - Serial telemetry prints latent state, actuator-frame summaries, and recorder/remote status.
 - Console preset listing/loading works.
 - preset cycling and `preset load <name>` preserve runtime feature flags, pin assignments, audio layout/runtime state, tilt/interface/recorder settings, and calibrated resonance carriers.
 - Recorder start/stop and replay start/stop commands work without crashing.
 - Recorder batching honors `recorder.flush_interval_frames` without losing tail frames on stop.
 - if LittleFS mount fails at boot, built-in preset listing/loading should still work and should not retry a crashing remount on every console command
+- with the generic IMU stale safe-stop flag left false, legacy target behavior
+  remains unchanged
+- with the AtomS3 profile, confirm invalid or non-finite IMU input does not
+  refresh the valid-sample timer and the safe-stop asserts only after the
+  300 ms threshold
+- confirm `idle` and `stop` both terminate Calibration/Replay/Record, clear the
+  channel test, reset all dynamic layers, set audio runtime OFF, assert zero,
+  and disarm tilt
+- confirm `live` after Safe Idle does not re-arm audio; require `audio on`
+- confirm `status` and the always-present `safety` object are sufficient to
+  observe the IMU stop and zero assertion without pipeline-debug telemetry
 
 ## 4.1 Minimal audio smoke test
 
@@ -190,15 +398,30 @@ These require the relevant transducers, amp wiring, and/or XL330 hardware.
 - verify `BtnB` hold silences and re-enables the backend without unstable bursts
 - verify silence floor and no unstable bursts
 
-### Phase A2: planned TDM backend validation
+### Phase A2: eight-slot TDM backend validation
 - keep the current dual-I2S backend available while bringing up TDM
-- verify the planned first TDM profile uses a single ESP32-S3 TX port with `48 kHz`, `16-bit`, `4 slots`, and `PCM short`
+- verify the MAX98357A TDM profile uses a single ESP32-S3 TX port with
+  `48 kHz`, `16-bit`, `8 slots`, and `PCM short`; slots 4 through 7 remain zero
 - verify slot routing `slot0=Front`, `slot1=Back`, `slot2=Top`, `slot3=Bottom`
 - verify the same `DriveFrame4` stimulus can be rendered through either dual-I2S or TDM without changing the upstream pipeline
 - verify `front_back_2ch` remains available as a fallback policy while the physical TDM transport is active
-- verify `audio.demo_compat_mode` still forces the known single-amp mono bring-up path instead of reusing the TDM route
+- verify demo compatibility is rejected while `tdm8_slot` is selected; after
+  muting and explicitly selecting dual-I2S, it may force the known single-amp
+  mono bring-up path
+- verify transport, demo-compat, and output-layout changes are rejected while
+  audio runtime output is enabled
 - on MAX98357A benches, verify each amplifier responds only to its strapped TDM slot
 - verify the TDM path can be disabled or bypassed without breaking legacy probes and current bench workflows
+
+Status on `2026-08-22`:
+
+- implemented in `AudioOutput4Ch` behind the existing audio gate plus
+  `HAPTICS_ENABLE_TDM_AUDIO_BACKEND`
+- raw framing, CH1--CH4 isolation/order, and zero-filled idle passed with the
+  dedicated probe
+- the production environment builds with this transport selected
+- the shared four-layer pipeline has not yet driven the hardware, so upstream
+  compatibility and mounted spatial performance remain pending
 
 ### Phase B: actuator tests
 - use channel test mode to excite each wall individually
@@ -237,7 +460,16 @@ These require the relevant transducers, amp wiring, and/or XL330 hardware.
 
 ## 7. Servo path validation
 
+The legacy StickS3 model/backend is compile-gated and the dedicated AtomS3
+probes have passed bounded unloaded motion. The production AtomS3 environment
+compiles servo output out. The following checklist applies only after the
+GPIO1-TX/GPIO2-RX automatic-half-duplex production adapter and DXL feedback
+telemetry exist:
+
 - verify safe home position on both XL330 units
+- require IDs 1 and 2, model 1190, and the configured `57,600 bps` bus before
+  allowing torque-on
+- verify torque, operating mode, watchdog, travel, and output cap by read-back
 - verify current-limited motion before full position control tests
 - verify emergency stop behavior
 - verify `tilt off` drops torque and does not leave either XL330 energized
@@ -255,6 +487,10 @@ These require the relevant transducers, amp wiring, and/or XL330 hardware.
   - differential correction <= `5 deg`
   - total pseudo-force correction <= `6 deg`
   - final command <= `10 deg` unless intentionally retuned
+- require final torque-off read-back after normal stop, run-mode exit, stale
+  IMU, communication failure, watchdog timeout, and operator stop
+- repeat the safety sequence with the final linkage mounted before evaluating
+  pseudo-force quality
 
 ## 7.1 Remote transport robustness
 
@@ -289,11 +525,36 @@ These require the relevant transducers, amp wiring, and/or XL330 hardware.
 - verify liquid and hybrid content remains visibly contained inside the transparent shell during strong tilt
 - verify the visual client does not require firmware, schema, or transport changes in v1
 
+## 7.3 WebUSB / Quest transport probe
+
+- from `webxr/`, verify `npm.cmd run typecheck` passes
+- from `webxr/`, verify `npm.cmd run build` emits `dist/webusb.html`
+- open `/webusb.html` on desktop Chrome and confirm the status strip reports
+  secure context, WebUSB, and native Web Serial feature detection
+- open `/webusb.html` in Quest Browser from an HTTPS tunnel or static HTTPS host
+- record whether `navigator.usb` and `navigator.serial` are present
+- connect an Atom S3 / ESP32-S3 over USB-C and verify the device chooser can see
+  the target VID/PID
+- verify descriptor output lists configurations, interfaces, and endpoints
+- attempt to claim the CDC data interface or a vendor-specific bulk interface
+- verify `Set DTR/RTS`, `Read Once`, `Read Loop`, and `Send USB Payload` against
+  a simple echo firmware
+- if CDC cannot be claimed, repeat with a TinyUSB vendor-specific interface
+  using interface class `0xff` plus bulk IN/OUT endpoints
+- do not treat this probe as the final live transport until repeated Quest
+  browser sessions show stable permission, read, and write behavior
+
 ## 8. Recorder / replay validation
 
 - recorded sessions must replay latent state evolution deterministically enough for debugging
 - event counts and actuator summaries should match within expected tolerance
 - stop recording before `recorder.flush_interval_frames` is reached and verify the tail frames are still persisted
+- record firmware/build identity, target profile, preset source/path, resolved
+  parameter snapshot or hash, calibration identity, and effective audio limit
+  before calling a session reproducible
+- until those fields are persisted automatically, store them in the external
+  test record; the current NDJSON preset name alone cannot distinguish a
+  built-in preset from a same-named LittleFS overlay
 
 ## 9. Acceptance criteria for first full haptic milestone
 
@@ -303,15 +564,29 @@ The first meaningful milestone is reached when:
 - at least one granular preset and one liquid preset produce clearly different 4-channel output statistics,
 - the scaffold remains buildable and documented.
 
+The algorithms and storage scaffold exist, but this milestone is **not yet a
+production hardware pass**: an initial liquid-only live response has been
+observed on the assembled AtomS3 board, but the powered settling check failed
+because residual vibration did not stop. The required correction, retest,
+liquid/granular comparison, and mounted material/spatial comparison remain
+pending. The unloaded qualitative sweep also did not identify a clear
+resonance.
+
 Current status after the audio-backend milestone:
 - dual-stereo I2S x2 backend compilation is in place
+- additive single-port eight-slot TDM is implemented
 - runtime enable and single-wall test mode are in place
 - runtime-selectable `quad_wall_4ch` / `front_back_2ch` output layout is now in place
-
-Planned next audio-backend milestone:
-- add a single-port TDM backend behind safe defaults
-- keep dual-I2S and mono demo-compat as supported fallback paths during bring-up
-- bench-verify four-slot routing on a real TDM amplifier stack before changing any default transport
+- dedicated raw AtomS3 TDM channel routing passed on hardware
+- the final `m5stack-atoms3-pipeline` built successfully (RAM 12.4%, flash
+  17.0%) with Safe Idle, always-present safety telemetry, initial 8% / hard 15%
+  output limits, and the servo backend compiled out
+- production upload, USB-only software-zero boot, powered muted startup,
+  unloaded four-channel routing, live-test Safe Idle, and explicit re-arm
+  behavior passed; an initial motion-triggered liquid response and a muted
+  stationary no-event observation passed, but powered settling failed because
+  vibration did not stop; follow document 24 before resuming material
+  comparison, spatial localization, or mounted soak
 
 Current status after the calibration milestone:
 - runtime sweep/store is in place using an IMU-proxy ratio metric
@@ -339,12 +614,17 @@ Current status after the detent-click / single-marble refinement:
 Current status after the recorder/remote/servo milestone:
 - NDJSON recording and IMU replay are available through the console path
 - SoftAP + WebSocket JSON control/telemetry is available in `m5stack-sticks3-remote`
-- a compile-gated raw XL330 control path is available in `m5stack-sticks3-tilt`
+- a compile-gated legacy DATA+DIR XL330 path is available in
+  `m5stack-sticks3-tilt`
+- AtomS3 DXL communication and bounded unloaded motion passed dedicated probes,
+  but its production TX/RX automatic-half-duplex adapter is not implemented
 
 Current status after the tilt pseudo-force revision:
 - thumb/index commands now keep the existing base tilt and add a filtered low-frequency pseudo-force correction
 - telemetry now exposes base tilt, pseudo-force delta, apparent mass, CoG, common force, and differential torque
-- bench validation of sign calibration, perceptual scaling, and current-based position behavior remains future work
+- the current values are model-command telemetry, not DXL read-back
+- mounted sign calibration, perceptual scaling, current-based position
+  behavior, and production safety telemetry remain future work
 
 Current status after the shaker-family event milestone:
 - granular `roll_train` is now emitted as a rate-driven event train tied to wall contact and tangential motion

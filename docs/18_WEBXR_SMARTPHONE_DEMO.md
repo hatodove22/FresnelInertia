@@ -26,6 +26,7 @@ This document defines the standalone visual client in `webxr/`.
 | `src/renderer/SpatialControlPanel.ts` | in-scene experiment panel for ray/direct-touch preset rows, stimulus selection, trial controls, sliders, and reset |
 | `src/input/PhoneInput.ts` | touch-drag tilt and optional DeviceOrientation input |
 | `src/xr/WebXrBridge.ts` | WebXR AR button integration, hand model setup, near-grab position bridge, and lightweight panel ray/touch routing |
+| `src/webusb-test.ts` | standalone WebUSB/Web Serial probe page logic for Quest browser transport experiments |
 | `scripts/start-quest-tunnel.ps1` | production preview plus Cloudflare Quick Tunnel launcher |
 
 ## 2. Runtime modes
@@ -144,6 +145,10 @@ npm.cmd run quest -- -NoBuild
 npm.cmd run quest -- -Port 8090
 ```
 
+The same development and tunnel workflow also serves the WebUSB probe page at
+`/webusb.html`. That page is a transport experiment only; it does not change the
+visual simulator or firmware protocol.
+
 ## 3. Meta Immersive Web SDK alignment
 
 The app follows the Meta Immersive Web SDK direction without coupling the firmware project to the web stack:
@@ -169,6 +174,7 @@ Required local checks:
 
 - `npm.cmd run typecheck`
 - `npm.cmd run build`
+- verify the production build includes `dist/webusb.html`
 - desktop browser smoke check with no console errors
 - mobile-size browser smoke check with preset switching and drag tilt
 - DOM/MR slider synchronization check in both directions
@@ -179,6 +185,8 @@ Required local checks:
 Quest checks:
 
 - Cloudflare tunnel URL opens in Quest Browser,
+- `/webusb.html` opens from the same tunnel and reports WebUSB/Web Serial
+  feature detection,
 - phone/desktop view loads before MR entry,
 - `Enter MR` starts an immersive session when WebXR permissions are accepted,
 - hand models appear when hand tracking is available,
@@ -205,3 +213,7 @@ The first live integration should consume the existing WebSocket telemetry schem
 - `actuators` to optional wall highlight overlays.
 
 No schema change is required for a read-only visual subscriber.
+
+The WebUSB probe in `/webusb.html` is an even earlier transport check. It should
+only prove browser/device access before the project commits to a live telemetry
+bridge.

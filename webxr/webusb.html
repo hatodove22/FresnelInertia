@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#101418" />
+    <title>Container Haptics WebUSB Probe</title>
+  </head>
+  <body>
+    <main id="webusb-app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Parametric Container Haptics</p>
+          <h1>WebUSB Probe</h1>
+        </div>
+        <a class="nav-link" href="/">Visual Demo</a>
+      </header>
+
+      <section class="status-strip" aria-label="Browser capability status">
+        <div class="status-cell">
+          <span>Secure</span>
+          <strong id="secure-status">-</strong>
+        </div>
+        <div class="status-cell">
+          <span>WebXR</span>
+          <strong id="xr-status">-</strong>
+        </div>
+        <div class="status-cell">
+          <span>WebUSB</span>
+          <strong id="usb-status">-</strong>
+        </div>
+        <div class="status-cell">
+          <span>Web Serial</span>
+          <strong id="serial-status">-</strong>
+        </div>
+      </section>
+
+      <section class="layout">
+        <section class="panel" aria-label="USB device controls">
+          <div class="panel-header">
+            <h2>USB Device</h2>
+            <button id="refresh-button" type="button">Refresh</button>
+          </div>
+
+          <div class="field-grid">
+            <label>
+              <span>Vendor ID</span>
+              <input id="vendor-id-input" type="text" inputmode="text" value="0x303a" />
+            </label>
+            <label>
+              <span>Product ID</span>
+              <input id="product-id-input" type="text" inputmode="text" placeholder="optional" />
+            </label>
+          </div>
+
+          <div class="button-row">
+            <button id="usb-connect-button" type="button">Connect Espressif</button>
+            <button id="usb-connect-any-button" type="button">Show All USB</button>
+            <button id="usb-close-button" type="button" disabled>Close</button>
+          </div>
+
+          <pre id="device-summary" class="summary">No device selected.</pre>
+        </section>
+
+        <section class="panel" aria-label="USB endpoint controls">
+          <div class="panel-header">
+            <h2>Interface</h2>
+            <button id="claim-button" type="button" disabled>Claim</button>
+          </div>
+
+          <label class="full-field">
+            <span>Candidate interface</span>
+            <select id="interface-select" disabled></select>
+          </label>
+
+          <div class="field-grid three">
+            <label>
+              <span>IN endpoint</span>
+              <input id="in-endpoint-input" type="number" min="1" max="15" step="1" />
+            </label>
+            <label>
+              <span>OUT endpoint</span>
+              <input id="out-endpoint-input" type="number" min="1" max="15" step="1" />
+            </label>
+            <label>
+              <span>Read bytes</span>
+              <input id="read-length-input" type="number" min="1" max="512" step="1" value="64" />
+            </label>
+          </div>
+
+          <div class="field-grid">
+            <label>
+              <span>CDC control iface</span>
+              <input id="cdc-interface-input" type="number" min="0" max="15" step="1" value="0" />
+            </label>
+            <label class="checkbox-field">
+              <input id="append-newline-checkbox" type="checkbox" checked />
+              <span>Append newline</span>
+            </label>
+          </div>
+
+          <div class="button-row">
+            <button id="cdc-line-state-button" type="button" disabled>Set DTR/RTS</button>
+            <button id="usb-read-once-button" type="button" disabled>Read Once</button>
+            <button id="usb-read-loop-button" type="button" disabled>Read Loop</button>
+          </div>
+
+          <label class="full-field">
+            <span>USB payload</span>
+            <textarea id="usb-payload-input" rows="3">ping</textarea>
+          </label>
+          <button id="usb-send-button" class="wide-button" type="button" disabled>Send USB Payload</button>
+        </section>
+
+        <section class="panel" aria-label="Native Web Serial controls">
+          <div class="panel-header">
+            <h2>Native Serial</h2>
+            <button id="serial-connect-button" type="button">Connect</button>
+          </div>
+
+          <div class="field-grid">
+            <label>
+              <span>Baud</span>
+              <input id="baud-input" type="number" min="1200" step="1" value="115200" />
+            </label>
+            <label class="checkbox-field">
+              <input id="serial-newline-checkbox" type="checkbox" checked />
+              <span>Append newline</span>
+            </label>
+          </div>
+
+          <label class="full-field">
+            <span>Serial payload</span>
+            <textarea id="serial-payload-input" rows="3">status</textarea>
+          </label>
+
+          <div class="button-row">
+            <button id="serial-send-button" type="button" disabled>Send Serial Payload</button>
+            <button id="serial-close-button" type="button" disabled>Close Serial</button>
+          </div>
+        </section>
+
+        <section class="panel log-panel" aria-label="Probe log">
+          <div class="panel-header">
+            <h2>Log</h2>
+            <button id="clear-log-button" type="button">Clear</button>
+          </div>
+          <pre id="log" class="log"></pre>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="/src/webusb-test.ts"></script>
+  </body>
+</html>

@@ -10,7 +10,7 @@ Create an on-device haptic generation system that can produce **diverse material
 - IMU sensing,
 - a four-layer haptic model,
 - four wall-aligned vibrotactile actuators,
-- future low-frequency tilt-plane augmentation using two XL330-M077-T servos.
+- a separate low-frequency tilt-plane branch using two XL330-M077-T servos.
 
 The design must support:
 - liquids,
@@ -28,23 +28,56 @@ The system is decomposed into these layers:
 3. **Texture Layer**
 4. **Resonance Layer**
 5. **Spatial Renderer (4 actuators)**
-6. **Future low-frequency tilt-plane branch**
+6. **Parallel low-frequency tilt-plane branch**
 
 The four-layer model is the core abstraction and shall remain stable even as individual algorithms improve.
 
 ## 3. Hardware concept
 
-### Development platform
-- M5StickS3
-- MAX98360A x4
-- haptic reactor successor x4
+### Primary as-built integration platform
+- M5AtomS3
+- custom `M5AtomS3_MAX98357A_4CH_TDM_DXL2` PCB
+- MAX98357A x4 using one eight-slot TDM stream
+- four wall-aligned vibrotactile transducers
+- XL330-M077-T x2 on the board's automatic-half-duplex DYNAMIXEL path
 
-### Future low-frequency augmentation
-- XL330-M077-T x2
+The raw TDM transport, both XL330 units, and a bounded simultaneous IMU + servo
++ 4CH burst probe passed on hardware on `2026-08-22`. This is not yet a pass of
+the live four-layer pipeline or the final mounted tilt mechanism.
+
+### Current production integration slice
+- `AudioOutput4Ch` contains an additive eight-slot TDM transport while retaining
+  the legacy dual-I2S path.
+- `m5stack-atoms3-pipeline` selects the as-built AtomS3 profile.
+- it boots with the TDM driver carrying digital zero and haptic output disarmed
+- its initial normalized PCM peak limit is `8%`, with a compile-time hard
+  ceiling of `15%`
+- its Atom-only 300 ms IMU stale safe-stop resets the pipeline to neutral and
+  forces TDM zero on missing/non-finite sensor input
+- the AtomS3 production target deliberately compiles the servo backend out;
+  only the dedicated DXL2 and combined probes may move the servos at this stage
+
+The final target including Safe Idle, always-present safety telemetry, and that
+safe-stop built successfully on `2026-08-22` (RAM 12.4%, flash 17.0%). It was
+then uploaded to the assembled AtomS3 board with S1 OFF and 12 V OFF. USB-only
+status confirmed a valid running IMU path, installed eight-slot TDM driver,
+digital zero, 8% effective limit, zero audio errors, and disabled tilt. Live
+four-channel routing then passed unloaded with 12 V and S1 ON: Front/CH1,
+Back/CH2, Top/CH3, and Bottom/CH4 each actuated alone. Live four-layer haptic
+rendering remains to be validated.
+
+### Retained legacy development platform
+- M5StickS3
+- dual stereo-I2S / single-amplifier diagnostic paths
+- the existing compile-gated DIR-pin XL330 backend
+
+The legacy paths remain supported fallbacks. They are not the electrical
+contract for the as-built AtomS3 PCB.
 
 ### Interface outlook
-- serial debug now
-- smartphone and HMD links later through documented control/telemetry protocols
+- USB serial monitoring is available now
+- SoftAP / WebSocket monitoring exists on the legacy remote-enabled targets
+- smartphone and HMD live integration remains a later documented transport task
 
 ## 4. Design philosophy
 
@@ -74,6 +107,12 @@ The four-layer model is the core abstraction and shall remain stable even as ind
 - `15_ENVIRONMENT_BRINGUP_NOTES.md`
 - `16_PROGRESS_STATUS.md`
 - `17_PARAMETRIC_CONTAINER_HAPTICS_MODEL_SPEC.md`
+- `18_WEBXR_SMARTPHONE_DEMO.md`
+- `19_WEBUSB_QUEST_PROBE.md`
+- `20_DXL2_BOARD_BRINGUP.md`
+- `21_MAX98357A_TDM_BRINGUP.md`
+- `22_ATOMS3_COMBINED_BRINGUP.md`
+- `23_ATOMS3_PRODUCTION_INTEGRATION.md`
 
 ## 6. Current repository state
 
@@ -82,6 +121,11 @@ The repository currently contains:
 - module boundaries for all major subsystems,
 - a baseline end-to-end four-layer signal-generation implementation,
 - interface and schema definitions,
-- compile-gated audio, remote, recorder/replay, and tilt-plane backends.
+- compile-gated audio, remote, recorder/replay, and tilt-plane backends,
+- a build-verified AtomS3 production profile with eight-slot TDM output and the
+  servo path intentionally compiled out,
+- dated hardware bring-up records for the custom PCB.
 
-It does **not** yet contain final bench-validated tuning or the published hardware assets.
+It does **not** yet contain a hardware-validated live four-layer AtomS3 run,
+the as-built production DXL servo adapter, final mounted tuning, or published
+hardware design assets.

@@ -11,12 +11,14 @@ The app is intentionally kept as a nested web project. Its Node dependencies, Vi
 - Phone: normal browser mode with touch drag and optional device-orientation tilt.
 - Quest MR: WebXR AR session targeting Meta Quest 3/3S, with hand-tracking near-grab support and an in-scene experiment panel.
 - Desktop: normal browser mode plus IWSDK/IWER emulation during local development.
+- WebUSB probe: standalone `/webusb.html` diagnostics for testing Quest Browser access to Atom S3 / ESP32-S3 USB devices.
 
 ## Project layout
 
 ```text
 webxr/
 |-- index.html
+|-- webusb.html
 |-- package.json
 |-- scripts/
 |   `-- start-quest-tunnel.ps1
@@ -34,6 +36,8 @@ webxr/
 |   |-- presets.ts
 |   |-- simulator.ts
 |   |-- stimulusScripts.ts
+|   |-- webusb-test.ts
+|   |-- webusb-test.css
 |   `-- types.ts
 `-- vite.config.ts
 ```
@@ -65,6 +69,11 @@ The visual state is local to the browser:
 - `stimulusScripts` provides repeatable visual-only tilt paths for experiment setup,
 - `WebXrBridge` prefers the thumb-index midpoint as the grab position when fingertips are separated enough to bracket the object, and falls back to a broader hand-position estimate when needed,
 - no live telemetry, WebSocket, or StickS3 control path is used in v1.
+
+The WebUSB probe is separate from the visual app. It feature-detects WebUSB and
+native Web Serial, lists USB descriptors, claims selected interfaces, and sends
+or receives bytes through selected endpoints. It is meant to validate Quest
+Browser transport options before adding a firmware protocol.
 
 ## Development
 
@@ -113,6 +122,14 @@ For Quest tunnel validation:
 6. Aim a controller ray or bring an index fingertip near the spatial panel; preset rows, paging, stimulus controls, trial buttons, sliders, and Reset Object should respond without requiring the phone HUD.
 7. Move the DOM motion/damping sliders and confirm the MR panel mirrors those values; move the MR sliders and confirm the DOM values update.
 8. Start a trial from either the HUD or MR panel, select a stimulus script from either surface, mark/next/stop, and export JSON or CSV. Exported rows should include timestamp, preset, input mode, panel state, tilt, phase, and marker.
+
+For WebUSB validation:
+
+1. Run `npm.cmd run quest`.
+2. Open the printed URL plus `/webusb.html` in Quest Browser.
+3. Confirm the status strip reports whether WebUSB and native Web Serial are exposed.
+4. Connect an Atom S3 / ESP32-S3 over USB-C and try the default `0x303a` filter.
+5. Claim the interface that exposes bulk IN/OUT endpoints and test echo traffic.
 
 The firmware baseline should still be validated from the repository root:
 

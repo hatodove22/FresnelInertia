@@ -1,6 +1,6 @@
 # 08 Implementation Plan
 
-For the concrete as-built snapshot as of `2026-03-15`, see `16_PROGRESS_STATUS.md`.
+For the concrete as-built snapshot as of `2026-08-22`, see `16_PROGRESS_STATUS.md`.
 This document remains the intended development order and gap-management plan.
 
 ## Phase 0 - Documentation and scaffold
@@ -10,21 +10,31 @@ This document remains the intended development order and gap-management plan.
 
 ## Phase 1 - 4-channel audio backend
 - implemented: stereo I2S x2 backend in `AudioOutput4Ch`
+- implemented: single-port eight-slot TDM backend in `AudioOutput4Ch`
 - implemented: compile-time flag for backend enable
 - implemented: runtime enable toggle and single-wall channel test mode
 - implemented: runtime-selectable `quad_wall_4ch` / `front_back_2ch` physical output layout
-- next refinement: bench validation and tuning of buffering / underrun behavior
+- implemented: effective output peak clamp plus compile-time hard ceiling
+- probe hardware pass: AtomS3 raw TDM slot isolation/order and equal 4CH burst
+- pending: shared-pipeline upload, mounted localization, buffering/underrun soak,
+  and quantitative channel matching
 
 ## Phase 1A - Additive TDM backend migration
-- goal: add a single-port TDM backend for simpler 4-channel wiring without changing the shared haptic pipeline
+- completed in source: add a single-port TDM backend without changing the
+  upstream `DriveFrame4` contract
 - preserve: the current dual-stereo I2S x2 backend as the safe fallback during migration
 - preserve: `audio.demo_compat_mode` as the known-good mono single-amp route
 - preserve: the current `front_back_2ch` physical fallback semantics
-- planned first TDM target: ESP32-S3 TX-only path using the newer `esp_driver_i2s` API
-- planned first TDM profile: `48 kHz`, `16-bit`, `4 slots`, `PCM short`
-- planned slot mapping: `slot0=Front`, `slot1=Back`, `slot2=Top`, `slot3=Bottom`
-- planned bring-up hardware: MAX98357A boards with per-board slot straps
-- acceptance intent: the physical transport changes, but `DriveFrame4`, telemetry, presets, and spatial rendering remain source-compatible
+- implemented profile: ESP32-S3 TX-only `48 kHz`, `16-bit`, PCM-short,
+  **8 slots** per frame
+- implemented slot mapping: `slot0=Front`, `slot1=Back`, `slot2=Top`,
+  `slot3=Bottom`, `slot4..7=zero`
+- as-built pins: GPIO5 BCLK, GPIO6 frame sync, GPIO7 DOUT
+- probe hardware pass: all four MAX98357A channels and sequence order on the
+  custom board
+- production build pass: `m5stack-atoms3-pipeline` on `2026-08-22`
+- pending acceptance: upload that image and demonstrate the shared pipeline on
+  the mounted hardware without regressing the legacy transports
 
 ## Phase 2 - Resonance sweep and storage
 - implemented: per-channel excitation sweep
@@ -35,7 +45,8 @@ This document remains the intended development order and gap-management plan.
 ## Phase 3 - Minimal end-to-end material rendering
 - implemented: geometry-aware baseline in the mass layer
 - implemented: geometry-aware `wall_hit` scheduling with size-dependent cooldown
-- next refinement: bench-confirm strong wall localization in 4 channels while other event families are still scaffold-level
+- next refinement: bench-confirm strong wall localization and compare it with
+  the now-implemented shaker/liquid/hybrid families
 
 ## Phase 4 - Shakers family
 - implemented: `roll_train` as a rate-driven train tied to wall contact and tangential motion
@@ -60,18 +71,28 @@ This document remains the intended development order and gap-management plan.
 - implemented: LittleFS NDJSON recorder
 - implemented: IMU replay through the shared pipeline
 - implemented: run-mode / recorder / remote telemetry extensions
-- next refinement: deterministic comparison metrics and file management UX
+- implemented: IMU validity plus audio driver/transport/effective-limit status
+- next refinement: resolved preset/build/calibration identity, deterministic
+  comparison metrics, DXL feedback, and file-management UX
 
 ## Phase 8 - XL330 tilt-plane integration
-- implemented: compile-gated raw DYNAMIXEL Protocol 2.0 half-duplex path
-- implemented: current clamp and software velocity clamp
+- implemented for the retained StickS3 backend: compile-gated raw DYNAMIXEL
+  Protocol 2.0 DATA+DIR path, current clamp, and software velocity clamp
 - implemented: mass-state to thumb/index tilt mapping
-- next refinement: bench safety validation and richer status feedback
+- probe hardware pass on AtomS3: GPIO1 TX / GPIO2 RX automatic half-duplex,
+  IDs 1/2 at 57,600 bps, bounded unloaded motion, and combined operation
+- intentionally disabled: `m5stack-atoms3-pipeline` compiles the servo backend
+  out because the legacy electrical adapter is incompatible
+- next implementation: AtomS3 production DXL adapter, read-back state machine,
+  watchdog/fault telemetry, mounted sign/home calibration, then perceptual tuning
 
 ## Phase 9 - Smartphone / HMD interface
-- implemented: SoftAP + WebSocket JSON control/telemetry baseline
+- implemented on retained StickS3 targets: SoftAP + WebSocket JSON
+  control/telemetry baseline
 - implemented: schema-shaped control message handling
-- next refinement: promote serial + SoftAP browser monitoring to the canonical human-facing workflow
+- intentionally excluded from the first AtomS3 production slice
+- next refinement: resolved configuration controls and live smartphone/HMD
+  integration after the local production pipeline is stable
 
 ## Phase 10 - Open-source cleanup
 - implemented: hardware placeholder contract and contribution checklist
@@ -79,10 +100,14 @@ This document remains the intended development order and gap-management plan.
 
 ## Current priority
 
-- keep the shared haptic pipeline intact
-- improve observability and hardware-side tuning workflow
-- use USB serial + SoftAP browser monitoring as the supported main-firmware path
-- treat display work as probe-only until the low-level panel issue is understood
+1. Upload and validate the first `m5stack-atoms3-pipeline` slice at the initial
+   8% effective peak limit.
+2. Confirm zero-data boot, explicit arm, four-wall routing, IMU-driven output,
+   material separation, and soak behavior with servos compiled out.
+3. Calibrate the mounted per-wall response and replace the unloaded qualitative
+   sweep with measured resonance/crosstalk evidence.
+4. Implement the AtomS3 DXL production adapter only after the haptic-only slice
+   is stable, then re-run the combined safety matrix.
 
 ## Implemented now vs needs improvement
 
@@ -91,18 +116,20 @@ This document remains the intended development order and gap-management plan.
   - wall / shaker / liquid / hybrid event families
   - stateful texture atoms and resonance/spatial rendering
   - audio backend with `quad_wall_4ch` / `front_back_2ch`
-  - dual-I2S backend as the current shipped 4-channel transport
+  - dual-I2S fallback plus single-port eight-slot TDM transport
+  - AtomS3 as-built profile with zero-data boot, 8% initial limit, 15% hard
+    ceiling, 300 ms IMU stale safe-stop, and servo compile-out
   - runtime calibration with NVS persistence
   - recorder/replay
   - SoftAP/WebSocket remote baseline
   - tilt pseudo-force baseline
 - needs improvement:
-  - additive TDM backend migration and bench validation
+  - production pipeline upload and mounted TDM/spatial validation
   - liquid / granular / hybrid percept realism
   - localization and repeatability on hardware
   - storage robustness
   - monitoring reliability
-  - servo safety validation
+  - AtomS3 production servo adapter and safety telemetry
   - browser monitoring UX
 
 ## Risk register
@@ -110,7 +137,7 @@ This document remains the intended development order and gap-management plan.
 | Risk | Why it matters | Early mitigation |
 |---|---|---|
 | Output self-couples into IMU | can destabilize model behavior | keep sensor path band-limited and architected before output tuning |
-| Audio backend complexity | can delay research progress | keep dual-I2S as the stable baseline, then add TDM behind an explicit backend migration path |
-| Liquid model overfitting | may produce “hum” instead of rich texture | keep event-centric liquid rendering |
-| Servo safety | risk of mechanical overdrive | start with current-limited position mode and conservative angle bounds |
+| Audio backend complexity | can delay research progress | retain dual-I2S while validating TDM behind explicit compile/runtime gates |
+| Liquid model overfitting | may produce a hum instead of rich texture | keep event-centric liquid rendering |
+| Servo safety | risk of mechanical overdrive | keep AtomS3 servo compile-out until read-back, watchdog, bounds, and mounted stop tests pass |
 | Architecture drift | Codex may implement locally convenient hacks | use AGENTS.md + docs as source of truth |

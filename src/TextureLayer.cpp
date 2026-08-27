@@ -75,6 +75,7 @@ void TextureLayer::activateVoice(Voice& voice,
   voice.age_s = 0.0f;
   voice.apparent_motion_s = std::max(0.0f, apparent_motion_s);
   voice.distribute_to_neighbors = distribute_to_neighbors;
+  voice.first_frame = true;
 }
 
 void TextureLayer::spawnVoice(const HapticEvent& event) {
@@ -227,6 +228,7 @@ TextureCommand TextureLayer::renderVoice(const Voice& voice) const {
   cmd.density_hz = voice.density_hz;
   cmd.apparent_motion_soa_ms = voice.apparent_motion_s * 1.0e3f;
   cmd.distribute_to_neighbors = voice.distribute_to_neighbors;
+  cmd.attack_frame = voice.first_frame;
 
   const float t = voice.duration_s > 0.0f ? clamp01(voice.age_s / voice.duration_s) : 1.0f;
   const float phase = 2.0f * kPi * std::max(0.0f, voice.density_hz) * voice.age_s;
@@ -322,13 +324,27 @@ TextureFrame<kMaxTexturesPerFrame> TextureLayer::update(const EventFrame<kMaxEve
       continue;
     }
 
-    voice.age_s += dt_s;
-    if (voice.age_s > voice.duration_s) {
-      voice.active = false;
-      continue;
+    TextureCommand cmd{};
+    if (params_.features.enable_attack_preserving_texture) {
+      if (voice.age_s > voice.duration_s) {
+        voice.active = false;
+        continue;
+      }
+      cmd = renderVoice(voice);
+      voice.first_frame = false;
+      voice.age_s += dt_s;
+      if (voice.age_s > voice.duration_s) {
+        voice.active = false;
+      }
+    } else {
+      voice.age_s += dt_s;
+      if (voice.age_s > voice.duration_s) {
+        voice.active = false;
+        continue;
+      }
+      cmd = renderVoice(voice);
+      voice.first_frame = false;
     }
-
-    const TextureCommand cmd = renderVoice(voice);
     if (cmd.low_env <= 0.0f && cmd.high_env <= 0.0f && cmd.noise_env <= 0.0f) {
       continue;
     }

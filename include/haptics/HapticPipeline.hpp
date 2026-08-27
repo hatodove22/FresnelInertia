@@ -24,6 +24,7 @@ class HapticPipeline {
   bool begin(const SystemParams& params);
   void tick();
   void processSample(const ImuSample& sample, float dt_s);
+  void enterSafeIdle();
   void cyclePreset();
   void toggleVerbose();
   void cycleAudioTestMode();
@@ -53,8 +54,10 @@ class HapticPipeline {
   void commitPresetParams(SystemParams next_params, const RuntimeConfigSnapshot& snapshot);
   TiltPlaneCommand updateTiltCommand(const ImuSample& sample, const MassState& state, float dt_s);
   MassState makeDefaultMassState() const;
-  void reconfigurePipeline();
+  bool reconfigurePipeline();
   void refreshOutputConfig();
+  void resetDynamicPipelineState();
+  bool applyAudioConfigOrRollback(const SystemParams& previous_params);
   ActuatorFrame4 summarizeDriveFrame(const DriveFrame4& frame) const;
   RunMode currentRunMode() const;
   bool applyControlMessage(const ControlMessage& message);
@@ -77,7 +80,9 @@ class HapticPipeline {
 
   TelemetrySnapshot telemetry_{};
   uint32_t last_tick_us_ = 0;
+  uint32_t last_valid_imu_ms_ = 0;
   uint32_t last_print_ms_ = 0;
+  bool imu_stale_safe_stop_ = false;
   MaterialFamily current_family_ = MaterialFamily::Liquid;
   RunMode requested_run_mode_ = RunMode::Live;
 };

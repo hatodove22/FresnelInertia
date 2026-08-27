@@ -22,6 +22,13 @@ struct FeatureFlags {
   bool enable_verbose_serial = true;
   bool enable_debug_display = false;
   bool enable_pipeline_debug_telemetry = false;
+  // Compatibility-safe pipeline improvements. Generic presets leave these
+  // disabled; verified hardware profiles may opt in explicitly.
+  bool enable_physical_master_gain = false;
+  bool enable_attack_preserving_texture = false;
+  bool enable_single_shot_spatial_delay = false;
+  bool enable_imu_stale_safe_stop = false;
+  bool allow_remote_tilt_arm = false;
 };
 
 struct PlatformPins {
@@ -107,10 +114,13 @@ struct AudioBackendParams {
   uint32_t sample_rate_hz = 24000;
   uint16_t dma_buf_len = 64;
   uint8_t dma_buf_count = 4;
+  AudioTransport transport = AudioTransport::DualI2s;
   AudioOutputLayout output_layout = AudioOutputLayout::QuadWall4Ch;
   bool demo_compat_mode = false;
   bool runtime_enable = false;
+  bool keep_driver_installed_when_muted = false;
   float output_gain = 1.0f;
+  float output_peak_limit = 1.0f;
   bool channel_test_enable = false;
   WallId channel_test_wall = WallId::None;
   float channel_test_level = 0.20f;

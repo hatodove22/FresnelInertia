@@ -3,6 +3,10 @@
 #include "haptics/Parameters.hpp"
 #include "haptics/Types.hpp"
 
+#ifndef HAPTICS_ENABLE_TILT_SERVO
+#define HAPTICS_ENABLE_TILT_SERVO 0
+#endif
+
 namespace haptics {
 
 class TiltPlaneServoInterface {
@@ -12,6 +16,7 @@ class TiltPlaneServoInterface {
   void setRuntimeEnabled(bool enabled);
   void home();
   void submit(const TiltPlaneCommand& command);
+  bool isCompileEnabled() const { return HAPTICS_ENABLE_TILT_SERVO != 0; }
   bool isEnabled() const { return enabled_ && runtime_enabled_; }
 
  private:
