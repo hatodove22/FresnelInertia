@@ -51,6 +51,57 @@ behavior.
 - `mass.gyro_to_energy_gain`
 - `mass.rebound`
 
+### Gate 1 motion-activity input
+
+- `motion_activity.gravity_cutoff_hz` (default `1.0`)
+- `motion_activity.motion_cutoff_hz` (default `10.0`)
+- `motion_activity.accel_deadband_g` (default `0.025`)
+- `motion_activity.gyro_deadband_dps` (default `1.5`)
+- `features.enable_gravity_separated_mass_activity` (generic default `false`)
+
+The as-built AtomS3 hardware profile is the only profile that opts into the
+gravity-separated path by default. Other presets and targets retain the legacy
+Mass behavior unless the feature is enabled explicitly.
+
+When enabled, `MotionActivityFilter` estimates quasi-static gravity with a
+1 Hz low-pass, subtracts it from the accelerometer sample, applies a 10 Hz
+motion low-pass, and then applies radial subtractive deadbands of `0.025 g`
+and `1.5 deg/s`. Raw accelerometer X/Y remains the input to the latent
+quasi-static position path, so changing container attitude can still move the
+contents. The filtered three-axis activity sample is the only sensor-activity
+input to energy and agitation: the existing energy term retains its planar
+X/Y magnitude, while agitation uses the three-axis magnitude and filtered yaw.
+
+This path also owns the raw input-time boundary. Non-finite or non-positive
+`dt_s` is rejected with no estimator, layer, telemetry, or pending-time side
+effect. Missing/non-finite IMU data with a valid positive loop period holds
+Mass, Event, and Tilt and accumulates that period. Texture and Spatial tails
+continue to decay with raw loop time. When a fresh valid sample arrives, the
+filter is evaluated once over an accumulated period up to and including
+`50 ms`; Mass and Event then consume that held input through bounded stability
+substeps. The Mass step limit is derived from configured span, natural
+frequency, damping, and family damping, is capped at `4 ms`, and may use at
+most 64 substeps. A period strictly greater than `50 ms` resets all dynamic
+pipeline state and holds the previous Tilt command until a later valid sample
+establishes a fresh estimator baseline. An invalid/unsupported Mass stability
+limit is not recoverable in the same way: it resets the dynamic state, submits
+a neutral Tilt command, and disarms the runtime servo interface. The parameters
+must be corrected and Tilt explicitly re-armed before physical commands resume.
+Texture and Spatial advance only once on the outer raw loop clock, and Tilt is
+submitted once only for an accepted bounded recovery. The first valid sample
+after initialization establishes gravity and may update the raw position path,
+but event generation is suppressed for that sample.
+
+With the feature enabled, every material family also shares a zero-input
+quiet contract: when there is no wall hit, `energy<=0.02`, and planar
+`speed<=0.04`, its autonomous scheduler may not create a new event. Existing
+activity state may only decay. Crossing out of that quiet region reopens the
+normal family scheduler. The feature-disabled path retains the reviewed legacy
+scheduler floors and 400-frame fingerprint; it does not enable the quiet gate.
+One bounded-safety rule applies in both modes: phases already due beyond the
+shared 16-event frame budget are consumed analytically instead of being
+deferred into a later burst.
+
 ## D. Event layer
 - `event.wall_threshold`
 - `event.wall_decay_span_m`
@@ -256,6 +307,8 @@ This is intended for additive runtime identification and will likely be refined 
 - `features.enable_attack_preserving_texture`
 - `features.enable_single_shot_spatial_delay`
 - `features.enable_imu_stale_safe_stop`
+- `features.enable_gravity_separated_mass_activity`
+- `features.enable_usb_telemetry`
 - `features.allow_remote_tilt_arm`
 
 `iface.wifi_mode_ap=true` starts the current SoftAP transport.
@@ -264,26 +317,50 @@ This is intended for additive runtime identification and will likely be refined 
 `iface.websocket_port` is the machine-facing JSON control / telemetry port.
 `features.enable_debug_display` is now probe-only. It is retained for isolated low-level panel experiments, not as part of the main firmware contract.
 `features.enable_pipeline_debug_telemetry=false` by default. When enabled at runtime, remote telemetry and recorder NDJSON include `pipeline_debug` counts for event, texture, and resonance frames plus per-frame booleans showing whether mass, event, texture, resonance, and spatial stages were active.
+`features.enable_usb_telemetry=false` by default and is additionally forced
+false when the USB producer starts. It is not writable through the generic
+`set_param` path; only the local `usb telemetry on|off` commands change the
+session gate, and the compile-time backend exists only in the AtomS3 production
+environment.
 
 The compatibility-sensitive refinement/safety flags default false in generic
 presets. The as-built AtomS3 profile explicitly enables physical master gain,
 attack-preserving texture decay, single-shot spatial delay, and the IMU stale
-safe-stop. This opt-in keeps older environments stable while the production
-profile uses the refined pipeline behavior.
+safe-stop, plus gravity-separated mass activity. This opt-in keeps older
+environments stable while the production profile uses the refined pipeline
+behavior.
 
 When `features.enable_imu_stale_safe_stop=true`, more than 300 ms without a
 valid finite IMU sample resets the Mass, Event, Texture, Resonance, Spatial,
 and Tilt model states to neutral, submits digital zero to TDM, and disarms an
-enabled servo interface. The always-present read-only telemetry fields are
-`safety.imu_stale_safe_stop`, `safety.audio_zero_asserted`, and
-`safety.tilt_disarmed`. Optional
+enabled servo interface. The asserted stop is latched: later valid samples and
+their refreshed deadline do not resume processing or output, and even an
+unexpected runtime feature disable cannot clear it. Safe Idle is the only
+runtime clear path; it first silences/disarms output, then clears the latch and
+starts a fresh 300 ms monitoring epoch. The always-present read-only telemetry
+fields are
+`safety.imu_stale_safe_stop`, `safety.imu_fault_injection_active`,
+`safety.audio_zero_asserted`, and `safety.tilt_disarmed`; the injection field
+remains optional in the JSON schema only for older-log compatibility. Optional
 `pipeline_debug.imu_stale_safe_stop` duplicates the first value for detailed
 debugging but is not required for safety observation.
+
+Controlled IMU fault injection is deliberately not a `features.*` parameter.
+`HAPTICS_ENABLE_IMU_FAULT_INJECTION` defaults to 0 and is set to 1 only by the
+AtomS3 production environment. Its runtime state starts false, can be activated
+only by the local `imu fault on` command in Live with stale safety enabled, and
+is cleared by begin, by `imu fault off` only before stale-stop asserts, or by
+Safe Idle. After assertion, the `off` command is rejected so output disarm and
+injection clear occur atomically through Safe Idle. Presets, generic
+`set_param`, replay, and remote control cannot activate it.
 
 `features.allow_remote_tilt_arm` defaults false. Generic `set_param` may turn
 the tilt feature off but may never turn it on; an explicit tilt-arm command is
 required, and remote arming additionally requires this flag plus Live or
-Record run mode.
+Record run mode. Local and remote arms are both rejected while IMU injection
+or stale-stop is active and when Mass dynamics cannot provide a finite,
+positive stable integration step that can cover the full 50 ms recovery
+envelope within the 64-substep safety cap.
 
 Selected controls in the current `set_param` runtime surface include:
 - container spans: `container.span_x_m`, `container.span_y_m`, `container.span_z_m`
@@ -297,10 +374,24 @@ Selected controls in the current `set_param` runtime surface include:
   `features.enable_attack_preserving_texture`, and
   `features.enable_single_shot_spatial_delay`
 - integration safety: `features.enable_imu_stale_safe_stop`
+- Gate 1 activity path: `features.enable_gravity_separated_mass_activity`,
+  `motion_activity.gravity_cutoff_hz`,
+  `motion_activity.motion_cutoff_hz`,
+  `motion_activity.accel_deadband_g`, and
+  `motion_activity.gyro_deadband_dps`
 - calibration sweep: `calibration.low_start_hz`, `calibration.low_stop_hz`, `calibration.low_step_hz`, `calibration.high_start_hz`, `calibration.high_stop_hz`, `calibration.high_step_hz`, `calibration.settle_ms`, `calibration.measure_ms`, `calibration.drive_level`
 - interface/recorder cadence: `iface.telemetry_period_ms`, `recorder.flush_interval_frames`
 
 For short client labels, the firmware also accepts aliases without units for mass natural frequency, texture durations, and calibration frequency bounds/steps, for example `mass.natural_freq_x`, `texture.hard_ping_low`, and `calibration.low_start`.
+
+The four `motion_activity.*` runtime setters clamp respectively to
+`0.05..20 Hz`, `0.10..100 Hz`, `0..1 g`, and `0..90 deg/s`. The long-gap
+boundary is a fixed safety contract, not a runtime parameter. Applying any of
+these paths or the feature flag through `set_param` reconfigures the dynamic
+pipeline and therefore starts the estimator from a neutral first-valid frame.
+The feature and four filter values are session-owned runtime settings: loading
+a material preset preserves them rather than silently reverting the input
+contract.
 
 ## 2.1 Safe Idle runtime reset
 

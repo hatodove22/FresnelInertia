@@ -4,21 +4,27 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 #include "haptics/EventLayer.hpp"
+#include "haptics/HardwareProfiles.hpp"
 #include "haptics/MassMotionLayer.hpp"
+#include "haptics/MotionActivityFilter.hpp"
 #include "haptics/Parameters.hpp"
 #include "haptics/ResonanceLayer.hpp"
+#include "haptics/RuntimeSafetyPolicy.hpp"
 #include "haptics/SpatialRenderer4.hpp"
 #include "haptics/TextureLayer.hpp"
 #include "haptics/TiltPseudoForceModel.hpp"
 #include "legacy_fingerprint.hpp"
+#include "motion_activity_fixtures.hpp"
 
 namespace {
 
 using native_layers_test::LegacyFingerprint;
 
 constexpr float kDtS = 1.0f / 250.0f;  // The retained control-loop cadence.
+constexpr float kPi = 3.14159265358979323846f;
 constexpr std::uint32_t kFnv1aOffset = 2166136261U;
 constexpr std::uint32_t kFnv1aPrime = 16777619U;
 
@@ -238,7 +244,157 @@ void assertTiltEqual(const haptics::TiltPlaneCommand& expected, const haptics::T
   TEST_ASSERT_EQUAL(expected.pseudoforce_enabled, actual.pseudoforce_enabled);
 }
 
-void test_default_feature_flags_preserve_safe_legacy_defaults() {
+float vec3Length(const haptics::Vec3f& value) {
+  return std::sqrt(value.x * value.x + value.y * value.y + value.z * value.z);
+}
+
+bool finiteMassState(const haptics::MassState& state) {
+  return std::isfinite(state.pos_norm.x) && std::isfinite(state.pos_norm.y) &&
+         std::isfinite(state.vel_norm_s.x) && std::isfinite(state.vel_norm_s.y) &&
+         std::isfinite(state.energy);
+}
+
+haptics::ImuSample validSample(haptics::Vec3f accel_g,
+                               haptics::Vec3f gyro_dps = {},
+                               std::uint32_t timestamp_us = 0U) {
+  haptics::ImuSample sample{};
+  sample.timestamp_us = timestamp_us;
+  sample.accel_g = accel_g;
+  sample.gyro_dps = gyro_dps;
+  sample.valid = true;
+  return sample;
+}
+
+struct EnabledMassHarness {
+  haptics::SystemParams params = haptics::makeDefaultLiquidPreset();
+  haptics::MotionActivityFilter filter{};
+  haptics::MassMotionLayer mass{};
+
+  EnabledMassHarness() {
+    params.features.enable_gravity_separated_mass_activity = true;
+    filter.configure(params);
+    mass.configure(params);
+  }
+
+  haptics::MotionInputResult step(const haptics::ImuSample& sample, float raw_dt_s = kDtS) {
+    const auto input = filter.process(sample, raw_dt_s);
+    if (input.action == haptics::MotionInputAction::Integrate) {
+      const auto substep_count = haptics::motionIntegrationSubstepCount(
+          input.effective_dt_s, mass.maxStableStepS());
+      TEST_ASSERT_GREATER_THAN_UINT8(0U, substep_count);
+      const float substep_dt_s = input.effective_dt_s / substep_count;
+      for (std::uint8_t substep = 0; substep < substep_count; ++substep) {
+        mass.updateWithActivity(sample, input.activity, substep_dt_s);
+      }
+    } else if (input.action == haptics::MotionInputAction::ResetNeutral) {
+      mass.configure(params);
+    }
+    return input;
+  }
+};
+
+struct EnabledEventHarness {
+  haptics::SystemParams params{};
+  haptics::MotionActivityFilter filter{};
+  haptics::MassMotionLayer mass{};
+  haptics::EventLayer event{};
+
+  explicit EnabledEventHarness(
+      haptics::SystemParams selected_params = haptics::makeDefaultLiquidPreset())
+      : params(selected_params) {
+    params.features.enable_gravity_separated_mass_activity = true;
+    filter.configure(params);
+    mass.configure(params);
+    event.configure(params);
+  }
+
+  haptics::EventFrame<haptics::kMaxEventsPerFrame> step(
+      const haptics::ImuSample& sample,
+      float raw_dt_s = kDtS) {
+    const bool was_initialized = filter.initialized();
+    const auto input = filter.process(sample, raw_dt_s);
+    if (input.action == haptics::MotionInputAction::ResetNeutral) {
+      filter.configure(params);
+      mass.configure(params);
+      event.configure(params);
+      return {};
+    }
+    if (input.action != haptics::MotionInputAction::Integrate) {
+      return {};
+    }
+    haptics::EventFrame<haptics::kMaxEventsPerFrame> events{};
+    const auto substep_count = haptics::motionIntegrationSubstepCount(
+        input.effective_dt_s, mass.maxStableStepS());
+    TEST_ASSERT_GREATER_THAN_UINT8(0U, substep_count);
+    const float substep_dt_s = input.effective_dt_s / substep_count;
+    for (std::uint8_t substep = 0; substep < substep_count; ++substep) {
+      const auto state = mass.updateWithActivity(sample, input.activity, substep_dt_s);
+      if (!was_initialized) {
+        continue;
+      }
+      const auto substep_events = event.update(
+          state, substep_dt_s, events.items.size() - events.count);
+      for (std::size_t i = 0;
+           i < substep_events.count && events.count < events.items.size();
+           ++i) {
+        events.items[events.count++] = substep_events.items[i];
+      }
+    }
+    return events;
+  }
+};
+
+struct FrequencyResponseMetrics {
+  float activity_rms_g = 0.0f;
+  float mass_energy_rms = 0.0f;
+};
+
+FrequencyResponseMetrics responseAtFrequency(float frequency_hz, float amplitude_g) {
+  haptics::MotionActivityFilter filter;
+  haptics::MassMotionLayer mass;
+  auto params = haptics::makeDefaultLiquidPreset();
+  filter.configure(params);
+  mass.configure(params);
+
+  std::uint32_t timestamp_us = 0U;
+  for (std::uint32_t frame = 0; frame < 500U; ++frame) {
+    const auto raw = validSample({0.0f, 0.0f, 1.0f}, {}, timestamp_us);
+    const auto input = filter.process(raw, kDtS);
+    if (input.action != haptics::MotionInputAction::Integrate) {
+      const float nan = std::numeric_limits<float>::quiet_NaN();
+      return {nan, nan};
+    }
+    mass.updateWithActivity(raw, input.activity, kDtS);
+    timestamp_us += 4000U;
+  }
+
+  constexpr std::uint32_t kMeasureFrames = 1000U;
+  double activity_squared_sum = 0.0;
+  double energy_squared_sum = 0.0;
+  for (std::uint32_t frame = 0; frame < kMeasureFrames; ++frame) {
+    const float time_s = static_cast<float>(frame) * kDtS;
+    const float x = amplitude_g * std::sin(2.0f * kPi * frequency_hz * time_s);
+    const auto raw = validSample({x, 0.0f, 1.0f}, {}, timestamp_us);
+    const auto input = filter.process(raw, kDtS);
+    if (input.action != haptics::MotionInputAction::Integrate) {
+      const float nan = std::numeric_limits<float>::quiet_NaN();
+      return {nan, nan};
+    }
+    const auto state = mass.updateWithActivity(raw, input.activity, kDtS);
+    activity_squared_sum +=
+        static_cast<double>(input.activity.accel_g.x) * input.activity.accel_g.x;
+    energy_squared_sum += static_cast<double>(state.energy) * state.energy;
+    timestamp_us += 4000U;
+  }
+  return {
+      static_cast<float>(
+          std::sqrt(activity_squared_sum / static_cast<double>(kMeasureFrames))),
+      static_cast<float>(
+          std::sqrt(energy_squared_sum / static_cast<double>(kMeasureFrames))),
+  };
+}
+
+void test_default_feature_flags_and_runtime_safety_policy() {
 #if defined(__clang__)
   TEST_MESSAGE("native compiler: Clang " __clang_version__);
 #elif defined(__GNUC__)
@@ -261,7 +417,65 @@ void test_default_feature_flags_preserve_safe_legacy_defaults() {
   TEST_ASSERT_FALSE(params.features.enable_attack_preserving_texture);
   TEST_ASSERT_FALSE(params.features.enable_single_shot_spatial_delay);
   TEST_ASSERT_FALSE(params.features.enable_imu_stale_safe_stop);
+  TEST_ASSERT_FALSE(params.features.enable_usb_telemetry);
   TEST_ASSERT_FALSE(params.features.allow_remote_tilt_arm);
+  TEST_ASSERT_FALSE(
+      haptics::imuStaleSafeStopNextState(false, false, false));
+  TEST_ASSERT_FALSE(
+      haptics::imuStaleSafeStopNextState(false, false, true));
+  TEST_ASSERT_FALSE(
+      haptics::imuStaleSafeStopNextState(false, true, false));
+  bool stale_stop =
+      haptics::imuStaleSafeStopNextState(false, true, true);
+  TEST_ASSERT_TRUE(stale_stop);
+  // A valid-sample recovery refreshes the deadline but cannot release the
+  // asserted stop. Even an unexpected feature disable must fail closed.
+  stale_stop =
+      haptics::imuStaleSafeStopNextState(stale_stop, true, false);
+  TEST_ASSERT_TRUE(stale_stop);
+  stale_stop =
+      haptics::imuStaleSafeStopNextState(stale_stop, false, false);
+  TEST_ASSERT_TRUE(stale_stop);
+  // enterSafeIdle() is the runtime owner of the explicit true -> false clear.
+  TEST_ASSERT_FALSE(
+      haptics::imuStaleSafeStopNextState(false, true, false));
+  TEST_ASSERT_FALSE(haptics::imuFaultClearRequiresSafeIdle(false));
+  TEST_ASSERT_TRUE(haptics::imuFaultClearRequiresSafeIdle(true));
+  TEST_ASSERT_FALSE(
+      haptics::imuStaleSafetyDisableRequiresSafeIdle(false, false));
+  TEST_ASSERT_TRUE(
+      haptics::imuStaleSafetyDisableRequiresSafeIdle(true, false));
+  TEST_ASSERT_TRUE(
+      haptics::imuStaleSafetyDisableRequiresSafeIdle(false, true));
+  TEST_ASSERT_TRUE(haptics::imuSafetyInterlockAllowsRunMode(
+      false, false, haptics::RunMode::Replay));
+  TEST_ASSERT_TRUE(haptics::imuSafetyInterlockAllowsRunMode(
+      false, true, haptics::RunMode::Live));
+  TEST_ASSERT_TRUE(haptics::imuSafetyInterlockAllowsRunMode(
+      true, false, haptics::RunMode::Idle));
+  TEST_ASSERT_FALSE(haptics::imuSafetyInterlockAllowsRunMode(
+      false, true, haptics::RunMode::Record));
+  TEST_ASSERT_FALSE(haptics::imuSafetyInterlockAllowsRunMode(
+      true, false, haptics::RunMode::Calibration));
+  TEST_ASSERT_FALSE(haptics::imuSafetyInterlockAllowsRunMode(
+      true, true, haptics::RunMode::Replay));
+  TEST_ASSERT_TRUE(
+      haptics::imuSafetyInterlockAllowsPhysicalArm(false, false));
+  TEST_ASSERT_FALSE(
+      haptics::imuSafetyInterlockAllowsPhysicalArm(true, false));
+  TEST_ASSERT_FALSE(
+      haptics::imuSafetyInterlockAllowsPhysicalArm(false, true));
+  TEST_ASSERT_FALSE(haptics::imuSafetyInterlockRequiresTickSafeIdle(
+      false, true, haptics::RunMode::Live));
+  TEST_ASSERT_TRUE(haptics::imuSafetyInterlockRequiresTickSafeIdle(
+      false, true, haptics::RunMode::Idle));
+  TEST_ASSERT_TRUE(haptics::imuSafetyInterlockRequiresTickSafeIdle(
+      true, false, haptics::RunMode::Replay));
+  TEST_ASSERT_FALSE(haptics::imuSafetyInterlockRequiresTickSafeIdle(
+      false, false, haptics::RunMode::Replay));
+  TEST_ASSERT_TRUE(haptics::replayCompletionRequiresSafeIdle(true, false));
+  TEST_ASSERT_FALSE(haptics::replayCompletionRequiresSafeIdle(true, true));
+  TEST_ASSERT_FALSE(haptics::replayCompletionRequiresSafeIdle(false, false));
 }
 
 void test_legacy_trace_is_deterministic() {
@@ -363,6 +577,31 @@ void test_event_configure_restores_arming_and_cooldowns() {
   TEST_ASSERT_EQUAL_UINT32(0U, suppressed.count);
   TEST_ASSERT_EQUAL_UINT32(first.count, after_reconfigure.count);
   assertEventEqual(first.items[0], after_reconfigure.items[0]);
+
+  layer.configure(params);
+  const auto budgeted_out = layer.update(state, kDtS, 0U);
+  TEST_ASSERT_EQUAL_UINT32(0U, budgeted_out.count);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::EventType::None),
+                          static_cast<std::uint8_t>(layer.lastEvent().type));
+  const auto no_delayed_burst = layer.update(state, kDtS);
+  TEST_ASSERT_EQUAL_UINT32(0U, no_delayed_burst.count);
+
+  auto extreme_rate_params = haptics::makeDefaultGranularPreset();
+  extreme_rate_params.event.roll_rate_hz = std::numeric_limits<float>::max();
+  extreme_rate_params.event.impact_rate_hz = std::numeric_limits<float>::max();
+  layer.configure(extreme_rate_params);
+  state.family = haptics::MaterialFamily::Granular;
+  state.container_x_m = extreme_rate_params.container.span_x_m;
+  state.container_y_m = extreme_rate_params.container.span_y_m;
+  state.fill = extreme_rate_params.container.fill;
+  state.headspace = extreme_rate_params.container.headspace;
+  const auto extreme_rate_budgeted_out = layer.update(state, 0.10f, 0U);
+  TEST_ASSERT_EQUAL_UINT32(0U, extreme_rate_budgeted_out.count);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::EventType::None),
+                          static_cast<std::uint8_t>(layer.lastEvent().type));
+  const auto extreme_rate_bounded = layer.update(state, 0.10f);
+  TEST_ASSERT_LESS_OR_EQUAL_UINT32(haptics::kMaxEventsPerFrame,
+                                  extreme_rate_bounded.count);
 }
 
 void test_texture_and_spatial_configure_restore_state() {
@@ -438,6 +677,496 @@ void test_tilt_reset_restores_fresh_state() {
   assertTiltEqual(fresh_command, reused_command);
 }
 
+void test_motion_filter_defaults_and_atom_profile_opt_in() {
+  const auto generic = haptics::makeDefaultLiquidPreset();
+  TEST_ASSERT_FALSE(generic.features.enable_gravity_separated_mass_activity);
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 1.0f, generic.motion_activity.gravity_cutoff_hz);
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 10.0f, generic.motion_activity.motion_cutoff_hz);
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 0.025f, generic.motion_activity.accel_deadband_g);
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 1.5f, generic.motion_activity.gyro_deadband_dps);
+
+  auto atom = generic;
+  haptics::applyAsBuiltAtomS3Profile(atom);
+  TEST_ASSERT_TRUE(atom.features.enable_gravity_separated_mass_activity);
+  TEST_ASSERT_FALSE(haptics::motionInputBoundaryEnabled(false, true, true));
+  TEST_ASSERT_TRUE(haptics::motionInputBoundaryEnabled(true, true, false));
+  TEST_ASSERT_TRUE(haptics::motionInputBoundaryEnabled(true, false, true));
+  TEST_ASSERT_FALSE(haptics::motionInputBoundaryEnabled(true, false, false));
+}
+
+void test_motion_filter_raw_time_and_missing_sample_contract() {
+  auto params = haptics::makeDefaultLiquidPreset();
+  haptics::MotionActivityFilter filter;
+  filter.configure(params);
+  const auto stationary = validSample({0.0f, 0.0f, 1.0f});
+
+  const std::array<float, 4> rejected_dt{{
+      0.0f,
+      -kDtS,
+      std::numeric_limits<float>::quiet_NaN(),
+      std::numeric_limits<float>::infinity(),
+  }};
+  for (const float raw_dt_s : rejected_dt) {
+    const auto rejected = filter.process(stationary, raw_dt_s);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::RejectFrame),
+                            static_cast<std::uint8_t>(rejected.action));
+    TEST_ASSERT_FALSE(filter.initialized());
+    TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, filter.pendingDtS());
+  }
+
+  haptics::ImuSample missing{};
+  for (std::uint32_t frame = 0; frame < 3U; ++frame) {
+    const auto held = filter.process(missing, kDtS);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::HoldNoSample),
+                            static_cast<std::uint8_t>(held.action));
+  }
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 3.0f * kDtS, filter.pendingDtS());
+
+  const auto first_valid = filter.process(stationary, kDtS);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::Integrate),
+                          static_cast<std::uint8_t>(first_valid.action));
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 4.0f * kDtS, first_valid.effective_dt_s);
+  TEST_ASSERT_TRUE(first_valid.activity.valid);
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, vec3Length(first_valid.activity.accel_g));
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, vec3Length(first_valid.activity.gyro_dps));
+  TEST_ASSERT_TRUE(filter.initialized());
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, filter.pendingDtS());
+
+  const auto gravity_before_bad_dt = filter.gravity();
+  const auto bad_after_init = filter.process(validSample({0.4f, 0.0f, 1.0f}),
+                                             std::numeric_limits<float>::quiet_NaN());
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::RejectFrame),
+                          static_cast<std::uint8_t>(bad_after_init.action));
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, gravity_before_bad_dt.x, filter.gravity().x);
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, gravity_before_bad_dt.y, filter.gravity().y);
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, gravity_before_bad_dt.z, filter.gravity().z);
+
+  haptics::ImuSample nonfinite = stationary;
+  nonfinite.accel_g.x = std::numeric_limits<float>::infinity();
+  const auto held_nonfinite = filter.process(nonfinite, kDtS);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::HoldNoSample),
+                          static_cast<std::uint8_t>(held_nonfinite.action));
+  const auto recovered = filter.process(stationary, kDtS);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::Integrate),
+                          static_cast<std::uint8_t>(recovered.action));
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 2.0f * kDtS, recovered.effective_dt_s);
+}
+
+void test_motion_filter_long_gap_boundary_and_reset() {
+  auto params = haptics::makeDefaultLiquidPreset();
+  haptics::MotionActivityFilter filter;
+  const auto stationary = validSample({1.0f, 0.0f, 0.0f});
+
+  filter.configure(params);
+  const auto exact_boundary = filter.process(stationary, haptics::kMotionInputResetGapS);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::Integrate),
+                          static_cast<std::uint8_t>(exact_boundary.action));
+  TEST_ASSERT_TRUE(filter.initialized());
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, vec3Length(exact_boundary.activity.accel_g));
+
+  filter.configure(params);
+  const float above_boundary = std::nextafter(haptics::kMotionInputResetGapS,
+                                              std::numeric_limits<float>::infinity());
+  const auto reset = filter.process(stationary, above_boundary);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::ResetNeutral),
+                          static_cast<std::uint8_t>(reset.action));
+  TEST_ASSERT_FALSE(filter.initialized());
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, filter.pendingDtS());
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, vec3Length(reset.activity.accel_g));
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, vec3Length(reset.gravity_g));
+
+  const auto recovered = filter.process(stationary, kDtS);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::Integrate),
+                          static_cast<std::uint8_t>(recovered.action));
+  TEST_ASSERT_TRUE(filter.initialized());
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, vec3Length(recovered.activity.accel_g));
+
+  filter.reset();
+  haptics::ImuSample missing{};
+  filter.process(missing, 0.048f);
+  const auto accumulated_gap = filter.process(stationary, kDtS);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::ResetNeutral),
+                          static_cast<std::uint8_t>(accumulated_gap.action));
+  TEST_ASSERT_FALSE(filter.initialized());
+}
+
+void test_motion_integration_substep_policy_bounds_recovery_steps() {
+  const auto nominal_count = haptics::motionIntegrationSubstepCount(kDtS);
+  TEST_ASSERT_EQUAL_UINT8(1U, nominal_count);
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(
+          haptics::MotionIntegrationSafetyAction::Continue),
+      static_cast<std::uint8_t>(
+          haptics::motionIntegrationSafetyAction(nominal_count)));
+  TEST_ASSERT_EQUAL_UINT8(4U, haptics::motionIntegrationSubstepCount(0.016f));
+  TEST_ASSERT_EQUAL_UINT8(13U,
+                          haptics::motionIntegrationSubstepCount(
+                              haptics::kMotionInputResetGapS));
+  TEST_ASSERT_EQUAL_UINT8(0U, haptics::motionIntegrationSubstepCount(0.0f));
+  TEST_ASSERT_EQUAL_UINT8(
+      0U,
+      haptics::motionIntegrationSubstepCount(
+          std::numeric_limits<float>::quiet_NaN()));
+
+  auto params = haptics::makeDefaultDetentedPreset();
+  params.mass.natural_freq_x_hz = 20.0f;
+  params.mass.natural_freq_y_hz = 20.0f;
+  params.mass.damping_ratio_x = 2.0f;
+  params.mass.damping_ratio_y = 2.0f;
+  params.container.viscosity = 1.0f;
+  params.container.span_x_m = 0.020f;
+  params.container.span_y_m = 0.020f;
+  haptics::MassMotionLayer mass;
+  mass.configure(params);
+  const auto raw = validSample({1.0f, -1.0f, 0.0f});
+  const auto activity = validSample({0.4f, -0.4f, 0.2f}, {20.0f, -20.0f, 10.0f});
+  const float stable_step_s = mass.maxStableStepS();
+  TEST_ASSERT_GREATER_THAN_FLOAT(0.0f, stable_step_s);
+  TEST_ASSERT_TRUE(haptics::motionDynamicsAllowTiltArm(stable_step_s));
+  TEST_ASSERT_LESS_THAN_FLOAT(haptics::kMotionIntegrationMaxStepS, stable_step_s);
+  const auto count = haptics::motionIntegrationSubstepCount(
+      haptics::kMotionInputResetGapS, stable_step_s);
+  TEST_ASSERT_GREATER_THAN_UINT8(0U, count);
+  const float step_dt_s = haptics::kMotionInputResetGapS / count;
+  TEST_ASSERT_LESS_OR_EQUAL_FLOAT(stable_step_s, step_dt_s);
+  for (std::uint8_t step = 0; step < count; ++step) {
+    mass.updateWithActivity(raw, activity, step_dt_s);
+  }
+  TEST_ASSERT_TRUE(finiteMassState(mass.state()));
+  TEST_ASSERT_LESS_OR_EQUAL_FLOAT(1.0f, std::fabs(mass.state().pos_norm.x));
+  TEST_ASSERT_LESS_OR_EQUAL_FLOAT(1.0f, std::fabs(mass.state().pos_norm.y));
+
+  params.mass.natural_freq_x_hz = -1.0f;
+  mass.configure(params);
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, mass.maxStableStepS());
+  TEST_ASSERT_FALSE(
+      haptics::motionDynamicsAllowTiltArm(mass.maxStableStepS()));
+  TEST_ASSERT_FALSE(haptics::motionDynamicsAllowTiltArm(
+      std::numeric_limits<float>::quiet_NaN()));
+  TEST_ASSERT_FALSE(haptics::motionDynamicsAllowTiltArm(1.0e-12f));
+  const auto unsupported_count =
+      haptics::motionIntegrationSubstepCount(kDtS, mass.maxStableStepS());
+  TEST_ASSERT_EQUAL_UINT8(0U, unsupported_count);
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(
+          haptics::MotionIntegrationSafetyAction::ResetNeutralAndDisarmTilt),
+      static_cast<std::uint8_t>(
+          haptics::motionIntegrationSafetyAction(unsupported_count)));
+}
+
+void test_motion_filter_explicit_reset_restores_fresh_state() {
+  auto params = haptics::makeDefaultLiquidPreset();
+  haptics::MotionActivityFilter reused;
+  haptics::MotionActivityFilter fresh;
+  reused.configure(params);
+  fresh.configure(params);
+
+  for (std::uint32_t frame = 0; frame < 200U; ++frame) {
+    const float phase = 2.0f * kPi * 4.0f * static_cast<float>(frame) * kDtS;
+    reused.process(validSample({0.25f * std::sin(phase), 0.0f, 1.0f},
+                               {3.0f, -2.0f, 12.0f},
+                               frame * 4000U),
+                   kDtS);
+  }
+  reused.reset();
+
+  for (std::uint32_t frame = 0; frame < 80U; ++frame) {
+    const float phase = 2.0f * kPi * 2.0f * static_cast<float>(frame) * kDtS;
+    const auto sample = validSample({0.10f * std::sin(phase), 0.04f * std::cos(phase), 1.0f},
+                                    {0.8f, -0.6f, 2.0f},
+                                    frame * 4000U);
+    const auto reused_result = reused.process(sample, kDtS);
+    const auto fresh_result = fresh.process(sample, kDtS);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(fresh_result.action),
+                            static_cast<std::uint8_t>(reused_result.action));
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, fresh_result.effective_dt_s, reused_result.effective_dt_s);
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, fresh_result.activity.accel_g.x, reused_result.activity.accel_g.x);
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, fresh_result.activity.accel_g.y, reused_result.activity.accel_g.y);
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, fresh_result.activity.accel_g.z, reused_result.activity.accel_g.z);
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, fresh_result.activity.gyro_dps.x, reused_result.activity.gyro_dps.x);
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, fresh_result.activity.gyro_dps.y, reused_result.activity.gyro_dps.y);
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, fresh_result.activity.gyro_dps.z, reused_result.activity.gyro_dps.z);
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, fresh_result.gravity_g.x, reused_result.gravity_g.x);
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, fresh_result.gravity_g.y, reused_result.gravity_g.y);
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, fresh_result.gravity_g.z, reused_result.gravity_g.z);
+  }
+}
+
+void test_motion_filter_all_static_orientations_settle_without_energy() {
+  constexpr float kInvSqrt3 = 0.57735026919f;
+  const std::array<haptics::Vec3f, 7> poses{{
+      {1.0f, 0.0f, 0.0f},
+      {-1.0f, 0.0f, 0.0f},
+      {0.0f, 1.0f, 0.0f},
+      {0.0f, -1.0f, 0.0f},
+      {0.0f, 0.0f, 1.0f},
+      {0.0f, 0.0f, -1.0f},
+      {kInvSqrt3, kInvSqrt3, kInvSqrt3},
+  }};
+
+  for (const auto& pose : poses) {
+    EnabledMassHarness harness;
+    for (std::uint32_t frame = 0; frame < 1000U; ++frame) {
+      const auto input = harness.step(validSample(pose, {}, frame * 4000U));
+      TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(haptics::MotionInputAction::Integrate),
+                              static_cast<std::uint8_t>(input.action));
+    }
+    TEST_ASSERT_TRUE(finiteMassState(harness.mass.state()));
+    TEST_ASSERT_LESS_THAN_FLOAT(0.02f, harness.mass.state().energy);
+    if (std::fabs(pose.x) > 0.5f) {
+      TEST_ASSERT_TRUE(harness.mass.state().pos_norm.x * pose.x < 0.0f);
+    }
+    if (std::fabs(pose.y) > 0.5f) {
+      TEST_ASSERT_TRUE(harness.mass.state().pos_norm.y * pose.y < 0.0f);
+    }
+  }
+}
+
+void test_motion_filter_fixed_bias_and_noise_remain_below_activity_floor() {
+  constexpr float kInvSqrt3 = 0.57735026919f;
+  EnabledMassHarness harness;
+  float settled_peak_activity_g = 0.0f;
+
+  for (std::uint32_t frame = 0; frame < 2500U; ++frame) {
+    const auto& noise = native_layers_test::kStationaryNoiseTrace[
+        frame % native_layers_test::kStationaryNoiseTrace.size()];
+    const haptics::Vec3f accel{
+        kInvSqrt3 + native_layers_test::kStationaryAccelBiasG.x + noise.accel_delta_g.x,
+        kInvSqrt3 + native_layers_test::kStationaryAccelBiasG.y + noise.accel_delta_g.y,
+        kInvSqrt3 + native_layers_test::kStationaryAccelBiasG.z + noise.accel_delta_g.z,
+    };
+    const haptics::Vec3f gyro{
+        native_layers_test::kStationaryGyroBiasDps.x + noise.gyro_delta_dps.x,
+        native_layers_test::kStationaryGyroBiasDps.y + noise.gyro_delta_dps.y,
+        native_layers_test::kStationaryGyroBiasDps.z + noise.gyro_delta_dps.z,
+    };
+    const auto input = harness.step(validSample(accel, gyro, frame * 4000U));
+    if (frame >= 500U) {
+      settled_peak_activity_g = std::max(settled_peak_activity_g, vec3Length(input.activity.accel_g));
+    }
+  }
+
+  TEST_ASSERT_TRUE(finiteMassState(harness.mass.state()));
+  TEST_ASSERT_LESS_THAN_FLOAT(0.02f, harness.mass.state().energy);
+  TEST_ASSERT_LESS_THAN_FLOAT(0.010f, settled_peak_activity_g);
+}
+
+void test_motion_filter_pulse_rises_then_settles() {
+  EnabledMassHarness harness;
+  std::uint32_t timestamp_us = 0U;
+  for (std::uint32_t frame = 0; frame < 500U; ++frame) {
+    harness.step(validSample({0.0f, 0.0f, 1.0f}, {}, timestamp_us));
+    timestamp_us += 4000U;
+  }
+
+  float peak_activity_g = 0.0f;
+  float peak_energy = 0.0f;
+  for (std::uint32_t frame = 0; frame < 20U; ++frame) {
+    const auto input = harness.step(validSample({0.35f, 0.0f, 1.0f}, {}, timestamp_us));
+    peak_activity_g = std::max(peak_activity_g, vec3Length(input.activity.accel_g));
+    peak_energy = std::max(peak_energy, harness.mass.state().energy);
+    timestamp_us += 4000U;
+  }
+  for (std::uint32_t frame = 0; frame < 500U; ++frame) {
+    harness.step(validSample({0.0f, 0.0f, 1.0f}, {}, timestamp_us));
+    timestamp_us += 4000U;
+  }
+
+  TEST_ASSERT_GREATER_THAN_FLOAT(0.10f, peak_activity_g);
+  TEST_ASSERT_GREATER_THAN_FLOAT(0.001f, peak_energy);
+  TEST_ASSERT_LESS_THAN_FLOAT(0.02f, harness.mass.state().energy);
+}
+
+void test_motion_filter_preserves_hand_band_and_rejects_alias_band() {
+  constexpr float kAmplitudeG = 0.15f;
+  const auto response_1_hz = responseAtFrequency(1.0f, kAmplitudeG);
+  const auto response_4_hz = responseAtFrequency(4.0f, kAmplitudeG);
+  const auto response_8_hz = responseAtFrequency(8.0f, kAmplitudeG);
+  const auto response_70_hz = responseAtFrequency(70.0f, kAmplitudeG);
+  const auto response_90_hz = responseAtFrequency(90.0f, kAmplitudeG);
+
+  TEST_ASSERT_TRUE(std::isfinite(response_1_hz.activity_rms_g));
+  TEST_ASSERT_TRUE(std::isfinite(response_4_hz.activity_rms_g));
+  TEST_ASSERT_TRUE(std::isfinite(response_8_hz.activity_rms_g));
+  TEST_ASSERT_TRUE(std::isfinite(response_70_hz.mass_energy_rms));
+  TEST_ASSERT_TRUE(std::isfinite(response_90_hz.mass_energy_rms));
+  TEST_ASSERT_GREATER_THAN_FLOAT(0.025f, response_1_hz.activity_rms_g);
+  TEST_ASSERT_GREATER_THAN_FLOAT(0.050f, response_4_hz.activity_rms_g);
+  TEST_ASSERT_GREATER_THAN_FLOAT(0.040f, response_8_hz.activity_rms_g);
+  TEST_ASSERT_LESS_THAN_FLOAT(
+      0.25f * response_4_hz.activity_rms_g, response_70_hz.activity_rms_g);
+  TEST_ASSERT_LESS_THAN_FLOAT(
+      0.25f * response_4_hz.activity_rms_g, response_90_hz.activity_rms_g);
+
+  // The production consumer must inherit the same rejection. This prevents a
+  // filter-only test from passing while MassState::energy still aliases the
+  // transducer band into event activity.
+  TEST_ASSERT_GREATER_THAN_FLOAT(0.005f, response_4_hz.mass_energy_rms);
+  TEST_ASSERT_LESS_THAN_FLOAT(
+      0.25f * response_4_hz.mass_energy_rms, response_70_hz.mass_energy_rms);
+  TEST_ASSERT_LESS_THAN_FLOAT(
+      0.25f * response_4_hz.mass_energy_rms, response_90_hz.mass_energy_rms);
+}
+
+void test_finite_orientation_change_settles_without_recurring_events() {
+  EnabledEventHarness harness;
+  std::uint32_t timestamp_us = 0U;
+
+  for (std::uint32_t frame = 0; frame < 500U; ++frame) {
+    harness.step(validSample({0.0f, 0.0f, 1.0f}, {}, timestamp_us));
+    timestamp_us += 4000U;
+  }
+
+  // A finite raised-cosine pose transition is observable with an
+  // accelerometer. Continuous rotation and translation are not generally
+  // distinguishable from acceleration alone, so this is the native contract.
+  for (std::uint32_t frame = 0; frame < 250U; ++frame) {
+    const float progress = static_cast<float>(frame + 1U) / 250.0f;
+    const float angle_rad = 0.25f * kPi * (1.0f - std::cos(kPi * progress));
+    harness.step(validSample({std::sin(angle_rad), 0.0f, std::cos(angle_rad)},
+                             {0.0f, 90.0f * std::sin(kPi * progress), 0.0f},
+                             timestamp_us));
+    timestamp_us += 4000U;
+  }
+
+  std::uint32_t events_after_settle_window = 0U;
+  for (std::uint32_t frame = 0; frame < 8000U; ++frame) {
+    const auto events = harness.step(validSample({1.0f, 0.0f, 0.0f}, {}, timestamp_us));
+    if (frame >= 500U) {
+      events_after_settle_window += static_cast<std::uint32_t>(events.count);
+    }
+    timestamp_us += 4000U;
+  }
+
+  TEST_ASSERT_LESS_THAN_FLOAT(0.02f, harness.mass.state().energy);
+  TEST_ASSERT_EQUAL_UINT32(0U, events_after_settle_window);
+}
+
+void test_all_material_families_remain_event_silent_at_rest() {
+  constexpr float kInvSqrt3 = 0.57735026919f;
+  const std::array<haptics::SystemParams, 9> presets{{
+      haptics::makeDefaultLiquidPreset(),
+      haptics::makeDefaultLiquidDenseJarPreset(),
+      haptics::makeDefaultLiquidHalfTubePreset(),
+      haptics::makeDefaultGranularPreset(),
+      haptics::makeDefaultGranularSandPreset(),
+      haptics::makeDefaultGranularBeadPreset(),
+      haptics::makeDefaultGranularSingleMarblePreset(),
+      haptics::makeDefaultHybridPreset(),
+      haptics::makeDefaultDetentedPreset(),
+  }};
+  const std::array<haptics::Vec3f, 7> poses{{
+      {1.0f, 0.0f, 0.0f},
+      {-1.0f, 0.0f, 0.0f},
+      {0.0f, 1.0f, 0.0f},
+      {0.0f, -1.0f, 0.0f},
+      {0.0f, 0.0f, 1.0f},
+      {0.0f, 0.0f, -1.0f},
+      {kInvSqrt3, kInvSqrt3, kInvSqrt3},
+  }};
+
+  for (auto params : presets) {
+    params.features.enable_gravity_separated_mass_activity = true;
+    for (const auto& pose : poses) {
+      EnabledEventHarness harness(params);
+      std::uint32_t timestamp_us = 0U;
+      for (std::uint32_t frame = 0; frame < 500U; ++frame) {
+        harness.step(validSample(pose, {}, timestamp_us));
+        timestamp_us += 4000U;
+      }
+
+      std::uint32_t event_count = 0U;
+      for (std::uint32_t frame = 0; frame < 7500U; ++frame) {
+        const auto events = harness.step(validSample(pose, {}, timestamp_us));
+        event_count += static_cast<std::uint32_t>(events.count);
+        timestamp_us += 4000U;
+      }
+
+      TEST_ASSERT_LESS_THAN_FLOAT(0.02f, harness.mass.state().energy);
+      TEST_ASSERT_EQUAL_UINT32(0U, event_count);
+    }
+  }
+}
+
+void test_enhanced_event_quiet_gate_reopens_for_deliberate_activity() {
+  const std::array<haptics::SystemParams, 9> presets{{
+      haptics::makeDefaultLiquidPreset(),
+      haptics::makeDefaultLiquidDenseJarPreset(),
+      haptics::makeDefaultLiquidHalfTubePreset(),
+      haptics::makeDefaultGranularPreset(),
+      haptics::makeDefaultGranularSandPreset(),
+      haptics::makeDefaultGranularBeadPreset(),
+      haptics::makeDefaultGranularSingleMarblePreset(),
+      haptics::makeDefaultHybridPreset(),
+      haptics::makeDefaultDetentedPreset(),
+  }};
+
+  for (auto params : presets) {
+    params.features.enable_gravity_separated_mass_activity = true;
+    haptics::EventLayer event;
+    event.configure(params);
+    haptics::MassState state{};
+    state.fill = params.container.fill;
+    state.headspace = params.container.headspace;
+    state.container_x_m = params.container.span_x_m;
+    state.container_y_m = params.container.span_y_m;
+    state.container_z_m = params.container.span_z_m;
+    state.family = params.container.family;
+
+    std::uint32_t quiet_event_count = 0U;
+    for (std::uint32_t frame = 0; frame < 500U; ++frame) {
+      quiet_event_count += static_cast<std::uint32_t>(event.update(state, kDtS).count);
+    }
+    TEST_ASSERT_EQUAL_UINT32(0U, quiet_event_count);
+
+    state.energy = 0.50f;
+    state.pos_norm = {0.85f, 0.20f};
+    state.vel_norm_s = {0.0f, 0.50f};
+    std::uint32_t active_event_count = 0U;
+    for (std::uint32_t frame = 0; frame < 500U; ++frame) {
+      active_event_count += static_cast<std::uint32_t>(event.update(state, kDtS).count);
+    }
+    TEST_ASSERT_GREATER_THAN_UINT32(0U, active_event_count);
+
+    state.energy = 0.0f;
+    state.vel_norm_s = {0.0f, 0.03f};
+    std::uint32_t returned_quiet_event_count = 0U;
+    for (std::uint32_t frame = 0; frame < 500U; ++frame) {
+      returned_quiet_event_count +=
+          static_cast<std::uint32_t>(event.update(state, kDtS).count);
+    }
+    TEST_ASSERT_EQUAL_UINT32(0U, returned_quiet_event_count);
+
+    state.energy = 0.50f;
+    state.vel_norm_s = {0.0f, 0.50f};
+    std::uint32_t reopened_event_count = 0U;
+    for (std::uint32_t frame = 0; frame < 500U; ++frame) {
+      reopened_event_count += static_cast<std::uint32_t>(event.update(state, kDtS).count);
+    }
+    TEST_ASSERT_GREATER_THAN_UINT32(0U, reopened_event_count);
+  }
+}
+
+void test_mass_activity_path_uses_raw_for_position_and_filtered_for_energy() {
+  auto params = haptics::makeDefaultLiquidPreset();
+  haptics::MassMotionLayer enhanced;
+  haptics::MassMotionLayer legacy;
+  enhanced.configure(params);
+  legacy.configure(params);
+  const auto raw = validSample({1.0f, 0.0f, 0.0f});
+  const auto neutral_activity = validSample({}, {});
+
+  for (std::uint32_t frame = 0; frame < 250U; ++frame) {
+    enhanced.updateWithActivity(raw, neutral_activity, kDtS);
+    legacy.update(raw, kDtS);
+  }
+
+  TEST_ASSERT_TRUE(enhanced.state().pos_norm.x < 0.0f);
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, enhanced.state().pos_norm.x, legacy.state().pos_norm.x);
+  TEST_ASSERT_LESS_THAN_FLOAT(0.02f, enhanced.state().energy);
+  TEST_ASSERT_GREATER_THAN_FLOAT(enhanced.state().energy + 0.05f, legacy.state().energy);
+}
+
 }  // namespace
 
 void setUp() {}
@@ -445,12 +1174,25 @@ void tearDown() {}
 
 int main(int, char**) {
   UNITY_BEGIN();
-  RUN_TEST(test_default_feature_flags_preserve_safe_legacy_defaults);
+  RUN_TEST(test_default_feature_flags_and_runtime_safety_policy);
   RUN_TEST(test_legacy_trace_is_deterministic);
   RUN_TEST(test_legacy_trace_matches_reviewed_fingerprint);
   RUN_TEST(test_mass_configure_restores_fresh_state);
   RUN_TEST(test_event_configure_restores_arming_and_cooldowns);
   RUN_TEST(test_texture_and_spatial_configure_restore_state);
   RUN_TEST(test_tilt_reset_restores_fresh_state);
+  RUN_TEST(test_motion_filter_defaults_and_atom_profile_opt_in);
+  RUN_TEST(test_motion_filter_raw_time_and_missing_sample_contract);
+  RUN_TEST(test_motion_filter_long_gap_boundary_and_reset);
+  RUN_TEST(test_motion_integration_substep_policy_bounds_recovery_steps);
+  RUN_TEST(test_motion_filter_explicit_reset_restores_fresh_state);
+  RUN_TEST(test_motion_filter_all_static_orientations_settle_without_energy);
+  RUN_TEST(test_motion_filter_fixed_bias_and_noise_remain_below_activity_floor);
+  RUN_TEST(test_motion_filter_pulse_rises_then_settles);
+  RUN_TEST(test_motion_filter_preserves_hand_band_and_rejects_alias_band);
+  RUN_TEST(test_finite_orientation_change_settles_without_recurring_events);
+  RUN_TEST(test_all_material_families_remain_event_silent_at_rest);
+  RUN_TEST(test_enhanced_event_quiet_gate_reopens_for_deliberate_activity);
+  RUN_TEST(test_mass_activity_path_uses_raw_for_position_and_filtered_for_energy);
   return UNITY_END();
 }

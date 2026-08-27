@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/lab_report.schema.json",
+  "title": "LabReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "generated_at",
+    "status",
+    "summary",
+    "finding_codes",
+    "findings",
+    "checks"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "run_id": {"type": "string"},
+    "generated_at": {"type": "string"},
+    "status": {"type": "string", "enum": ["pass", "fail", "input_error"]},
+    "summary": {
+      "type": "object",
+      "required": ["frame_count", "duration_ms", "finding_count", "check_count"],
+      "properties": {
+        "frame_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "duration_ms": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "finding_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "check_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+      },
+      "additionalProperties": false
+    },
+    "finding_codes": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string"},
+          "message": {"type": "string"},
+          "check_id": {"type": "string"},
+          "details": {"type": "object", "additionalProperties": true}
+        },
+        "additionalProperties": false
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "status", "metrics"],
+        "properties": {
+          "id": {"type": "string"},
+          "type": {"type": "string"},
+          "status": {"type": "string", "enum": ["pass", "fail"]},
+          "metrics": {"type": "object", "additionalProperties": true}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["status"],
+        "properties": {"status": {"const": "pass"}}
+      },
+      "then": {
+        "properties": {
+          "summary": {
+            "properties": {
+              "frame_count": {"minimum": 1},
+              "check_count": {"minimum": 1}
+            }
+          },
+          "checks": {"minItems": 1}
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

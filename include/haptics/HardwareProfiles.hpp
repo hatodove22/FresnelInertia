@@ -32,6 +32,7 @@ inline void applyAsBuiltAtomS3Profile(SystemParams& params) {
   params.features.enable_attack_preserving_texture = true;
   params.features.enable_single_shot_spatial_delay = true;
   params.features.enable_imu_stale_safe_stop = true;
+  params.features.enable_gravity_separated_mass_activity = true;
 }
 
 }  // namespace haptics

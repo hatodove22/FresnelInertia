@@ -1,6 +1,6 @@
 # 16 Progress Status
 
-This document was reconciled on `2026-08-27` and includes hardware evidence
+This document was reconciled on `2026-08-28` and includes hardware evidence
 through `2026-08-22`.
 Its purpose is to make three things explicit:
 
@@ -27,14 +27,35 @@ Its purpose is to make three things explicit:
   stop while the device was still. Safe Idle immediately restored zero output
   with zero I2S errors. The exact restart plan is in
   `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md`.
+- The repository now contains the default-off Gate 1 gravity-separated
+  activity path and its pipeline hold/reset state machine. The as-built
+  AtomS3 profile opts in, and 20 native production-layer tests pass. This
+  corrected firmware has not yet been uploaded or powered.
 - Recorder/replay, runtime resonance calibration, and the StickS3 remote and
   legacy tilt paths remain present behind compile-time/runtime gates.
 - A standalone `webxr/` visual client now exists for smartphone and Quest 3/3S demos without requiring live firmware communication.
 - The main remaining gaps are live AtomS3 pipeline validation, mounted spatial
-  and material tuning, reproducible configuration capture, and a production
-  AtomS3 DXL servo adapter with read-back safety.
+  and material tuning, automatic on-device configuration/build identity, and a
+  production AtomS3 DXL servo adapter with read-back safety.
 
 ## 2. Verification evidence
+
+Software-only evidence recorded through `2026-08-28`:
+
+- `native-layers`: 20/20 tests pass against production sources
+- the reviewed feature-disabled legacy fingerprint remains unchanged
+- covered cases include generic/Atom feature policy, static orientations,
+  fixed bias/noise, pulse settling, 1/4/8 Hz translation, 70/90 Hz alias
+  attenuation, invalid input, missing-frame accumulation, exact 50 ms
+  boundary behavior, and explicit filter reset
+- this evidence does not replace the pending USB/powered Gate 1 retest
+- all 22 declared embedded PlatformIO environments build, including the
+  pioarduino/Arduino 3.3.7 smoke target and both DXL provisioning/motion probes
+- passive host-lab fixtures pass 20/20 and Node integration tests pass 8/8;
+  production-timing, hardware-context, structured-observation, and
+  incomplete-evidence cases are included
+- control/telemetry schema validation and expected-invalid fixtures pass
+- the WebXR client passes typecheck and production build
 
 Legacy build matrix recorded on `2026-03-15`:
 
@@ -89,7 +110,7 @@ column so implemented cannot be read as production hardware passed.
 |---|---|---|---|---|
 | 1 | Audio backend abstraction | Implemented | `AudioOutput4Ch` with dual-I2S, eight-slot TDM, zero assertion/status, muted-only transport/layout changes, Safe Idle, and effective peak clamp | Raw TDM probe passed; production pipeline and safety-transition validation pending |
 | 2 | Actuator sweep and resonance identification | Implemented baseline | `RuntimeCalibrator`, low/high carrier sweep, NVS-backed restore/store, calibration telemetry | Stronger identification metric and repeatable hardware characterization |
-| 3 | Mass motion layer refinement | Implemented baseline | Geometry-aware latent mass state, family shaping, convective liquid bias, agitation coupling | More physical tuning and perceptual fitting on real hardware |
+| 3 | Mass motion layer refinement | Gate 1 correction implemented; hardware open | Geometry-aware latent mass state plus default-off gravity-separated, band-limited, deadbanded activity for energy/agitation | Powered settling retest, then physical tuning and perceptual fitting |
 | 4 | Event layer: wall-hit only | Completed and extended | Geometry-aware `wall_hit` scheduling with size-dependent cooldown and direction bias | More bench localization validation |
 | 5 | Event layer: shaker families | Implemented baseline | `roll_train`, `impact_cluster`, intermittent `scrape`, granular presets | Perceptual separation and tuning on hardware |
 | 6 | Event layer: liquid families | Implemented baseline | `droplet_cluster`, `roof_slap`, liquid presets, hybrid liquid branch | More realism across fill / viscosity / container variation |
@@ -112,8 +133,11 @@ column so implemented cannot be read as production hardware passed.
 - Safe Idle through `idle`, `stop`, remote Idle mode, and AtomS3 BtnA hold;
   it exits calibration/replay/record, asserts zero, disarms audio/tilt, clears
   channel test, and resets all dynamic layers.
-- Always-present `audio.output_silenced` and top-level
-  `safety.{imu_stale_safe_stop,audio_zero_asserted,tilt_disarmed}` telemetry.
+- Production telemetry serializers emit `audio.output_silenced`; the canonical
+  schema keeps the top-level `audio` object optional for minimal/backward-
+  compatible fixtures but requires `output_silenced` whenever it is present.
+  Top-level `safety.{imu_stale_safe_stop,audio_zero_asserted,tilt_disarmed}` is
+  always required.
 - Muted-only audio transport/demo/layout changes and rejection of demo
   compatibility on the TDM transport.
 - Runtime resonance calibration with NVS-backed low/high carrier persistence.
@@ -124,15 +148,25 @@ column so implemented cannot be read as production hardware passed.
 - Standalone `webxr/` visual demo with smartphone touch/tilt input, Quest MR entry, pinch/grab bridge, procedural bench assets, local material visuals, and Cloudflare Quick Tunnel launch script.
 - Probe-oriented bring-up environments for audio, display isolation, raw I2S, and staged main-firmware debugging.
 - Feature-gated default behavior that keeps the baseline build stable when audio, remote, tilt, recorder, or calibration are disabled.
+- `MotionActivityFilter` with 1 Hz gravity and 10 Hz motion low-passes,
+  radial subtractive `0.025 g` / `1.5 deg/s` deadbands, and a fixed 50 ms
+  input-time boundary. Generic defaults remain OFF; only the as-built AtomS3
+  profile opts in.
+- The enabled path keeps raw accelerometer X/Y on latent position, routes the
+  filtered 3D activity sample only to energy/agitation, holds Mass/Event/Tilt
+  across missing samples, decays Texture/Spatial tails with raw loop time,
+  resets all dynamic state above 50 ms, and suppresses events on the first
+  valid estimator frame.
 - Preset application now has an explicit runtime-config preservation helper so
   built-in and filesystem preset loads keep hardware/session gates, output
   configuration, recorder/interface settings, and calibrated carriers stable.
-- A pinned `native-layers` PlatformIO environment directly tests the six
-  platform-independent production layers. Seven deterministic tests currently
-  pass, including reset equivalence and a reviewed 400-frame legacy
-  fingerprint that normal test execution cannot regenerate.
+- A pinned `native-layers` PlatformIO environment directly tests the
+  platform-independent production layers and `MotionActivityFilter`.
+  Twenty deterministic tests pass, including reset/time-boundary/activity
+  cases and a reviewed 400-frame legacy fingerprint that normal test
+  execution cannot regenerate.
 - Schema validation now enforces the numeric `maximum` keyword and verifies
-  five control plus twelve telemetry expected-invalid fixtures for their exact
+  five control plus thirteen telemetry expected-invalid fixtures for their exact
   rejection reasons, in addition to 11+4 valid samples.
 - Canonical telemetry now always emits `frame_counter`, current-frame
   `new_evt`, and boot-cumulative `evt_total` through serial status/verbose,
@@ -140,16 +174,26 @@ column so implemented cannot be read as production hardware passed.
   JavaScript safe-integer limit; `evt_total` survives Safe Idle and mode or
   preset transitions. Optional `pipeline_debug.event_count` remains as a
   compatibility mirror.
+- A passive Node host runner now validates canonical NDJSON, checks static,
+  baseline-qualified pulse-to-silence, sequence, and event-counter acceptance,
+  and writes a
+  no-overwrite evidence directory containing reports, metrics, exact schema
+  copies, and SHA-256 hashes. Twenty dry-run cases and eight integration tests
+  pass, including fail-closed physical-context and report-consistency negatives;
+  three Gate 1 plan templates (static, S1-ON pulse, and S1-OFF pulse control)
+  are ready for the next session.
 
 ## 5. Implemented but not yet proven enough
 
 - `m5stack-atoms3-pipeline` has a build, upload, and USB-only software-zero boot
   pass plus a powered unloaded channel-routing pass. Its first powered Live
   liquid settling test failed because residual vibration did not stop. Gravity
-  separation and motion-band filtering are planned but not yet implemented;
-  granular comparison, spatial checks, and soak must wait for the retest.
-- The new AtomS3 IMU stale safe-stop is implemented but still needs controlled
-  fault injection and recovery validation on the production image.
+  separation and motion-band filtering are now implemented in source but have
+  not been uploaded or powered; granular comparison, spatial checks, and soak
+  must wait for the retest.
+- The new AtomS3 IMU stale safe-stop and local compile-gated fault injector are
+  implemented; controlled stop/recovery still needs validation on the
+  production image.
 - Safe Idle from the tested live channel/output slice and the requirement for a
   fresh `audio on` after returning to Live passed. Calibration/Replay/Record,
   BtnA hold, controlled IMU-stale recovery, and audio-configuration guards
@@ -166,11 +210,10 @@ column so implemented cannot be read as production hardware passed.
 
 ## 6. Not implemented yet
 
-- The Gate 1 activity fixtures/filter, host bench runner, and separate AtomS3
-  monitor-only wireless environment described in
-  `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md`. The existing StickS3
-  remote baseline is not yet safe to enable unchanged on the AtomS3 production
-  path.
+- Gate 1 hardware validation and the separate AtomS3 monitor-only wireless
+  environment described in `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md`.
+  The existing StickS3 remote baseline is not yet safe to enable unchanged on
+  the AtomS3 production path.
 - AtomS3 production DXL adapter for GPIO1 TX / GPIO2 RX automatic half-duplex,
   including device read-back, watchdog/fault state, and telemetry.
 - Automatic capture of resolved preset/build/calibration identity for
@@ -201,9 +244,8 @@ the existing reduced shared state, not via architectural replacement.
 
 ## 8. Recommended next focus
 
-- Preserve the completed schema/native/fingerprint checkpoint, then implement
-  and validate the feature-gated gravity-separated activity path and
-  current-frame `new_evt` contract in
+- Preserve the completed schema/native/fingerprint and Gate 1 software
+  checkpoint. Validate the corrected image with the exact USB/powered procedure in
   `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md`.
 - Continue `m5stack-atoms3-pipeline` validation with Safe Idle from every
   active mode, IMU fault observation, configuration guards, and the exact

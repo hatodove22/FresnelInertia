@@ -1,0 +1,1 @@
+{"timestamp_ms":0,"frame_counter":600,"evt_total":0,"preset":"dry_invalid","run_mode":"live","mass":{"pos_norm":[0,0],"vel_norm_s":[0,0],"energy":0,"fill":0},"actuators":[0,0,0,0],"safety":{"imu_stale_safe_stop":false,"audio_zero_asserted":true,"tilt_disarmed":true}}

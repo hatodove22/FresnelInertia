@@ -1,0 +1,2 @@
+{"timestamp_ms":0,"frame_counter":100,"new_evt":1,"evt_total":0,"preset":"dry_first_mismatch","run_mode":"live","mass":{"pos_norm":[0,0],"vel_norm_s":[0,0],"energy":0,"fill":0.25},"actuators":[0,0,0,0],"safety":{"imu_stale_safe_stop":false,"audio_zero_asserted":true,"tilt_disarmed":true}}
+{"timestamp_ms":10,"frame_counter":101,"new_evt":0,"evt_total":0,"preset":"dry_first_mismatch","run_mode":"live","mass":{"pos_norm":[0,0],"vel_norm_s":[0,0],"energy":0,"fill":0.25},"actuators":[0,0,0,0],"safety":{"imu_stale_safe_stop":false,"audio_zero_asserted":true,"tilt_disarmed":true}}

@@ -27,6 +27,16 @@ uint64_t addTelemetryCountSaturating(uint64_t total, uint64_t increment) {
   return total + increment;
 }
 
+template <std::size_t Capacity>
+void appendEvents(EventFrame<Capacity>& destination,
+                  const EventFrame<Capacity>& source) {
+  for (std::size_t i = 0;
+       i < source.count && destination.count < destination.items.size();
+       ++i) {
+    destination.items[destination.count++] = source.items[i];
+  }
+}
+
 bool isCommand(const char* command, const char* expected) {
   return std::strcmp(command, expected) == 0;
 }
@@ -202,10 +212,12 @@ bool HapticPipeline::begin(const SystemParams& params) {
   params_ = params;
   current_family_ = params.container.family;
   requested_run_mode_ = RunMode::Live;
+  imu_fault_injection_active_ = false;
 
   preset_store_.begin();
   calibrator_.loadStoredCarriers(params_);
   const bool imu_ready = imu_.begin();
+  motion_activity_filter_.configure(params_);
   mass_layer_.configure(params_);
   event_layer_.configure(params_);
   texture_layer_.configure(params_);
@@ -217,6 +229,8 @@ bool HapticPipeline::begin(const SystemParams& params) {
   tilt_model_.reset();
   const bool tilt_ready = tilt_.begin(params_);
   const bool remote_ready = remote_.begin(params_);
+  const bool usb_telemetry_ready = usb_telemetry_.begin(params_);
+  params_.features.enable_usb_telemetry = false;
   const bool recorder_ready = recorder_.begin(params_);
 
   if (!imu_ready || !audio_ready || !tilt_ready) {
@@ -233,13 +247,16 @@ bool HapticPipeline::begin(const SystemParams& params) {
   telemetry_.run_mode = currentRunMode();
   telemetry_.audio = audio_.status();
   telemetry_.safety.imu_stale_safe_stop = false;
+  telemetry_.safety.imu_fault_injection_active = false;
   telemetry_.safety.audio_zero_asserted = telemetry_.audio.output_silenced;
   telemetry_.safety.tilt_disarmed = !tilt_.isEnabled();
-  return imu_ready && audio_ready && tilt_ready && remote_ready && recorder_ready;
+  return imu_ready && audio_ready && tilt_ready && remote_ready &&
+         usb_telemetry_ready && recorder_ready;
 }
 
 bool HapticPipeline::reconfigurePipeline() {
   clearCurrentEventTelemetry(telemetry_);
+  motion_activity_filter_.configure(params_);
   mass_layer_.configure(params_);
   event_layer_.configure(params_);
   texture_layer_.configure(params_);
@@ -250,6 +267,7 @@ bool HapticPipeline::reconfigurePipeline() {
   tilt_model_.configure(params_);
   tilt_.configure(params_);
   remote_.configure(params_);
+  usb_telemetry_.configure(params_);
   recorder_.configure(params_);
   return audio_ready;
 }
@@ -263,6 +281,7 @@ void HapticPipeline::refreshOutputConfig() {
 
 void HapticPipeline::resetDynamicPipelineState() {
   clearCurrentEventTelemetry(telemetry_);
+  motion_activity_filter_.configure(params_);
   mass_layer_.configure(params_);
   event_layer_.configure(params_);
   texture_layer_.configure(params_);
@@ -292,6 +311,12 @@ bool HapticPipeline::applyAudioConfigOrRollback(
 void HapticPipeline::enterSafeIdle() {
   audio_.submitSilence();
   tilt_.setRuntimeEnabled(false);
+  usb_telemetry_.prepareForConsoleOutput();
+  imu_fault_injection_active_ = false;
+  imu_stale_safe_stop_ = false;
+  // Safe Idle starts a new monitoring epoch. If valid IMU data does not
+  // return, the stale-stop may assert again only after the full deadline.
+  last_valid_imu_ms_ = millis();
 
   if (calibrator_.isActive()) {
     calibrator_.stop(params_, false);
@@ -319,6 +344,7 @@ void HapticPipeline::enterSafeIdle() {
   telemetry_.tilt = {};
   telemetry_.audio = audio_.status();
   telemetry_.safety.imu_stale_safe_stop = imu_stale_safe_stop_;
+  telemetry_.safety.imu_fault_injection_active = false;
   telemetry_.safety.audio_zero_asserted = telemetry_.audio.output_silenced;
   telemetry_.safety.tilt_disarmed = !tilt_.isEnabled();
   telemetry_.calibration = calibrator_.status();
@@ -334,6 +360,7 @@ HapticPipeline::RuntimeConfigSnapshot HapticPipeline::captureRuntimeConfig() con
   snapshot.tilt = params_.tilt;
   snapshot.iface = params_.iface;
   snapshot.recorder = params_.recorder;
+  snapshot.motion_activity = params_.motion_activity;
   snapshot.low_carrier_hz = params_.resonance.low_carrier_hz;
   snapshot.high_carrier_hz = params_.resonance.high_carrier_hz;
   return snapshot;
@@ -346,6 +373,7 @@ void HapticPipeline::restoreRuntimeConfig(SystemParams& params, const RuntimeCon
   params.tilt = snapshot.tilt;
   params.iface = snapshot.iface;
   params.recorder = snapshot.recorder;
+  params.motion_activity = snapshot.motion_activity;
   params.resonance.low_carrier_hz = snapshot.low_carrier_hz;
   params.resonance.high_carrier_hz = snapshot.high_carrier_hz;
 }
@@ -424,7 +452,9 @@ void HapticPipeline::toggleVerbose() {
 }
 
 void HapticPipeline::cycleAudioTestMode() {
-  if (calibrator_.isActive()) {
+  if (calibrator_.isActive() ||
+      !imuSafetyInterlockAllowsPhysicalArm(
+          imu_stale_safe_stop_, imu_fault_injection_active_)) {
     return;
   }
   const SystemParams previous_params = params_;
@@ -479,7 +509,10 @@ void HapticPipeline::toggleAudioRuntimeEnable() {
   }
   const SystemParams previous_params = params_;
   const bool next_state = !(params_.features.enable_audio_output && params_.audio.runtime_enable);
-  if (next_state && !audio_.isCompileEnabled()) {
+  if (next_state &&
+      (!audio_.isCompileEnabled() ||
+       !imuSafetyInterlockAllowsPhysicalArm(
+           imu_stale_safe_stop_, imu_fault_injection_active_))) {
     return;
   }
   params_.features.enable_audio_output = next_state;
@@ -492,7 +525,10 @@ void HapticPipeline::toggleAudioRuntimeEnable() {
 }
 
 bool HapticPipeline::startRuntimeCalibration() {
-  if (calibrator_.isActive() || !audio_.isCompileEnabled()) {
+  if (!imuSafetyInterlockAllowsRunMode(
+          imu_stale_safe_stop_, imu_fault_injection_active_,
+          RunMode::Calibration) ||
+      calibrator_.isActive() || !audio_.isCompileEnabled()) {
     return false;
   }
 
@@ -606,6 +642,14 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
     params_.mass.gyro_to_energy_gain = clampf(value.number, 0.0f, 1.0f);
   } else if (std::strcmp(path, "mass.rebound") == 0 && value.has_number) {
     params_.mass.rebound = clampf(value.number, 0.0f, 1.0f);
+  } else if (std::strcmp(path, "motion_activity.gravity_cutoff_hz") == 0 && value.has_number) {
+    params_.motion_activity.gravity_cutoff_hz = clampf(value.number, 0.05f, 20.0f);
+  } else if (std::strcmp(path, "motion_activity.motion_cutoff_hz") == 0 && value.has_number) {
+    params_.motion_activity.motion_cutoff_hz = clampf(value.number, 0.10f, 100.0f);
+  } else if (std::strcmp(path, "motion_activity.accel_deadband_g") == 0 && value.has_number) {
+    params_.motion_activity.accel_deadband_g = clampf(value.number, 0.0f, 1.0f);
+  } else if (std::strcmp(path, "motion_activity.gyro_deadband_dps") == 0 && value.has_number) {
+    params_.motion_activity.gyro_deadband_dps = clampf(value.number, 0.0f, 90.0f);
   } else if (std::strcmp(path, "event.roll_rate_hz") == 0 && value.has_number) {
     params_.event.roll_rate_hz = clampf(value.number, 0.0f, 200.0f);
   } else if (std::strcmp(path, "event.impact_rate_hz") == 0 && value.has_number) {
@@ -637,7 +681,10 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
   } else if (std::strcmp(path, "resonance.master_gain") == 0 && value.has_number) {
     params_.resonance.master_gain = clampf(value.number, 0.0f, 4.0f);
   } else if (std::strcmp(path, "audio.runtime_enable") == 0 && value.has_bool) {
-    if (value.boolean && !audio_.isCompileEnabled()) {
+    if (value.boolean &&
+        (!audio_.isCompileEnabled() ||
+         !imuSafetyInterlockAllowsPhysicalArm(
+             imu_stale_safe_stop_, imu_fault_injection_active_))) {
       return false;
     }
     params_.audio.runtime_enable = value.boolean;
@@ -714,10 +761,15 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
   } else if (std::strcmp(path, "features.enable_single_shot_spatial_delay") == 0 && value.has_bool) {
     params_.features.enable_single_shot_spatial_delay = value.boolean;
   } else if (std::strcmp(path, "features.enable_imu_stale_safe_stop") == 0 && value.has_bool) {
-    params_.features.enable_imu_stale_safe_stop = value.boolean;
-    if (!value.boolean) {
-      imu_stale_safe_stop_ = false;
+    if (!value.boolean && imuStaleSafetyDisableRequiresSafeIdle(
+                              imu_stale_safe_stop_,
+                              imu_fault_injection_active_)) {
+      return false;
     }
+    params_.features.enable_imu_stale_safe_stop = value.boolean;
+  } else if (std::strcmp(path, "features.enable_gravity_separated_mass_activity") == 0 &&
+             value.has_bool) {
+    params_.features.enable_gravity_separated_mass_activity = value.boolean;
   } else if (pathMatches(path, "calibration.low_start_hz", "calibration.low_start") && value.has_number) {
     params_.calibration.low_start_hz = clampf(value.number, 20.0f, 1000.0f);
   } else if (pathMatches(path, "calibration.low_stop_hz", "calibration.low_stop") && value.has_number) {
@@ -820,6 +872,11 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
     case ControlMessageType::LoadPreset:
       return loadPresetByName(message.preset);
     case ControlMessageType::SetRunMode:
+      if (!imuSafetyInterlockAllowsRunMode(
+              imu_stale_safe_stop_, imu_fault_injection_active_,
+              message.run_mode)) {
+        return false;
+      }
       switch (message.run_mode) {
         case RunMode::Idle:
           enterSafeIdle();
@@ -863,6 +920,9 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
       if (message.tilt_enable &&
           (!tilt_.isCompileEnabled() ||
            !params_.features.allow_remote_tilt_arm ||
+           !imuSafetyInterlockAllowsPhysicalArm(
+               imu_stale_safe_stop_, imu_fault_injection_active_) ||
+           !motionDynamicsAllowTiltArm(mass_layer_.maxStableStepS()) ||
            (currentRunMode() != RunMode::Live &&
             currentRunMode() != RunMode::Record))) {
         return false;
@@ -875,6 +935,11 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
       }
       return true;
     case ControlMessageType::RecordStart:
+      if (!imuSafetyInterlockAllowsRunMode(
+              imu_stale_safe_stop_, imu_fault_injection_active_,
+              RunMode::Record)) {
+        return false;
+      }
       params_.features.enable_recorder = true;
       recorder_.configure(params_);
       if (recorder_.startRecording(millis(), message.argument[0] != '\0' ? message.argument : nullptr)) {
@@ -889,6 +954,11 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
       clearCurrentEventTelemetry(telemetry_);
       return true;
     case ControlMessageType::ReplayStart:
+      if (!imuSafetyInterlockAllowsRunMode(
+              imu_stale_safe_stop_, imu_fault_injection_active_,
+              RunMode::Replay)) {
+        return false;
+      }
       params_.features.enable_recorder = true;
       recorder_.configure(params_);
       if (recorder_.startReplay(message.argument, millis())) {
@@ -909,11 +979,17 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
 }
 
 void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
-  if (dt_s <= 0.0f) {
+  if (!std::isfinite(dt_s) || dt_s <= 0.0f) {
     return;
   }
+  const float raw_dt_s = dt_s;
   const float nominal_dt_s = 1.0f / std::max(1.0f, params_.mass.control_rate_hz);
-  if (dt_s > 0.050f) {
+  const bool motion_path_requested = motionInputBoundaryEnabled(
+      params_.features.enable_gravity_separated_mass_activity,
+      params_.features.enable_mass_layer,
+      params_.features.enable_tilt_plane);
+  if (!motion_path_requested &&
+      dt_s > kMotionInputResetGapS) {
     dt_s = nominal_dt_s;
   }
 
@@ -926,9 +1002,12 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   if (checked_sample.valid) {
     last_valid_imu_ms_ = now_ms;
   }
-  const bool next_imu_stale_safe_stop =
-      params_.features.enable_imu_stale_safe_stop &&
+  const bool stale_deadline_elapsed =
       now_ms - last_valid_imu_ms_ > kImuStaleSafeStopMs;
+  const bool next_imu_stale_safe_stop = imuStaleSafeStopNextState(
+      imu_stale_safe_stop_,
+      params_.features.enable_imu_stale_safe_stop,
+      stale_deadline_elapsed);
   bool calibration_params_changed = false;
   if (next_imu_stale_safe_stop && !imu_stale_safe_stop_) {
     if (calibrator_.isActive()) {
@@ -965,16 +1044,97 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   const bool texture_enabled = !safe_output_stop && params_.features.enable_texture_layer;
   const bool resonance_enabled = !safe_output_stop && params_.features.enable_resonance_layer;
   const bool spatial_enabled = !safe_output_stop && params_.features.enable_spatial_renderer;
-  const MassState mass = mass_enabled ? mass_layer_.update(checked_sample, dt_s) : makeDefaultMassState();
-  const auto events =
-      event_enabled ? event_layer_.update(mass, dt_s) : EventFrame<kMaxEventsPerFrame>{};
-  const auto textures =
-      texture_enabled ? texture_layer_.update(events, dt_s) : TextureFrame<kMaxTexturesPerFrame>{};
+  const bool gravity_separated_activity = motionInputBoundaryEnabled(
+      params_.features.enable_gravity_separated_mass_activity,
+      mass_enabled,
+      tilt_mode_allowed);
+
+  MassState mass = mass_enabled ? mass_layer_.state() : makeDefaultMassState();
+  EventFrame<kMaxEventsPerFrame> events{};
+  float sensor_dt_s = dt_s;
+  bool hold_tilt_command = false;
+  bool fail_closed_tilt_command = false;
+
+  if (gravity_separated_activity) {
+    const bool was_motion_initialized = motion_activity_filter_.initialized();
+    const MotionInputResult motion_input =
+        motion_activity_filter_.process(checked_sample, raw_dt_s);
+    if (motion_input.action == MotionInputAction::RejectFrame) {
+      return;
+    }
+
+    if (motion_input.action == MotionInputAction::ResetNeutral) {
+      // A long sensor gap is a discontinuity, not a large integration step.
+      // Clear every dynamic layer and leave the physical tilt command held
+      // until a fresh valid sample re-establishes the estimator baseline.
+      resetDynamicPipelineState();
+      mass = mass_layer_.state();
+      hold_tilt_command = true;
+    } else if (motion_input.action == MotionInputAction::HoldNoSample) {
+      // Existing texture/resonance/spatial tails still advance below using
+      // raw wall-clock time. Sensor-driven Mass/Event/Tilt state is held.
+      mass = mass_layer_.state();
+      hold_tilt_command = true;
+    } else {
+      sensor_dt_s = motion_input.effective_dt_s;
+      const uint8_t substep_count =
+          motionIntegrationSubstepCount(sensor_dt_s,
+                                        mass_layer_.maxStableStepS());
+      const MotionIntegrationSafetyAction safety_action =
+          motionIntegrationSafetyAction(substep_count);
+      if (safety_action ==
+          MotionIntegrationSafetyAction::ResetNeutralAndDisarmTilt) {
+        // Unlike a recoverable missing-sample gap, invalid or unsupported
+        // dynamics cannot safely retain an earlier physical tilt command.
+        resetDynamicPipelineState();
+        mass = mass_layer_.state();
+        fail_closed_tilt_command = true;
+      } else {
+        const float substep_dt_s = sensor_dt_s / substep_count;
+        for (uint8_t substep = 0; substep < substep_count; ++substep) {
+          if (mass_enabled) {
+            mass = mass_layer_.updateWithActivity(
+                checked_sample, motion_input.activity, substep_dt_s);
+          }
+          // The first valid sample establishes gravity and may move the
+          // quasi-static mass path, but it must never manufacture an event.
+          if (mass_enabled && event_enabled && was_motion_initialized) {
+            const std::size_t remaining_event_slots =
+                events.items.size() - events.count;
+            appendEvents(
+                events,
+                event_layer_.update(
+                    mass, substep_dt_s, remaining_event_slots));
+          }
+        }
+      }
+    }
+  } else {
+    if (mass_enabled) {
+      mass = mass_layer_.update(checked_sample, dt_s);
+    }
+    if (event_enabled) {
+      events = event_layer_.update(mass, dt_s);
+    }
+  }
+
+  const float tail_dt_s = gravity_separated_activity ? raw_dt_s : dt_s;
+  const auto textures = texture_enabled
+                            ? texture_layer_.update(events, tail_dt_s)
+                            : TextureFrame<kMaxTexturesPerFrame>{};
   const auto resonances =
       resonance_enabled ? resonance_layer_.update(textures) : ResonanceFrame<kMaxResonanceVoicesPerFrame>{};
-  const auto spatial = spatial_enabled ? spatial_renderer_.update(resonances, dt_s) : SpatialFrame4{};
-  const auto tilt_cmd =
-      tilt_mode_allowed ? updateTiltCommand(checked_sample, mass, dt_s) : TiltPlaneCommand{};
+  const auto spatial =
+      spatial_enabled ? spatial_renderer_.update(resonances, tail_dt_s) : SpatialFrame4{};
+  TiltPlaneCommand tilt_cmd =
+      tilt_mode_allowed && hold_tilt_command && !fail_closed_tilt_command
+          ? telemetry_.tilt
+          : TiltPlaneCommand{};
+  const bool submit_tilt_command =
+      tilt_mode_allowed && !hold_tilt_command && !fail_closed_tilt_command;
+  if (submit_tilt_command) {
+    tilt_cmd = updateTiltCommand(checked_sample, mass, sensor_dt_s);
+  }
   const HapticEvent last_event = event_enabled ? event_layer_.lastEvent() : HapticEvent{};
 
   DriveFrame4 audio_drive = spatial.drive;
@@ -989,8 +1149,15 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   } else {
     audio_.submit(audio_drive);
   }
-  if (tilt_mode_allowed && tilt_.isEnabled()) {
-    tilt_.submit(tilt_cmd);
+  if (fail_closed_tilt_command) {
+    // Publish/submit the neutral frame before disabling torque so telemetry
+    // and the physical backend agree on the fail-closed transition.
+    tilt_.submit(TiltPlaneCommand{});
+    tilt_.setRuntimeEnabled(false);
+  } else if (tilt_mode_allowed && tilt_.isEnabled()) {
+    if (submit_tilt_command) {
+      tilt_.submit(tilt_cmd);
+    }
   } else if (tilt_.isEnabled()) {
     tilt_.setRuntimeEnabled(false);
   }
@@ -1008,6 +1175,8 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   telemetry_.tilt = tilt_cmd;
   telemetry_.audio = audio_.status();
   telemetry_.safety.imu_stale_safe_stop = imu_stale_safe_stop_;
+  telemetry_.safety.imu_fault_injection_active =
+      imu_fault_injection_active_;
   telemetry_.safety.audio_zero_asserted = telemetry_.audio.output_silenced;
   telemetry_.safety.tilt_disarmed = !tilt_.isEnabled();
   telemetry_.calibration = calibrator_.status();
@@ -1025,8 +1194,10 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
 
   recorder_.append(telemetry_);
   remote_.publishTelemetry(telemetry_);
+  usb_telemetry_.publish(telemetry_);
 
-  if (telemetry_.calibration.active && calibration_params_changed) {
+  if (!usb_telemetry_.isEnabled() && telemetry_.calibration.active &&
+      calibration_params_changed) {
     Serial.printf(
         "calibration: wall=%u band=%u candidate=%.1fHz best=%.1fHz score=%.5f progress=%.2f\n",
         static_cast<unsigned>(telemetry_.calibration.wall),
@@ -1036,11 +1207,13 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
         telemetry_.calibration.best_score,
         telemetry_.calibration.progress);
   }
-  if (!telemetry_.calibration.active && telemetry_.calibration.finished && calibration_params_changed) {
+  if (!usb_telemetry_.isEnabled() && !telemetry_.calibration.active &&
+      telemetry_.calibration.finished && calibration_params_changed) {
     Serial.println("calibration: carriers stored");
   }
 
-  if (params_.features.enable_verbose_serial && millis() - last_print_ms_ > 250) {
+  if (!usb_telemetry_.isEnabled() && params_.features.enable_verbose_serial &&
+      millis() - last_print_ms_ > 250) {
     last_print_ms_ = millis();
     Serial.printf(
         "preset=%s mode=%u frame=%" PRIu64 " new_evt=%u evt_total=%" PRIu64 " energy=%.3f pos=(%.2f,%.2f) vel=(%.2f,%.2f) evt=%u ch=[%.2f %.2f %.2f %.2f] rec=%u replay=%u remote=%u\n",
@@ -1063,10 +1236,19 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
 }
 
 void HapticPipeline::tick() {
+  usb_telemetry_.update();
   ControlMessage message{};
   remote_.update();
   while (remote_.popMessage(message)) {
     applyControlMessage(message);
+  }
+
+  if (imuSafetyInterlockRequiresTickSafeIdle(
+          imu_stale_safe_stop_, imu_fault_injection_active_,
+          currentRunMode())) {
+    // Defense in depth: no caller may move the diagnostic away from the
+    // physical Live IMU path. Any future unguarded transition fails closed.
+    enterSafeIdle();
   }
 
   const uint32_t now_us = micros();
@@ -1074,15 +1256,28 @@ void HapticPipeline::tick() {
   last_tick_us_ = now_us;
 
   if (recorder_.status().replaying) {
+    const bool was_replaying = true;
     ImuSample replay_sample{};
     float replay_dt_s = dt_s;
     if (recorder_.pollReplay(millis(), replay_sample, replay_dt_s)) {
       processSample(replay_sample, replay_dt_s);
     }
+    if (replayCompletionRequiresSafeIdle(
+            was_replaying, recorder_.status().replaying)) {
+      enterSafeIdle();
+    }
     return;
   }
 
-  const ImuSample imu = imu_.poll();
+  ImuSample imu = imu_.poll();
+#if HAPTICS_ENABLE_IMU_FAULT_INJECTION
+  if (imu_fault_injection_active_) {
+    // Exercise the production stale-sample path without directly invoking
+    // any safety action. processSample() remains the sole owner of the
+    // >300 ms stale transition, neutral reset, zero submission, and disarm.
+    imu.valid = false;
+  }
+#endif
   processSample(imu, dt_s);
 }
 
@@ -1091,11 +1286,16 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     return;
   }
 
+  usb_telemetry_.prepareForConsoleOutput();
+
   const auto setAudioRuntimeEnabled = [this](bool enabled) {
     if (calibrator_.isActive()) {
       return false;
     }
-    if (enabled && !audio_.isCompileEnabled()) {
+    if (enabled &&
+        (!audio_.isCompileEnabled() ||
+         !imuSafetyInterlockAllowsPhysicalArm(
+             imu_stale_safe_stop_, imu_fault_injection_active_))) {
       return false;
     }
     const SystemParams previous_params = params_;
@@ -1117,6 +1317,10 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
       params_.audio.channel_test_wall = WallId::None;
       return applyAudioConfigOrRollback(previous_params);
     }
+    if (!imuSafetyInterlockAllowsPhysicalArm(
+            imu_stale_safe_stop_, imu_fault_injection_active_)) {
+      return false;
+    }
     if (!layoutAllowsWall(params_.audio.output_layout, wall)) {
       return false;
     }
@@ -1126,11 +1330,76 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     return applyAudioConfigOrRollback(previous_params);
   };
 
+  if (isCommand(command, "usb telemetry on")) {
+    if (usb_telemetry_.setRuntimeEnabled(true)) {
+      params_.features.enable_usb_telemetry = true;
+      Serial.println(
+          "usb_telemetry: enabled; physical output state unchanged");
+    } else {
+      Serial.println("usb_telemetry: enable rejected; backend not compiled");
+    }
+    return;
+  }
+  if (isCommand(command, "usb telemetry off")) {
+    params_.features.enable_usb_telemetry = false;
+    usb_telemetry_.setRuntimeEnabled(false);
+    Serial.println(
+        "usb_telemetry: disabled; physical output state unchanged");
+    return;
+  }
+  if (isCommand(command, "usb telemetry status")) {
+    char usb_status[256]{};
+    usb_telemetry_.describeStatus(usb_status, sizeof(usb_status));
+    Serial.println(usb_status);
+    return;
+  }
+
+  if (isCommand(command, "imu fault on")) {
+#if HAPTICS_ENABLE_IMU_FAULT_INJECTION
+    if (currentRunMode() != RunMode::Live) {
+      Serial.println("imu_fault: enable rejected; Live mode required");
+      return;
+    }
+    if (!params_.features.enable_imu_stale_safe_stop) {
+      Serial.println(
+          "imu_fault: enable rejected; IMU stale safe-stop disabled");
+      return;
+    }
+    imu_fault_injection_active_ = true;
+    telemetry_.safety.imu_fault_injection_active = true;
+    Serial.println(
+        "imu_fault: active=1; subsequent polled samples forced invalid; stale-stop owns safety action");
+#else
+    Serial.println("imu_fault: enable rejected; diagnostic not compiled");
+#endif
+    return;
+  }
+  if (isCommand(command, "imu fault off")) {
+    if (imuFaultClearRequiresSafeIdle(imu_stale_safe_stop_)) {
+      Serial.println(
+          "imu_fault: clear rejected; stale-stop asserted; issue idle for safe recovery");
+      return;
+    }
+    imu_fault_injection_active_ = false;
+    telemetry_.safety.imu_fault_injection_active = false;
+    Serial.println("imu_fault: active=0; real polled samples restored");
+    return;
+  }
+  if (isCommand(command, "imu fault status")) {
+    Serial.printf(
+        "imu_fault: compile=%u active=%u mode=%s imu_stop=%u\n",
+        static_cast<unsigned>(HAPTICS_ENABLE_IMU_FAULT_INJECTION != 0),
+        static_cast<unsigned>(imu_fault_injection_active_),
+        runModeToString(currentRunMode()),
+        static_cast<unsigned>(imu_stale_safe_stop_));
+    return;
+  }
+
   if (isCommand(command, "status")) {
     char remote_status[192]{};
     remote_.describeStatus(remote_status, sizeof(remote_status));
     Serial.printf(
-        "status: preset=%s mode=%s frame=%" PRIu64 " new_evt=%u evt_total=%" PRIu64 " evt=%s/%s energy=%.3f pos=(%.2f,%.2f) imu_stop=%u audio=%u zero=%u driver=%u transport=%s diag=%u layout=%s gain=%.2f limit=%.3f rec=%u replay=%u tilt=%u\n",
+        "status: preset=%s mode=%s frame=%" PRIu64 " new_evt=%u evt_total=%" PRIu64 " evt=%s/%s energy=%.3f pos=(%.2f,%.2f) imu_stop=%u imu_fault=%u audio=%u zero=%u driver=%u transport=%s diag=%u layout=%s gain=%.2f limit=%.3f rec=%u replay=%u tilt=%u\n",
         telemetry_.active_preset,
         runModeToString(telemetry_.run_mode),
         telemetry_.frame_counter,
@@ -1142,6 +1411,7 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
         telemetry_.mass.pos_norm.x,
         telemetry_.mass.pos_norm.y,
         static_cast<unsigned>(telemetry_.safety.imu_stale_safe_stop),
+        static_cast<unsigned>(telemetry_.safety.imu_fault_injection_active),
         static_cast<unsigned>(telemetry_.audio.runtime_enabled),
         static_cast<unsigned>(telemetry_.audio.output_silenced),
         static_cast<unsigned>(telemetry_.audio.driver_installed),
@@ -1154,6 +1424,11 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
         static_cast<unsigned>(telemetry_.recorder.replaying),
         static_cast<unsigned>(tilt_.isEnabled()));
     Serial.println(remote_status);
+#if HAPTICS_ENABLE_USB_TELEMETRY
+    char usb_status[256]{};
+    usb_telemetry_.describeStatus(usb_status, sizeof(usb_status));
+    Serial.println(usb_status);
+#endif
     return;
   }
 
@@ -1211,6 +1486,13 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     return;
   }
   if (isCommand(command, "record start")) {
+    if (!imuSafetyInterlockAllowsRunMode(
+            imu_stale_safe_stop_, imu_fault_injection_active_,
+            RunMode::Record)) {
+      Serial.println(
+          "record: start rejected; IMU fault diagnostic requires Live or idle");
+      return;
+    }
     params_.features.enable_recorder = true;
     recorder_.configure(params_);
     if (recorder_.startRecording(millis())) {
@@ -1239,6 +1521,13 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     return;
   }
   if (startsWith(command, "replay start ")) {
+    if (!imuSafetyInterlockAllowsRunMode(
+            imu_stale_safe_stop_, imu_fault_injection_active_,
+            RunMode::Replay)) {
+      Serial.println(
+          "replay: start rejected; IMU fault diagnostic requires Live or idle");
+      return;
+    }
     params_.features.enable_recorder = true;
     recorder_.configure(params_);
     if (recorder_.startReplay(command + 13, millis())) {
@@ -1274,6 +1563,15 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     if (currentRunMode() != RunMode::Live &&
         currentRunMode() != RunMode::Record) {
       Serial.println("tilt: arm rejected outside live/record mode");
+      return;
+    }
+    if (!imuSafetyInterlockAllowsPhysicalArm(
+            imu_stale_safe_stop_, imu_fault_injection_active_)) {
+      Serial.println("tilt: arm rejected by IMU safety interlock");
+      return;
+    }
+    if (!motionDynamicsAllowTiltArm(mass_layer_.maxStableStepS())) {
+      Serial.println("tilt: arm rejected; invalid motion dynamics");
       return;
     }
     params_.features.enable_tilt_plane = true;
@@ -1452,8 +1750,19 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     return;
   }
 
+#if HAPTICS_ENABLE_USB_TELEMETRY && HAPTICS_ENABLE_IMU_FAULT_INJECTION
+  Serial.println(
+      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status, usb telemetry on|off|status, imu fault on|off|status");
+#elif HAPTICS_ENABLE_USB_TELEMETRY
+  Serial.println(
+      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status, usb telemetry on|off|status");
+#elif HAPTICS_ENABLE_IMU_FAULT_INJECTION
+  Serial.println(
+      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status, imu fault on|off|status");
+#else
   Serial.println(
       "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status");
+#endif
 }
 
 }  // namespace haptics

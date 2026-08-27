@@ -35,12 +35,25 @@ Status on `2026-08-22`:
 The earlier TDM and combined-probe passes are supporting evidence, not a pass
 of this firmware image.
 
+Software follow-up checkpoint on `2026-08-28` (not uploaded or powered):
+
+- the as-built profile now opts into the default-off gravity-separated activity
+  path documented below
+- the current image builds at `42,932 / 327,680` RAM and
+  `578,377 / 3,342,336` flash
+- native activity, time/reset, alias, and all-family quiet-gate regressions pass
+- canonical `frame_counter`, `new_evt`, and `evt_total` plus the passive host
+  evidence runner are ready
+- these software results do not replace the failed powered observation above;
+  the only next hardware procedure is document 24, not a restart of section 6
+
 ## 2. Architecture boundary
 
 The active haptic path is:
 
 ```text
 AtomS3 IMU
+  -> motion activity filter (activity branch; raw X/Y retained for position)
   -> mass motion
   -> events
   -> texture atoms
@@ -78,8 +91,10 @@ built-in material preset is created:
 | Output layout | `quad_wall_4ch` |
 | Boot runtime arm | disabled |
 | Muted-driver policy | driver installed, zero samples submitted |
+| Mass activity input | gravity-separated path enabled; 1 Hz gravity LPF, 10 Hz motion LPF, 0.025 g / 1.5 deg/s radial subtractive deadbands |
 | IMU stale safety | enabled; 300 ms without a valid finite sample |
-| Safe Idle | `idle`, `stop`, remote Idle, or AtomS3 BtnA hold |
+| Controlled IMU fault diagnostic | compile-enabled only here; local serial runtime OFF by default |
+| Safe Idle | USB serial `idle` / `stop`, or AtomS3 BtnA hold |
 | Safety telemetry | always-present audio zero and top-level safety state |
 | Output gain | 1.0 |
 | Initial effective peak | 0.08 (8% normalized PCM full scale) |
@@ -87,10 +102,10 @@ built-in material preset is created:
 | Remote backend | compiled out |
 | Servo backend | compiled out |
 
-The profile explicitly enables physical master-gain application,
-attack-preserving texture decay, single-shot spatial delay, and the IMU stale
-safe-stop. Those flags remain false in generic presets so legacy default
-behavior does not change.
+The profile explicitly enables gravity-separated mass activity, physical
+master-gain application, attack-preserving texture decay, single-shot spatial
+delay, and the IMU stale safe-stop. Those flags remain false in generic presets
+so legacy default behavior does not change.
 
 The final peak clamp is applied after carrier/noise mixing, output gain, and
 the opted-in resonance master gain. The effective limit is
@@ -100,14 +115,28 @@ limits, not amplifier power, displacement, or perceptual-strength percentages.
 ## 4. Safety invariants
 
 - Boot may start TDM clocks, but it must write digital zeros.
-- Nonzero pipeline output requires an explicit `audio on` or deliberate local
-  runtime toggle.
+- Nonzero pipeline output on the AtomS3 production profile requires an explicit
+  USB serial `audio on` command.
 - `audio off` must return the running driver to zero output.
 - Safe Idle must end Calibration/Replay/Record, submit zero, turn audio runtime
   OFF, disarm tilt, clear channel test, reset every dynamic layer, and enter
   Idle.
 - After Safe Idle, `live` alone must not restore output; a fresh `audio on` is
   required.
+- The gravity-separated activity path accepts only finite valid IMU samples and
+  finite positive frame time. A malformed/non-positive time step is rejected
+  without advancing filter or downstream state.
+- While a sample is missing or non-finite, elapsed sensor time accumulates and
+  Mass/Event/Tilt state is held; existing Texture/Resonance/Spatial tails still
+  advance on raw wall-clock time.
+- Recovery through an accumulated gap of at most `50 ms` integrates Mass/Event
+  in no-more-than-`4 ms` stable substeps, capped at 64. A gap strictly greater
+  than `50 ms` resets the dynamic pipeline to neutral and holds Tilt until a
+  fresh baseline is established. Dynamics that cannot satisfy the bounded
+  subdivision also reset to neutral, but additionally submit neutral Tilt and
+  disarm the runtime servo interface. Fix the parameters and explicitly re-arm
+  Tilt; parameter recovery alone must not resume actuation. The first baseline
+  sample must not manufacture an event.
 - Audio transport, demo compatibility, and layout may change only while audio
   runtime is OFF. Demo compatibility must be rejected on `tdm8_slot`.
 - `audio.output_silenced` and top-level
@@ -123,7 +152,17 @@ limits, not amplifier power, displacement, or perceptual-strength percentages.
   and never bypass the compiled ceiling.
 - More than 300 ms without a valid finite IMU sample must reset the Mass,
   Event, Texture, Resonance, Spatial, and Tilt model states to neutral, force
-  TDM DMA to zero, and disarm an enabled servo interface.
+  TDM DMA to zero, and disarm an enabled servo interface. Once asserted, this
+  stop is latched across valid-sample recovery; only Safe Idle may clear it,
+  after output has been silenced/disarmed and with a fresh 300 ms monitoring
+  epoch.
+- Only `m5stack-atoms3-pipeline` defines
+  `HAPTICS_ENABLE_IMU_FAULT_INJECTION=1`. Local `imu fault on` merely marks
+  post-poll samples invalid; the existing stale path remains the sole owner of
+  zero/reset/disarm. Begin and Safe Idle clear it, runtime defaults OFF, and no
+  preset, generic `set_param`, WebSocket, replay, or remote path can arm it.
+  Recover a completed injected or natural stop with `idle`, never by restoring
+  valid samples while audio remains armed.
 - This image must not send a DYNAMIXEL torque-on or motion command.
 
 ## 5. Supporting probe evidence
@@ -146,7 +185,18 @@ Those probes used unloaded hardware, fixed servo motion, and identical
 low-duty waveforms on all four haptic channels. They did not exercise the
 four-layer spatial pipeline.
 
-## 6. First upload and acceptance procedure
+## 6. Historical first-upload procedure (superseded)
+
+This section preserves the original first-upload sequence and its historical
+acceptance contract. For the corrected Gate 1 image and the next hardware
+session, `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md` governs the entire order and
+acceptance procedure; do not resume partway through this older sequence.
+
+> **Do not execute this section for the next Gate 1 session.** Document 24 is
+> the only active runbook and its static-first, single-pulse, power-cycle,
+> six-orientation, IMU/Safe-Idle/configuration, and repeated-arm/soak gates must
+> pass before the later material/spatial quality work; that order must not be
+> rearranged.
 
 ### 6.1 Prepare and upload
 
@@ -210,28 +260,12 @@ needed to identify the channel and keep S1 accessible. Require:
 
 Finish with `audio test off`.
 
-### 6.5 Verify the live shared pipeline at 8%
+### 6.5 Historical live-pipeline step (not reusable)
 
-1. Run `audio on` with channel-test mode off.
-2. Move the AtomS3/container gently and confirm output follows IMU-driven
-   events rather than a fixed probe waveform.
-3. Exercise at least one liquid and one granular built-in preset.
-4. Record preset identity, IMU validity, recent events, four actuator summaries,
-   audio status, reset count/observations, rails, temperatures, and operator
-   observations.
-5. Require distinct event/output statistics for the two material families and
-   plausible wall-direction changes.
-6. Run the agreed arm/disarm and soak sequence at the 8% limit. Require no
-   reset, growing I2S error count, self-excited feedback, rail anomaly, or
-   abnormal heating.
-7. Perform controlled IMU fault injection. After more than 300 ms without a
-   valid finite sample, require neutral pipeline summaries and zero TDM output.
-   Observe either serial `status` with `imu_stop=1` and `zero=1`, or top-level
-   `safety.imu_stale_safe_stop=true`, `audio_zero_asserted=true`, and
-   `tilt_disarmed=true`. Pipeline-debug telemetry is not required. Restore valid
-   samples and require a neutral restart without a stale event/texture burst.
-   Servo output must remain disarmed.
-8. End with `audio off`, then set S1 OFF before removing 12 V.
+The former move/material/soak order was invalidated by the failed settling
+observation and is intentionally not reproduced here. Use document 24 from its
+first prerequisite through final Safe Idle; liquid must pass the static and
+single-pulse Gate 1 criteria before granular comparison or soak is permitted.
 
 ### 6.6 Verify Safe Idle and explicit re-arm
 
@@ -293,7 +327,7 @@ Mark each item independently:
 | Production image USB-only silent boot | passed with S1 OFF and 12 V OFF |
 | Production four-wall channel mapping | passed unloaded; CH1/CH2/CH3/CH4 isolated |
 | Production live IMU-driven four-layer output at 8% | failed powered settling: response decayed but did not stop; Safe Idle passed; follow document 24 |
-| Production 300 ms IMU stale safe-stop and clean recovery | pending |
+| Production 300 ms IMU stale safe-stop and clean recovery | local controlled injector implemented; hardware observation pending |
 | Safe Idle from Calibration/Replay/Record/live output and BtnA hold | live channel-test passed; other modes and BtnA pending |
 | Live-after-Idle remains muted until explicit `audio on` | passed |
 | Always-present audio/safety telemetry | implemented and schema-validated; remaining production observations pending |

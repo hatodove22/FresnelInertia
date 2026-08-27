@@ -264,6 +264,7 @@ struct AudioBackendStatus {
 
 struct SafetyStatus {
   bool imu_stale_safe_stop = false;
+  bool imu_fault_injection_active = false;
   bool audio_zero_asserted = true;
   bool tilt_disarmed = true;
 };

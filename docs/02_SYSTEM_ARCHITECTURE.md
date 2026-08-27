@@ -5,6 +5,8 @@
 ```text
 IMU
  ↓
+Motion Activity Filter
+ ↓
 Mass Motion Layer
  ↓
 Event Layer
@@ -18,7 +20,9 @@ Spatial Renderer (4 channels)
 Audio Output Backend
 ```
 
-A future parallel channel will be added after the mass-motion layer:
+A parallel low-frequency channel is modeled after the mass-motion layer. Its
+shared pseudo-force model and legacy StickS3 backend exist; the production
+AtomS3 TX/RX DXL adapter remains future work:
 
 ```text
 Mass Motion Layer
@@ -52,14 +56,19 @@ Recommended task decomposition for the ESP32-S3 development platform:
 | Module | Role |
 |---|---|
 | `ImuSampler` | board-specific IMU access |
+| `MotionActivityFilter` | default-off gravity estimation, motion-band limiting, radial deadband, and missing-sample time contract |
 | `MassMotionLayer` | latent state estimation |
 | `EventLayer` | symbolic haptic events |
 | `TextureLayer` | short haptic atoms / temporal patterns |
 | `ResonanceLayer` | actuator-aware envelope projection |
 | `SpatialRenderer4` | map onto 4 wall channels |
-| `AudioOutput4Ch` | hardware backend for switchable `quad_wall_4ch` / `front_back_2ch` output with an additive dual-I2S -> TDM migration path |
-| `TiltPlaneServoInterface` | future XL330 control path |
-| `RemoteInterface` | current SoftAP/WebSocket/HTTP monitoring and control path |
+| `AudioOutput4Ch` | hardware backend for switchable `quad_wall_4ch` / `front_back_2ch` output over the retained dual-I2S path or the AtomS3 TDM8 path |
+| `TiltPseudoForceModel` | shared low-frequency pseudo-force model that produces the desired tilt-plane command |
+| `TiltPlaneServoInterface` | compile-gated legacy StickS3 DATA+DIR servo backend; the AtomS3 TX/RX production adapter remains pending and compiled out |
+| `PresetStore` | built-in preset loading plus optional filesystem overrides |
+| `RuntimeCalibrator` | bounded carrier sweep, observation, and retained calibration results |
+| `RemoteInterface` | compile-gated StickS3 SoftAP/WebSocket/HTTP monitoring and control baseline; compiled out of AtomS3 production |
+| `UsbTelemetryProducer` | AtomS3-production-only, compile/runtime-gated canonical NDJSON producer over the existing USB console; passive and boot-forced OFF |
 | `Recorder` | current synchronized data capture baseline |
 | `HapticPipeline` | orchestration layer |
 

@@ -3,8 +3,9 @@
 This document defines the control and telemetry interfaces. The retained
 StickS3 remote target uses **USB serial + SoftAP browser status**, with
 `WebSocket + JSON` as its machine-readable backend. The first AtomS3 production
-target deliberately compiles the remote backend out and is operated through
-USB serial while the local hardware path is validated.
+target deliberately compiles the remote backend out. It is operated through
+USB serial and has an independent local, boot-forced-OFF canonical NDJSON
+producer for authorized evidence capture while the hardware path is validated.
 
 ## 1. Canonical control-plane concepts
 
@@ -26,14 +27,15 @@ USB serial while the local hardware path is validated.
 - always-present diagnostic counters:
   - `frame_counter`: accepted pipeline frames since boot, saturated at the
     JSON safe-integer limit
-  - `new_evt`: events generated in this frame, in the range 0--16
-  - `evt_total`: boot-lifetime generated-event count, saturated at the JSON
+  - `new_evt`: events admitted to this frame's bounded `EventFrame`, in the
+    range 0--16
+  - `evt_total`: boot-lifetime admitted-event count, saturated at the JSON
     safe-integer limit `9007199254740991`
 - active preset
 - run mode
 - IMU sample summary, including `valid`
 - latent mass state
-- recent event summary
+- last event admitted and latched for the recent-event summary
 - 4-channel actuator summary
 - audio backend status (`compile_enabled`, `driver_installed`,
   `runtime_enabled`, `output_silenced`, `test_mode`, `test_wall`,
@@ -42,6 +44,7 @@ USB serial while the local hardware path is validated.
     `demo_compat_mode`, and the effective `output_peak_limit`
 - always-present top-level safety status:
   - `imu_stale_safe_stop`
+  - `imu_fault_injection_active` (schema-optional for backward compatibility)
   - `audio_zero_asserted`
   - `tilt_disarmed`
 - calibration status (`active`, `finished`, `aborted`, `wall`, `band`, `stage`,
@@ -85,7 +88,7 @@ The internal message schema must be transport-independent.
 |---|---|---|---|
 | `m5stack-sticks3-audio` | USB serial + SoftAP page | WebSocket JSON | legacy bench path |
 | `m5stack-sticks3-remote` | USB serial + SoftAP page | WebSocket JSON | transport validation |
-| `m5stack-atoms3-pipeline` | USB serial | remote backend compiled out | built/uploaded; routing passed; powered settling failed and is the active blocker |
+| `m5stack-atoms3-pipeline` | USB serial | local canonical NDJSON, runtime OFF at boot; remote backend compiled out | prior image built/uploaded; routing passed; powered settling failed and is the active blocker |
 
 For the remote-enabled targets:
 
@@ -100,6 +103,11 @@ For the remote-enabled targets:
 
 TDM is an audio wire transport, not a control transport. The AtomS3 profile
 uses `tdm8_slot` internally while control remains USB serial in this slice.
+The AtomS3 USB producer is observation-only: its compile gate is enabled only
+for `m5stack-atoms3-pipeline`, its runtime parameter defaults false, and only
+the local `usb telemetry on|off|status` commands control it. Presets and remote
+parameter commands cannot arm it. See document 26 for framing, counters, and
+the exact mixed-log evidence workflow.
 
 ### Planned AtomS3 developer observer
 
@@ -155,6 +163,8 @@ The current firmware also exposes a serial console bridge for local control and 
 - `audio test level <0..1>`
 - `audio layout 2ch|4ch`
 - `remote status`
+- `usb telemetry on|off|status`
+- `imu fault on|off|status` (AtomS3 pipeline build only)
 
 Typical live tuning paths for the revised tilt branch:
 - `container.shell_mass_kg`
@@ -234,6 +244,17 @@ linear perceptual-strength percentage.
   neutral, TDM is forced to zero, and any enabled servo interface is disarmed;
   this is always observable through top-level `safety`, while the optional
   `pipeline_debug.imu_stale_safe_stop` is only a duplicate debug field
+- `m5stack-atoms3-pipeline` alone compiles a local controlled fault diagnostic.
+  In Live mode, `imu fault on` makes only subsequent physically polled IMU
+  samples invalid; it does not invoke reset, zero output, disarm, or Safe Idle
+  directly. The existing greater-than-300-ms stale path remains the sole owner
+  of those actions. Before stale-stop asserts, `imu fault off` may abort the
+  diagnostic and restore real samples. After assertion it is rejected, and
+  Safe Idle is the mandatory release that clears injection and disarms outputs
+  together; begin also clears injection. `safety.imu_fault_injection_active` distinguishes
+  this controlled condition from a real sensor fault. The field is optional in
+  the JSON schema so older canonical logs remain valid. No preset, generic
+  parameter, recorder replay, or remote-control path can activate injection.
 - `audio.output_silenced` and `safety.audio_zero_asserted` report the software
   zero assertion; `safety.tilt_disarmed` reports the software interface state
 - a failed DMA zero-fill or raw-I2S uninstall is an audio configuration failure;
@@ -271,6 +292,7 @@ Safe Idle:
 - submits digital zero and turns audio runtime output OFF
 - disarms the tilt interface
 - clears channel-test mode and its selected wall
+- clears controlled IMU fault injection
 - resets Mass, Event, Texture, Resonance, Spatial, and Tilt dynamic state
 - enters `run_mode=idle`
 
@@ -279,7 +301,7 @@ and zero asserted until a new explicit `audio on`. This prevents a mode change
 from replaying stale dynamic energy or silently re-arming hardware.
 
 The serial verbose and `status` lines expose `frame`, `new_evt`, `evt_total`,
-`imu_stop`, and `zero`. `last_event` is historical/latched, so a prior event can
+`imu_stop`, `imu_fault`, and `zero`. `last_event` is historical/latched, so a prior event can
 remain visible while `new_evt=0`. Remote JSON and recorder NDJSON emit the same
 three counters at top level regardless of the pipeline-debug flag. Safe Idle,
 preset/reconfiguration, stale-stop, Record, and Replay transitions clear only
@@ -325,6 +347,39 @@ object. They do not capture
 `preset_source`, `preset_path`, a fully resolved parameter snapshot/hash,
 firmware/build identity, calibration identity, or DYNAMIXEL feedback; those are
 required before a recording is considered a self-contained experiment record.
+
+### Host lab plan and report schemas
+
+`schemas/lab_run_plan.schema.json` defines offline acceptance plans and
+`schemas/lab_report.schema.json` defines the generated JSON report. These are
+host artifacts; they do not add a firmware command or authorize physical
+output. The passive tool in `tools/lab/` consumes canonical telemetry, copies
+the exact schemas into each evidence directory, and hashes every artifact.
+
+`frame_counter_mode=contiguous` is for full-rate recordings, while
+`monotonic` permits intentionally skipped frames in a latest-value transport
+but still rejects counter regression and uses `evt_total` to detect hidden
+events. `timestamp_origin=first_frame` resolves static/pulse timestamps as
+offsets from the first captured frame.
+
+For `physical_output_authorization_required=true`, the host analyzer applies a
+fixed Gate 1 semantic contract beyond JSON shape: `liquid_small_box`, the
+production environment and `as-built AtomS3 custom board` profile, the
+`active`/S1-ON or `s1_off_control`/S1-OFF pairing, first-frame timestamps,
+monotonic counters, exactly one 500 ms sequence check, exactly one canonical
+measurement with unmodified template thresholds, and valid IMU in every active
+frame. Static acceptance extends `evt_total` integrity through the first
+canonical anchor at or after the assessment end. The plan also carries typed
+before/after USB producer-status snapshots with the fixed 100 ms period; the transmitted-frame delta must
+equal the canonical frame count while
+pending bytes are zero and every drop, interruption, unterminated-partial, and
+serialization-error counter remains unchanged. These operator-transcribed
+snapshots are preserved and hashed as part of the byte-exact run plan.
+The total dropped count must equal the sum of backpressure and console-interrupt
+drops in each snapshot.
+Presence of a Gate 1 variant/production marker also makes an explicit true
+physical-authorization requirement mandatory; changing that flag to false does
+not turn a hardware claim into a generic dry run.
 
 ### Binary format later
 If throughput becomes a problem, define a binary chunked format after the control-plane schemas stabilize.

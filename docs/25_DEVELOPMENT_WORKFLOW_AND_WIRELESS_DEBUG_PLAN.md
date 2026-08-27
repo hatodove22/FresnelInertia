@@ -19,14 +19,18 @@ move a new Gate 3 feature ahead of the required `AGENTS.md` order.
 Implementation checkpoint on `2026-08-27`:
 
 - Slice 1 schema validation is implemented: retained valid samples pass and
-  eleven expected-invalid fixtures are rejected for their exact reasons,
+  eighteen expected-invalid fixtures are rejected for their exact reasons,
   including the previously unenforced `maximum` bound.
 - `native-layers` is implemented with pinned native/Unity versions, a strict
-  six-production-layer source filter, seven passing deterministic tests, and a
-  reviewed 400-frame legacy fingerprint with no automatic update path.
+  production-source filter, 20 passing deterministic tests, and a reviewed
+  400-frame legacy fingerprint with no automatic update path.
 - `m5stack-atoms3-pipeline` still builds after the host-test dependency cleanup.
-- The extended Gate 1 activity fixtures and Slice 2 behavior remain next; no
-  gravity-separation firmware change or upload is claimed by this checkpoint.
+- Slice 2 is integrated in source: the default-off production activity filter,
+  raw time/validity boundary, missing-sample hold/tail behavior, long-gap
+  reset, and first-valid event suppression are implemented. The as-built
+  AtomS3 profile opts in, but no corrected image upload or powered validation
+  is claimed by this checkpoint.
+- Slice 3 event/sequence telemetry is implemented as described below.
 
 ## 2. Primary decisions
 
@@ -85,8 +89,8 @@ Implementation checkpoint on `2026-08-27`:
 
 ### Gaps to close before AtomS3 wireless enablement
 
-- the native layer environment and legacy fingerprint exist; the extended
-  orientation/noise/motion/alias/pulse fixture library is not complete yet
+- the finite posture-transition plus 30-second no-new-event acceptance passes
+  natively and still needs hardware confirmation
 - build/profile identity, boot identity, IMU age, loop timing, and bounded
   transport/drop counters are not yet part of the canonical frame
 - JSON codec and command policy are embedded in `RemoteInterface.cpp`
@@ -96,21 +100,23 @@ Implementation checkpoint on `2026-08-27`:
 - queue-full, parse failure, and output-drop cases are not all observable
 - receive work per control-loop tick is not budgeted tightly enough
 - no request ID or ACK/NACK with an explicit rejection reason
-- no host-side capture/assertion tool produces a reproducible bench artifact
+- the passive host capture/assertion tool now produces a reproducible artifact,
+  but its build/profile and operator evidence fields are supplied explicitly
+  rather than discovered from firmware
 - no build/profile identity is automatically attached to telemetry or logs
 
 ## 4. Parallel work lanes
 
-| Lane | Can proceed without hardware | Dependency | May change physical behavior |
+| Lane | State | Remaining dependency | May change physical behavior |
 |---|---|---|---|
-| A - deterministic core | native environment, fixtures, legacy fingerprint, activity-filter tests | first priority | no |
-| B - observability contract | `new_evt`, frame/build/profile identity, timing and drop counters, schema samples | agree field names with Lane A | no |
-| C - protocol safety | extract JSON codec and command policy; negative, queue, and frame tests | telemetry/control contract | no |
-| D - lab automation | NDJSON capture, offline assertions, run manifest, report generation | Lane B schema | no |
-| E - wireless observer | separate AtomS3 environment, monitor policy, low-rate SoftAP telemetry | Lanes B and C | no; output remains locally gated |
-| F - future-gate tests | wall-hit single-shot, atom lifetime, spatial adjacency, resonance CSV analysis | native harness | no tuning or new atoms |
+| A - deterministic core | Complete for Gate 1 | hardware retest only | no |
+| B - observability contract | Event/frame counters and schema complete; automatic build/profile/timing/drop identity pending | protocol field design | no |
+| C - protocol safety | Pending | extract JSON codec/policy before observer control | no |
+| D - lab automation | Passive capture/check/evidence runner complete | physical-run evidence next | no |
+| E - wireless observer | Pending by design | Lanes B and C | no; output remains locally gated |
+| F - future-gate tests | Pending | post-Gate-1 roadmap | no tuning or new atoms |
 
-Lane A owns `Parameters.hpp`, `MassMotionLayer.*`, the future activity filter,
+Lane A owns `Parameters.hpp`, `MassMotionLayer.*`, the implemented activity filter,
 and the Gate 1 algorithm. Lane B/C work should prefer new protocol/test files
 until Lane A stabilizes, reducing merge conflicts in `HapticPipeline.cpp` and
 `HardwareProfiles.hpp`.
@@ -196,6 +202,12 @@ Acceptance:
 
 ### Slice 2 - Close the Gate 1 signal-path defect
 
+Implementation checkpoint on `2026-08-27`: the production
+`MotionActivityFilter`, `MassMotionLayer::updateWithActivity`, pipeline input
+state machine, AtomS3-only opt-in, fixed numeric noise fixture, and 20 native
+tests are complete. Generic defaults remain feature-disabled. The
+corrected image has not been uploaded or powered.
+
 Scope:
 
 - add a shared deterministic IMU fixture runner whose metadata fixes sample
@@ -205,8 +217,8 @@ Scope:
 - add a committed numeric stationary-noise trace with fixed accelerometer and
   gyro biases; do not depend on `std::normal_distribution`, whose sequence can
   vary between standard-library implementations even with a fixed seed
-- add separate gravity-vector rotation and translation-on-gravity traces at 1,
-  4, and 8 Hz, plus 70/90 Hz alias traces and a fixed pulse followed by a
+- add translation traces at 1, 4, and 8 Hz, 70/90 Hz alias traces, a fixed
+  pulse, and a finite gravity-vector posture transition followed by a
   30-second hold
 - add a small production-owned `MotionActivityFilter` or equivalent state
 - keep quasi-static gravity available to latent position and tilt
@@ -218,6 +230,15 @@ Scope:
   time gap, and stale-safe-stop; a single invalid IMU sample follows the hold
   contract below rather than being described ambiguously as a reset
 
+The implemented defaults are a 1 Hz gravity low-pass, 10 Hz motion low-pass,
+and radial subtractive deadbands of `0.025 g` and `1.5 deg/s`. Raw
+accelerometer X/Y remains on the quasi-static latent-position path. The
+filtered three-axis activity sample is the only sensor-activity input to
+energy/agitation; the existing energy magnitude remains planar X/Y, while
+agitation consumes the 3D magnitude and filtered yaw. The feature and all four
+filter values have explicit runtime `set_param` paths. The fixed 50 ms gap is
+not runtime-configurable.
+
 Capture raw sample validity and raw `dt_s` before the current pipeline replaces
 large values with its nominal interval. Put that guard in a production-owned
 boundary used before any enabled-path `MassMotionLayer` update, and exercise
@@ -227,38 +248,64 @@ inside a host fixture or only inside the filter while still passing the raw
 invalid value to the Mass integrator.
 
 The enabled estimator has an explicit input-time contract. A non-finite or
-non-positive `dt_s` is rejected before the Mass update without advancing
-estimator or Mass dynamic state. A single invalid IMU sample holds estimator
-and latent position state, presents zero current-frame motion activity, and
-cannot create a new event. A valid sample with raw `dt_s > 0.05 s` clears the
-enabled estimator and dynamic Mass state and produces neutral activity for
-that sample.
+non-positive `dt_s` is rejected before the Mass update with no side effect,
+including no pending-time or telemetry advance. Missing/non-finite IMU data
+with a valid positive period holds Mass, Event, and Tilt, presents no new
+event, and accumulates sensor time; existing Texture and Spatial tails still
+decay with raw loop time. Pending time plus a fresh valid frame evaluates the
+filter once when the total is `<=0.05 s`, then presents the held raw/activity
+sample to each Mass -> Event stability substep. The Mass limit is derived from
+the current span, natural frequency, damping, and family damping, capped at
+`4 ms`, and limited to 64 substeps. Texture/Spatial advance once on the outer
+raw clock and Tilt is submitted once for an accepted recovery. A total
+`>0.05 s` clears all dynamic pipeline state and holds Tilt for a fresh
+baseline. An invalid bound or unsupported step count clears dynamic state,
+submits neutral Tilt, and disarms the runtime servo interface; repairing the
+parameters cannot implicitly re-arm it. The first valid frame establishes
+gravity with zero filtered activity and is explicitly prevented from
+generating an event.
 The existing 300 ms IMU-stale transition remains a separate pipeline safety
 path and clears all relevant dynamic state. The feature-disabled legacy path
 retains its current valid-input behavior and current long-gap normalization;
 the non-finite/non-positive guard is a separately reviewed safety correction.
 
+The enhanced Event layer has a cross-family zero-input contract rather than a
+family-specific threshold workaround. With no wall hit, `energy<=0.02`, and
+planar `speed<=0.04`, liquid, granular, hybrid, and detented schedulers must not
+create an event and may only decay existing activity. The same live EventLayer
+instance must resume normal scheduling after deliberate activity. The feature-
+disabled path remains covered by the legacy fingerprint.
+
 Acceptance at fixed `dt=0.004 s`:
 
-- all six static `+/-X`, `+/-Y`, `+/-Z` one-g orientations settle below
-  `energy=0.02` for the enabled path
+- all six static `+/-X`, `+/-Y`, `+/-Z` one-g orientations settle to
+  `energy<=0.02` for the enabled path
 - the committed diagonal, bias, and numeric-noise-trace cases satisfy the same
   settled bound
-- a bounded pulse raises activity and returns below `0.02` within two seconds
+- a bounded pulse raises activity and returns to `energy<=0.02` within two seconds
 - after any allowed initialization transient, the sum of current-frame
   `new_evt` is zero during the following 30-second simulated hold
-- translation-on-gravity at 1, 4, and 8 Hz remains observable, while a slow
-  rotation of the gravity vector does not become persistent agitation; the
-  numeric observable lower bounds are committed with the fixtures before the
-  filter result is accepted
+- translation at 1, 4, and 8 Hz remains observable. Rotation acceptance is a
+  finite posture change followed by a hold: `energy<=0.02` within two seconds,
+  then summed `new_evt=0` for 30 seconds. Accelerometer-only indefinite
+  gravity-vector rotation cannot be distinguished from translation at the
+  same frequency and is not an acceptance requirement
 - carrier/alias candidates are strongly attenuated relative to 4 Hz motion;
   the primary metric is RMS of the `MotionActivityFilter` translational output
   and the secondary metric is downstream `MassState.energy`. The initial
-  filter-output target is no more than 25 percent of the 4 Hz case, with a
-  separate committed energy bound. Any threshold change requires fixture
-  evidence, a stated reason, and review before hardware tuning
+  filter-output target is no more than 25 percent of the 4 Hz case. The
+  downstream bound is also no more than 25 percent of the 4 Hz energy RMS,
+  while the 4 Hz reference must exceed `0.005` energy RMS. Any threshold
+  change requires fixture evidence, a stated reason, and review before
+  hardware tuning
 - finite bounds hold for sensor bias, invalid, NaN/Inf, non-positive `dt`, and
   a long time step
+- all nine built-in material presets stay silent at all seven committed static
+  poses, and a same-instance quiet -> active -> quiet -> active test proves
+  both scheduler reopening and complete quiet-gate coverage
+- worst supported Mass parameters remain finite at the 50 ms recovery edge;
+  invalid/unsupported stability limits reset rather than integrate and select
+  the neutral-and-disarm Tilt safety action
 - feature-disabled output matches the Slice 1 fingerprint
 
 ### Slice 3 - Add the minimum diagnostic contract
@@ -451,9 +498,85 @@ Acceptance with output disabled:
 
 ### Slice 6 - Add the bench runner and evidence bundle
 
-The host tool should initially work against recorded fixtures, USB serial, and
-wireless telemetry passively. It does not change device state during ordinary
-capture or assertion work.
+Implementation checkpoint on `2026-08-28`: the dependency-free passive host
+tool in `tools/lab/` now works against recorded canonical NDJSON or newline
+input from an external USB/wireless producer. It does not open a transport,
+change device state, or overwrite an existing output directory.
+
+Implemented commands are `validate`, `check`, stdin `capture`, and
+`self-test`, with stable exit codes `0` pass, `2` acceptance failure, `3`
+input/schema failure, and `4` tool failure. Static 30-second,
+pulse-to-silence, pre-pulse baseline, sequence/timestamp, `new_evt`/`evt_total`,
+and sample-gap checks are covered by twenty exact dry-run cases and eight
+integration tests.
+`frame_counter_mode` distinguishes full-rate `contiguous` recordings from
+latest-value `monotonic` telemetry; both honor JSON-safe counter saturation.
+`timestamp_origin=first_frame` makes plan times independent of device uptime.
+
+Stdin `capture` is byte-oriented. It writes and hashes the untouched producer
+stream as `mixed-input.raw` before fatal UTF-8 decoding, then derives canonical
+telemetry and transport chatter. Invalid UTF-8 returns input failure while the
+raw bytes and an `input_error` capture manifest remain available; replacement
+characters are never used to repair evidence.
+
+Each check preserves the original input plan/telemetry bytes, including
+malformed UTF-8 diagnostic input, and writes them with
+metrics, JSON/Markdown reports, a manifest, and
+exact copies of the telemetry/plan/report schemas with byte counts and SHA-256
+hashes. Acceptance failures and readable input/schema failures retain
+diagnostic evidence. Starting Gate 1 plans are committed under
+`tools/lab/plans/`. They deliberately carry incomplete evidence placeholders:
+schema validation may pass before a run, but `check` returns
+`RUN_METADATA_INCOMPLETE` until the unique run ID, all physical-run metadata,
+structured operator outcome, final Safe Idle confirmation, and typed
+before/after USB status snapshots at the fixed 100 ms period are filled.
+Normalized placeholder aliases such as `TODO`, `TBD`, `N/A`, `?`, `-`,
+`pending`, `unknown`, and `not applicable` are rejected rather than treated as
+identity. A Gate 1 marker cannot be
+downgraded to a generic dry run by changing
+`physical_output_authorization_required` to false.
+
+Completed physical plans are fixed to `m5stack-atoms3-pipeline`, the
+`as-built AtomS3 custom board` profile, `liquid_small_box`, first-frame time,
+monotonic counters, the active/S1-ON or pulse-only S1-OFF-control pairing, one
+500 ms sequence check, one unmodified canonical measurement, 12 V ON, Live,
+compiled/installed/runtime audio, TDM8, quad-wall 4CH, four channels, and the 8%
+limit. Every active canonical frame must also carry valid IMU, non-silenced
+output, disabled channel-test/demo modes, fixed production context, and the
+non-stale/non-injected/non-zero-asserted safety state with tilt disarmed. Plan
+metadata cannot redefine those production requirements. The static active
+window and event-integrity evaluation include the assessment-end anchor and
+continue through the powered 33-second capture anchor; the pulse active window
+continues through its powered 40-second anchor, and continuity includes the
+baseline/window boundary. Test/demo/wall-test and IMU
+injection stay off and tilt stays disarmed for the complete log. After the
+active end, every frame is either a fixed Live continuation or complete Safe
+Idle; Safe Idle may not re-arm in the same log, and final `evt_total` must equal
+the active-end value. The audio underrun counter must not change through that
+final frame, which must also prove neutral Mass/actuator/event state, the
+production audio configuration, and Safe Idle independently.
+`metrics.hardware_evidence.complete` becomes true only after these context,
+operator, transition, and final-state checks all pass. The fixed measurement
+contract also requires powered Live through a 33-second static or 40-second
+pulse anchor; static signal/event limits extend through its tail, and pulse
+silence may not recur after an initially qualifying interval. A shortened log,
+early Safe Idle, or tail recurrence fails. A mismatch, pre-active canonical
+JSON, missing Safe Idle proof, structured operator rejection, or USB
+status counter anomaly is an acceptance failure even if numerical signal checks
+pass. JSON reports also pass semantic count/code/status/check-reference
+consistency validation in addition to their schema. PASS reports require
+positive frame/check counts and at least one passing check. Input-error reports
+derive duration only from schema-safe timestamps so an unsafe timestamp cannot
+prevent preservation of the original diagnostic bytes.
+
+The two USB status objects are operator-transcribed and are byte-bound to the
+hashed run plan, but the current checker does not parse or cryptographically
+bind their source lines from the mixed transport log. Therefore Gate 1 uses the
+strict rule that drop, backpressure, console-interrupt, unterminated-partial,
+and serialization-error counters may not increase; each drop total must equal
+backpressure plus console-interrupt, and the transmitted delta must equal the
+canonical frame count. Any mismatch requires a new attempt. Automatic
+mixed-log/status correlation remains future lab-tool work.
 
 For each run it records:
 
@@ -461,9 +584,10 @@ For each run it records:
 - preset source/path or hash, resolved feature flags, calibration identity,
   effective output limit
 - operator-confirmed S1 and 12 V states
+- Gate 1 variant plus before/after USB producer status counters
 - fixture/orientation and requested procedure
-- raw NDJSON telemetry, derived metrics, operator tactile observation, and the
-  final Safe Idle state
+- raw NDJSON telemetry, derived metrics, structured tactile pass/fail plus
+  operator notes, and the final Safe Idle state
 
 The runner may prepare the next command, but it must not automatically arm
 physical output without an explicit operator confirmation at that step. The
@@ -480,8 +604,26 @@ Acceptance:
 
 - the 30-second static, pulse-to-silence, no-new-event, schema-validity, and
   sequence-gap checks pass on committed dry-run fixtures
+- the Gate 1 pulse plan rejects pre-existing vibration, requires response after
+  the planned onset, reaches silence within two seconds, and holds it for the
+  following 30 seconds and through the powered 40-second end anchor; full
+  40-second pass, shortened-capture, post-silence recurrence, and late-settle
+  checks use the production template without relaxed timing
 - a failure produces a useful nonzero exit and Markdown/JSON summary
 - the same evidence format works for USB and wireless capture
+
+The fixture and evidence-format acceptance above passes. Build/profile
+identity, structured tactile observation, physical S1/12 V confirmation, and
+final Safe Idle postcondition require truthful explicit plan metadata; current
+canonical telemetry independently binds first-frame-through-active-end
+preset/run/audio-backend/transport/layout/channel-test/output-limit/
+non-stale/non-injected/non-zero-asserted/tilt-disarmed state, plus a no-growth audio-underrun
+counter and the final Safe Idle frame, to that declaration. Build/profile,
+preset source/hash, resolved feature flags, and calibration identity remain
+operator-recorded metadata because the current USB frame has no canonical
+fields for them. The current passive tool intentionally implements no
+automatic Safe Idle mutation; the safety policy below remains a requirement
+for any later active runner.
 
 ### Slice 7 - Cross the hardware gates in order
 
@@ -689,9 +831,10 @@ before asking for bench time.
 
 ## 10. Immediate next start point
 
-The Slice 1 harness, negative schema checks, and reviewed legacy fingerprint
-are complete. The next behavior change is Slice 2: extend the native fixtures,
-implement the default-off Gate 1 activity filter behind the raw sample/time
-guard, and expose truthful current-frame event diagnostics. Protocol and
-host-tool work may proceed in parallel in new files, but the Atom wireless
-environment must not be connected until the Monitor policy is tested.
+Slices 1, the Gate 1 core/integration and finite-posture portions of Slice 2,
+the event/sequence portion of Slice 3, and the passive Slice 6 report workflow
+are complete in software. Next perform the exact
+USB and powered Gate 1 sequence in document 24. Protocol and host-tool work may
+continue in parallel, but the Atom wireless environment must not be connected
+until the Monitor policy is tested. The next operator-dependent action is the
+corrected-image upload with S1 OFF and 12 V OFF; it has not yet occurred.

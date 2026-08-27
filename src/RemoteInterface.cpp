@@ -371,6 +371,8 @@ void populateTelemetryDocument(TDoc& doc, const TelemetrySnapshot& telemetry, bo
 
   JsonObject safety = doc.createNestedObject("safety");
   safety["imu_stale_safe_stop"] = telemetry.safety.imu_stale_safe_stop;
+  safety["imu_fault_injection_active"] =
+      telemetry.safety.imu_fault_injection_active;
   safety["audio_zero_asserted"] = telemetry.safety.audio_zero_asserted;
   safety["tilt_disarmed"] = telemetry.safety.tilt_disarmed;
 

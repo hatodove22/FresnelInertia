@@ -30,26 +30,27 @@ IMU behavior, WiFi range, flash persistence, or perceptual quality.
 ### Native deterministic harness
 
 The `native-layers` PlatformIO environment directly compiles the production
-Mass, Event, Texture, Resonance, Spatial, and Tilt model sources. Its first
-checkpoint contains seven passing tests, reset-equivalence checks, and a
-reviewed 400-frame feature-disabled legacy fingerprint. Normal test execution
-has no golden-update or file-write path.
+Mass, MotionActivityFilter, Event, Texture, Resonance, Spatial, and Tilt model
+sources. It now contains 20 passing tests. The retained checks include layer
+reset equivalence and a reviewed 400-frame feature-disabled legacy
+fingerprint; the Gate 1 additions cover:
 
-The legacy fingerprint is the required pre-change baseline. The Gate 1
-activity implementation must now extend the same fixed-250-Hz harness with:
-
-- all six static one-g orientations plus a committed diagonal orientation
+- generic-default OFF and as-built AtomS3-profile ON feature policy
+- all six static one-g orientations plus a diagonal orientation
 - fixed accelerometer/gyro bias and a committed numeric stationary-noise trace
-  that is independent of host standard-library random distributions
-- one fixed-shape/axis/amplitude/width acceleration pulse followed by a
-  30-second hold
-- separate gravity-vector rotation and translation-on-gravity fixtures at 1,
-  4, and 8 Hz
-- 70/90 Hz sampled alias candidates corresponding to the 320/160 Hz actuator
-  families at 250 Hz, with the same RMS/axis/phase/warm-up/window as the 4 Hz
-  comparison
-- invalid, non-finite, non-positive-`dt`, and long-gap inputs
-- reset behavior across configure, preset change, Safe Idle, and stale stop
+  independent of host standard-library random distributions
+- a bounded acceleration pulse that raises activity and settles to
+  `energy<=0.02` within two seconds
+- translation at 1, 4, and 8 Hz plus 70/90 Hz sampled alias candidates, with
+  the alias output bounded relative to the 4 Hz case
+- invalid/non-finite samples, NaN/Inf/non-positive `dt`, three missing frames
+  followed by one valid frame, exact/above-50-ms boundaries, and explicit
+  filter reset equivalence
+- separation of raw planar position drive from filtered energy/agitation drive
+- direct stale-state transition policy: assertion after the deadline remains
+  latched when a valid sample refreshes that deadline, and also remains latched
+  under an unexpected feature disable; only the Safe Idle integration path may
+  supply the cleared state
 
 The harness must use the same activity-filter implementation as firmware; a
 host-only mathematical copy is not acceptable. Layer-unit tests prove reset
@@ -59,8 +60,138 @@ reviewed tolerances, and expected output changes only through a focused manual
 edit to the committed initializer with a reviewed diff. The normal test binary
 has no fingerprint-update mode.
 The production guard sees raw `dt` and sample validity before any nominal-step
-substitution or Mass integration. A single invalid sample holds state and
-produces neutral current-frame activity; the 300 ms stale path clears state.
+substitution or Mass integration. Non-finite or non-positive `dt` has no side
+effect. During missing/non-finite IMU samples, Mass, Event, and Tilt hold while
+Texture and Spatial tails decay with raw loop time. Pending positive time plus
+the next valid frame evaluates the filter once when the total is `<=50 ms`,
+then advances Mass and Event through stability-bounded substeps. The limit is
+derived from the active Mass parameters, capped at `4 ms` and 64 substeps.
+Totals `>50 ms` reset every dynamic layer and hold Tilt until a fresh baseline.
+An invalid/unsupported Mass limit also resets every dynamic layer, but fails
+closed by submitting a neutral Tilt frame and disarming the runtime servo
+interface; correcting the parameters does not implicitly re-arm it.
+Texture/Spatial still advance once on the outer raw clock. For an accepted
+`<=50 ms` recovery only, Tilt is submitted once after the bounded Mass/Event
+substeps. The first valid sample establishes the gravity baseline, uses zero
+filtered activity, and cannot create an event. The separate 300 ms stale path
+also clears all dynamic state.
+
+When the enhanced path is enabled, all material families must emit no event
+while there is no wall hit, `energy<=0.02`, and planar `speed<=0.04`. A
+same-instance quiet -> active -> quiet -> active test must prove deliberate
+activity reopens each family scheduler and returning to quiet cannot keep a
+roll, scrape, detent, liquid, or hybrid generator alive. The disabled path
+remains covered by the legacy fingerprint.
+
+The deterministic orientation acceptance is a finite gravity-vector posture
+transition followed by a hold:
+`energy<=0.02` within two seconds, then a 30-second interval with summed
+`new_evt=0`; this case passes in the native suite. Accelerometer data alone
+cannot distinguish indefinite continuous
+rotation of the gravity vector from translational acceleration, so continuous
+rotation and translation at the same frequency must not be specified as an
+identifiability requirement. Gyro-assisted classification would be a separate
+future model change.
+
+The native matrix covers all nine built-in material presets across the seven
+committed static poses, the worst public Mass parameter combination at the
+50 ms recovery boundary, rejected unstable/invalid limits, the shared
+neutral-and-disarm safety action selected for a zero substep count, and
+quiet -> active -> quiet -> active scheduler behavior.
+
+### Passive host lab automation
+
+The dependency-free CLI in `tools/lab/lab.mjs` accepts only files or stdin. It
+does not open a device connection or send a command. Run:
+
+```text
+node tools/lab/lab.mjs self-test
+node --test test/lab/self_test.mjs
+node tools/lab/lab.mjs validate --plan tools/lab/plans/gate1-static.template.json
+```
+
+The committed fixture suite passes 20/20 exact exit/finding-code cases and the
+Node integration suite passes 8/8. It covers canonical schema rejection,
+NDJSON parse failure, latched-event handling, static/new-event failure,
+pre-pulse activity and hidden-event rejection, pulse-to-silence, sequence gaps, first-frame
+timestamp offsets, latest-value mode, JSON-safe counter saturation, structured
+operator rejection, pre-active canonical JSON rejection, active audio-backend/
+channel-test/tilt rejection, audio-underrun growth, and declared-vs-canonical
+hardware context mismatch. The Gate 1 pulse template requires a two-second
+quiet baseline, response within one second, silence onset within two seconds,
+and then 30 continuous seconds without an event or output above the silence
+bounds. Every configured positive response minimum is conjunctive, so both
+actuator and Mass-energy minima must be reached; a wall event itself is not
+required. Baseline-to-pulse continuity is checked across the boundary as well as
+inside each window, so two legal half-gaps cannot form one oversized hidden
+gap. Full 40-second pass, shortened-capture rejection, post-silence recurrence,
+and late-settle fail checks exercise those exact template timings. A hardware
+template cannot report pass until its unique run
+ID and build/profile/preset source/hash, resolved flags, calibration identity,
+output limit, S1/12 V, fixture, authorization, structured observation outcome,
+final Safe Idle metadata, and structured before/after USB status snapshots are
+complete. Normalized unfinished identities such as `TODO`, `TBD`, `N/A`, `?`,
+`-`, `pending`, `unknown`, and `not applicable` remain incomplete even if their
+punctuation or case changes. Physical evidence is fixed to the Atom production Gate 1 context:
+`m5stack-atoms3-pipeline`, the `as-built AtomS3 custom board` profile,
+`liquid_small_box`, first-frame timestamps,
+monotonic counters, 12 V ON, Live, compiled/installed/runtime audio, TDM8,
+quad-wall 4CH, four active channels, and the initial 8% limit; changing both a
+plan and its telemetry to a degraded state must still fail.
+A Gate 1 marker with `physical_output_authorization_required=false` is also
+rejected rather than downgraded to a generic dry plan.
+
+Every hardware plan contains exactly one 500 ms sequence check and exactly one
+static/pulse measurement with the committed template thresholds. The `active`
+variant requires S1 ON; `s1_off_control` requires S1 OFF and a pulse
+measurement. Missing/duplicate checks or relaxed thresholds fail the plan
+contract. `minimum_capture_duration_ms` is fixed at `33000` for static and
+`40000` for both pulse variants. Every canonical frame from the first-frame
+origin through that powered minimum-capture anchor (also including the static
+assessment-end anchor) must agree with
+the fixed preset/context, carry
+`imu.valid=true`, keep channel-test and demo-compatibility modes disabled, show
+the non-silenced/non-stale/non-injected/non-zero-asserted safety state, and keep
+tilt disarmed. Test/demo/wall-test and IMU-injection states remain disabled and
+tilt remains disarmed across the complete canonical log. The audio underrun
+counter must not change through the later final frame. After the active end,
+each frame must remain in the fixed Live context or satisfy the full Safe Idle
+postcondition, and no frame may re-arm after Safe Idle first appears. That final
+frame must independently prove neutral Mass/actuators/events, preserve the
+active-end `evt_total`, disable audio/channel-test/demo modes, retain the
+production backend configuration, and satisfy the complete Safe Idle
+postcondition. Static checks also require an anchor no more than one sample gap
+after assessment end and compare signal bounds and cumulative events through
+the later 33-second anchor. Pulse quiet/event state must qualify by the original
+settle deadline and remain continuous through the 40-second anchor even if a
+30-second interval completed earlier. USB snapshots require the transmitted
+delta to equal the canonical frame count, zero pending bytes, internally
+consistent drop totals, and no growth in drop, backpressure,
+console-interruption, unterminated-partial, or serialization-error counters.
+`metrics.hardware_evidence.complete` is an overall physical-evidence
+acceptance bit: context, structured operator outcome, and final Safe Idle
+failures keep it false even when metadata, plan shape, and USB snapshots are
+complete.
+
+Stable exit codes are `0` pass, `2` acceptance failure, `3` input/schema
+failure, and `4` tool failure. `check` uses fatal UTF-8 decoding so replacement
+characters cannot pass JSON validation, while still preserving malformed input
+bytes exactly for diagnosis. It writes those bytes with metrics, JSON/Markdown
+reports, a manifest, and exact schema copies with SHA-256 hashes to a new
+directory; it refuses to overwrite an existing path. The Gate 1
+starting plans live in `tools/lab/plans/`, including a distinct S1-OFF pulse
+control whose software response bounds match the S1-ON pulse while the physical
+observation requires no tactile output. Thresholds remain subject to the
+operator-controlled procedure in document 24.
+`validate --report` also rejects count/code/status/check-reference
+contradictions that JSON Schema alone cannot express. A PASS report must contain
+at least one captured frame and one passing check. Input-error evidence
+neutralizes schema-invalid/unsafe timestamp arithmetic in its summary while
+preserving the original bytes unchanged.
+`capture` is byte-oriented as well: it stores and hashes the exact stdin stream
+as `mixed-input.raw` before fatal UTF-8 decoding. A malformed stream returns
+input failure but leaves that raw file and an `input_error` capture manifest,
+without producing repaired telemetry.
 
 ### WebXR typecheck / build
 
@@ -71,6 +202,19 @@ produces neutral current-frame activity; the 300 ms stale path clears state.
   firmware, schema, or transport changes
 
 ### PlatformIO compile matrix
+
+From the repository root, the reproducible compile-only entry point is:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\build_firmware_matrix.ps1
+```
+
+It keeps the one pinned pioarduino/Arduino 3.3.7 environment in the short
+per-user `.pioarduino-pch` core directory. The other 21 environments continue
+to use the normal PlatformIO store. The separation is required because the
+official and pioarduino platforms publish incompatible packages under the same
+names; a long project-local isolated path also exceeds Windows extraction
+limits on a clean install. The script never uploads or opens a device.
 
 Run the relevant compile-only matrix before handoff:
 
@@ -92,6 +236,9 @@ Run the relevant compile-only matrix before handoff:
 Use the probe envs when work touches their area:
 
 - `platformio run -e m5stack-sticks3-audio-smoke`
+- `platformio run -e m5stack-sticks3-audio-direct-display`
+- `platformio run -e m5stack-sticks3-audio-smoke-pioarduino` (pinned
+  pioarduino 55.03.37 / Arduino 3.3.7 compatibility path)
 - `platformio run -e m5stack-sticks3-transducer-probe`
 - `platformio run -e m5stack-sticks3-raw-i2s-probe`
 - `platformio run -e m5stack-sticks3-display-probe`
@@ -247,17 +394,35 @@ Follow `23_ATOMS3_PRODUCTION_INTEGRATION.md`. The minimum pass requires:
   and `audio off` returns to digital zero
 - live IMU-driven output runs at the initial 8% effective peak limit without
   reset, I2S error growth, rail anomaly, or self-excited feedback
-- controlled IMU fault injection produces no valid finite sample for more than
-  300 ms; require neutral Mass/Event/Texture/Resonance/Spatial/Tilt state,
-  zero-filled TDM, and servo disarm; observe either serial
+- controlled IMU fault injection starts from local `imu fault status` reporting
+  `compile=1 active=0`; in Live, `imu fault on` must make subsequent canonical
+  frames report `safety.imu_fault_injection_active=true` and `imu.valid=false`
+  without directly invoking the safety action; only after more than 300 ms
+  require neutral Mass plus current event, zero actuators/TDM, and servo
+  disarm; internal Texture/Resonance/Spatial/Tilt reset remains a source/native
+  policy assertion because USB telemetry does not expose every internal state;
+  observe either serial
   `status: ... imu_stop=1 ... zero=1 ...` or top-level
   `safety.{imu_stale_safe_stop,audio_zero_asserted,tilt_disarmed}=true`
-- when valid IMU data returns, require a neutral restart without replaying
-  stale texture/event energy; any servo remains disarmed until explicitly armed
+- require `imu fault off` to be rejected after stale-stop; while injection or
+  stale-stop is active, also reject stale-safety disable,
+  Calibration/Record/Replay entry, audio/channel-test/Tilt arm, and invalid
+  motion-dynamics Tilt arm; an unexpected non-Live mode must fail closed to
+  Safe Idle
+- require an asserted natural stale-stop to remain asserted after valid finite
+  IMU samples resume; Mass/Event/output remain neutral/zero and Tilt remains
+  disarmed until `idle` enters Safe Idle
+- end injection with `idle` while audio remains armed;
+  require injection false, Idle, audio zero, and disarmed tilt, then verify
+  `live` without a fresh `audio on` establishes a neutral valid baseline without
+  replaying stale texture/event energy; absence of the optional injection field
+  is allowed for legacy logs but does not satisfy this production test
 - from Calibration, Replay, and Record separately, invoke `stop` and require
   Safe Idle: the active operation ends, audio runtime turns OFF, zero remains
   asserted, tilt is disarmed, channel-test is cleared, and dynamic state is
   neutral
+- let Replay reach natural EOF and require the same Safe Idle postcondition;
+  the next real-IMU movement must not render under a stale Replay mode
 - on AtomS3, repeat Safe Idle with BtnA hold
 - after Safe Idle, issue `live` alone and require output to remain OFF/zero;
   only a subsequent explicit `audio on` may restore haptic output
@@ -339,6 +504,13 @@ These require the relevant transducers, amp wiring, and/or XL330 hardware.
 - with the AtomS3 profile, confirm invalid or non-finite IMU input does not
   refresh the valid-sample timer and the safe-stop asserts only after the
   300 ms threshold
+- confirm generic targets leave
+  `features.enable_gravity_separated_mass_activity=false`, while the as-built
+  AtomS3 profile enables it with `1 Hz` gravity, `10 Hz` motion,
+  `0.025 g` acceleration, and `1.5 deg/s` gyro defaults
+- with that path enabled, confirm missing IMU frames hold Mass/Event/Tilt,
+  allow existing Texture/Spatial tails to decay, and do not increment
+  `new_evt`; confirm recovery at `<=50 ms` and full dynamic reset above it
 - confirm `idle` and `stop` both terminate Calibration/Replay/Record, clear the
   channel test, reset all dynamic layers, set audio runtime OFF, assert zero,
   and disarm tilt
@@ -666,15 +838,17 @@ liquid/granular comparison, and mounted material/spatial comparison remain
 pending. The unloaded qualitative sweep also did not identify a clear
 resonance.
 
-Current status after the audio-backend milestone:
+Hardware status and current software checkpoint after the audio-backend milestone:
 - dual-stereo I2S x2 backend compilation is in place
 - additive single-port eight-slot TDM is implemented
 - runtime enable and single-wall test mode are in place
 - runtime-selectable `quad_wall_4ch` / `front_back_2ch` output layout is now in place
 - dedicated raw AtomS3 TDM channel routing passed on hardware
-- the final `m5stack-atoms3-pipeline` built successfully (RAM 12.4%, flash
-  17.0%) with Safe Idle, always-present safety telemetry, initial 8% / hard 15%
-  output limits, and the servo backend compiled out
+- the uploaded `2026-08-22` `m5stack-atoms3-pipeline` image built successfully
+  (RAM 12.4%, flash 17.0%) with Safe Idle, Atom production safety telemetry,
+  initial 8% / hard 15% output limits, and the servo backend compiled out
+- the unuploaded `2026-08-28` software checkpoint builds at
+  `42,932 / 327,680` RAM and `578,377 / 3,342,336` flash
 - production upload, USB-only software-zero boot, powered muted startup,
   unloaded four-channel routing, live-test Safe Idle, and explicit re-arm
   behavior passed; an initial motion-triggered liquid response and a muted

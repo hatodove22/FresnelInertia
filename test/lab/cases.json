@@ -1,0 +1,142 @@
+[
+  {
+    "name": "static pass",
+    "plan": "fixtures/static.plan.json",
+    "telemetry": "fixtures/static_pass.ndjson",
+    "expected_exit": 0,
+    "expected_codes": []
+  },
+  {
+    "name": "latched last_event is history, not a new event",
+    "plan": "fixtures/static.plan.json",
+    "telemetry": "fixtures/latched_last_event_pass.ndjson",
+    "expected_exit": 0,
+    "expected_codes": []
+  },
+  {
+    "name": "pulse-to-silence pass",
+    "plan": "fixtures/pulse.plan.json",
+    "telemetry": "fixtures/pulse_pass.ndjson",
+    "expected_exit": 0,
+    "expected_codes": []
+  },
+  {
+    "name": "Gate 1 two-second settle and 30-second hold pass",
+    "plan": "fixtures/gate1_pulse_complete.plan.json",
+    "telemetry": "fixtures/gate1_pulse_40s_pass.ndjson",
+    "expected_exit": 0,
+    "expected_codes": []
+  },
+  {
+    "name": "Gate 1 late settle cannot complete 30-second hold",
+    "plan": "fixtures/gate1_pulse_complete.plan.json",
+    "telemetry": "fixtures/gate1_pulse_late_settle_fail.ndjson",
+    "expected_exit": 2,
+    "expected_codes": ["PULSE_SILENCE_NOT_REACHED"]
+  },
+  {
+    "name": "Gate 1 template cannot pass as incomplete hardware evidence",
+    "plan": "../../tools/lab/plans/gate1-pulse.template.json",
+    "telemetry": "fixtures/gate1_pulse_40s_pass.ndjson",
+    "expected_exit": 2,
+    "expected_codes": ["RUN_METADATA_INCOMPLETE"]
+  },
+  {
+    "name": "complete synthetic hardware contract pass",
+    "plan": "fixtures/hardware_static_complete.plan.json",
+    "telemetry": "fixtures/hardware_static_pass.ndjson",
+    "expected_exit": 0,
+    "expected_codes": []
+  },
+  {
+    "name": "structured operator rejection fails hardware acceptance",
+    "plan": "fixtures/hardware_static_operator_fail.plan.json",
+    "telemetry": "fixtures/hardware_static_pass.ndjson",
+    "expected_exit": 2,
+    "expected_codes": ["OPERATOR_OBSERVATION_FAILED"]
+  },
+  {
+    "name": "declared hardware context must match canonical telemetry",
+    "plan": "fixtures/hardware_static_context_fail.plan.json",
+    "telemetry": "fixtures/hardware_static_context_fail.ndjson",
+    "expected_exit": 2,
+    "expected_codes": ["RUN_TELEMETRY_CONTEXT_MISMATCH"]
+  },
+  {
+    "name": "pre-existing activity fails pulse baseline",
+    "plan": "fixtures/pulse.plan.json",
+    "telemetry": "fixtures/pulse_baseline_active_fail.ndjson",
+    "expected_exit": 2,
+    "expected_codes": ["PULSE_BASELINE_NOT_SILENT"]
+  },
+  {
+    "name": "hidden pre-baseline event fails monotonic pulse baseline",
+    "plan": "fixtures/pulse_monotonic.plan.json",
+    "telemetry": "fixtures/pulse_baseline_hidden_event_fail.ndjson",
+    "expected_exit": 2,
+    "expected_codes": ["PULSE_BASELINE_NOT_SILENT"]
+  },
+  {
+    "name": "first-frame timestamp origin pass",
+    "plan": "fixtures/static_first_frame.plan.json",
+    "telemetry": "fixtures/static_first_frame_pass.ndjson",
+    "expected_exit": 0,
+    "expected_codes": []
+  },
+  {
+    "name": "monotonic safe-integer saturation pass",
+    "plan": "fixtures/monotonic_saturation.plan.json",
+    "telemetry": "fixtures/monotonic_saturation_pass.ndjson",
+    "expected_exit": 0,
+    "expected_codes": []
+  },
+  {
+    "name": "contiguous safe-integer saturation pass",
+    "plan": "fixtures/contiguous_saturation.plan.json",
+    "telemetry": "fixtures/monotonic_saturation_pass.ndjson",
+    "expected_exit": 0,
+    "expected_codes": []
+  },
+  {
+    "name": "new event fails static hold",
+    "plan": "fixtures/static.plan.json",
+    "telemetry": "fixtures/new_event_fail.ndjson",
+    "expected_exit": 2,
+    "expected_codes": ["STATIC_NEW_EVENT"]
+  },
+  {
+    "name": "sequence gap fails",
+    "plan": "fixtures/sequence.plan.json",
+    "telemetry": "fixtures/sequence_gap_fail.ndjson",
+    "expected_exit": 2,
+    "expected_codes": ["TELEMETRY_SEQUENCE_GAP"]
+  },
+  {
+    "name": "first-frame event total mismatch fails",
+    "plan": "fixtures/sequence.plan.json",
+    "telemetry": "fixtures/first_event_total_mismatch_fail.ndjson",
+    "expected_exit": 2,
+    "expected_codes": ["TELEMETRY_EVT_TOTAL_MISMATCH"]
+  },
+  {
+    "name": "telemetry schema failure",
+    "plan": "fixtures/sequence.plan.json",
+    "telemetry": "fixtures/schema_invalid.ndjson",
+    "expected_exit": 3,
+    "expected_codes": ["required|$[0]|new_evt"]
+  },
+  {
+    "name": "telemetry JSON parse failure",
+    "plan": "fixtures/sequence.plan.json",
+    "telemetry": "fixtures/json_parse_fail.ndjson",
+    "expected_exit": 3,
+    "expected_codes": ["json_parse|$[1]|telemetry"]
+  },
+  {
+    "name": "unsafe timestamp schema failure",
+    "plan": "fixtures/sequence.plan.json",
+    "telemetry": "fixtures/unsafe_timestamp_schema_fail.ndjson",
+    "expected_exit": 3,
+    "expected_codes": ["maximum|$[1].timestamp_ms|9007199254740991"]
+  }
+]

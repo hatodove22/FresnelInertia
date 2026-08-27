@@ -22,12 +22,14 @@ struct FeatureFlags {
   bool enable_verbose_serial = true;
   bool enable_debug_display = false;
   bool enable_pipeline_debug_telemetry = false;
+  bool enable_usb_telemetry = false;
   // Compatibility-safe pipeline improvements. Generic presets leave these
   // disabled; verified hardware profiles may opt in explicitly.
   bool enable_physical_master_gain = false;
   bool enable_attack_preserving_texture = false;
   bool enable_single_shot_spatial_delay = false;
   bool enable_imu_stale_safe_stop = false;
+  bool enable_gravity_separated_mass_activity = false;
   bool allow_remote_tilt_arm = false;
 };
 
@@ -73,6 +75,13 @@ struct MassLayerParams {
   float accel_to_energy_gain = 0.40f;
   float gyro_to_energy_gain = 0.02f;
   float rebound = 0.25f;
+};
+
+struct MotionActivityFilterParams {
+  float gravity_cutoff_hz = 1.0f;
+  float motion_cutoff_hz = 10.0f;
+  float accel_deadband_g = 0.025f;
+  float gyro_deadband_dps = 1.5f;
 };
 
 struct EventLayerParams {
@@ -200,6 +209,7 @@ struct SystemParams {
   PlatformPins pins{};
   ContainerParams container{};
   MassLayerParams mass{};
+  MotionActivityFilterParams motion_activity{};
   EventLayerParams event{};
   TextureLayerParams texture{};
   ResonanceLayerParams resonance{};

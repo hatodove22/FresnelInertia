@@ -30,7 +30,8 @@ document rather than carrying both interpretations forward.
 5. `23_ATOMS3_PRODUCTION_INTEGRATION.md`
 6. `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` when preparing
    host-side or wireless developer infrastructure
-7. relevant sections of `07_TEST_AND_VALIDATION.md`
+7. `26_ATOMS3_USB_TELEMETRY.md` when capturing canonical USB telemetry
+8. relevant sections of `07_TEST_AND_VALIDATION.md`
 
 ### Improve testability or wireless diagnostics
 
@@ -85,6 +86,7 @@ document rather than carrying both interpretations forward.
 | `23_ATOMS3_PRODUCTION_INTEGRATION.md` | Active production acceptance contract |
 | `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md` | Active next-session runbook |
 | `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` | Active supporting workflow for test-first development and safe wireless observation |
+| `26_ATOMS3_USB_TELEMETRY.md` | Software-prepared, runtime-gated USB telemetry and mixed-log evidence workflow |
 
 Probe success is supporting evidence only; it does not imply the production
 four-layer path passed.

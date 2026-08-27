@@ -14,3 +14,6 @@ __pycache__/
 webxr/node_modules/
 webxr/dist/
 webxr/*.tsbuildinfo
+
+# Local hardware-lab evidence bundles can be large and are run-specific.
+artifacts/lab/

@@ -252,6 +252,8 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
 
   JsonObject safety = doc.createNestedObject("safety");
   safety["imu_stale_safe_stop"] = snapshot.safety.imu_stale_safe_stop;
+  safety["imu_fault_injection_active"] =
+      snapshot.safety.imu_fault_injection_active;
   safety["audio_zero_asserted"] = snapshot.safety.audio_zero_asserted;
   safety["tilt_disarmed"] = snapshot.safety.tilt_disarmed;
 

@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/lab_run_plan.schema.json",
+  "title": "LabRunPlan",
+  "type": "object",
+  "required": ["schema_version", "run_id", "telemetry_schema", "frame_counter_mode", "checks"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "run_id": {"type": "string"},
+    "telemetry_schema": {
+      "type": "string",
+      "enum": ["schemas/telemetry_frame.schema.json"]
+    },
+    "frame_counter_mode": {
+      "type": "string",
+      "enum": ["contiguous", "monotonic"]
+    },
+    "timestamp_origin": {
+      "type": "string",
+      "enum": ["absolute", "first_frame"]
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "physical_output_authorization_required": {"type": "boolean"},
+        "evidence_complete": {"type": "boolean"},
+        "git_commit": {"type": "string"},
+        "build_id": {"type": "string"},
+        "platformio_environment": {"type": "string"},
+        "hardware_profile": {"type": "string"},
+        "preset_id": {"type": "string"},
+        "gate1_run_variant": {
+          "type": "string",
+          "enum": ["active", "s1_off_control"]
+        },
+        "preset_source": {"type": "string"},
+        "preset_hash": {"type": "string"},
+        "resolved_feature_flags": {"type": "string"},
+        "calibration_identity": {"type": "string"},
+        "effective_output_peak_limit": {"type": "number", "minimum": 0, "maximum": 1},
+        "s1_state": {"type": "string", "enum": ["on", "off"]},
+        "supply_12v_state": {"type": "string"},
+        "fixture_orientation": {"type": "string"},
+        "expected_run_mode": {
+          "type": "string",
+          "enum": ["idle", "live", "calibration", "record", "replay"]
+        },
+        "expected_audio_runtime_enabled": {"type": "boolean"},
+        "expected_audio_compile_enabled": {"type": "boolean"},
+        "expected_audio_driver_installed": {"type": "boolean"},
+        "expected_audio_transport": {
+          "type": "string",
+          "enum": ["dual_i2s", "tdm8_slot"]
+        },
+        "expected_audio_output_layout": {
+          "type": "string",
+          "enum": ["quad_wall_4ch", "front_back_2ch"]
+        },
+        "expected_active_output_channels": {"type": "integer", "enum": [2, 4]},
+        "operator_confirmed_physical_output_authorization": {"type": "boolean"},
+        "operator_observation_outcome": {
+          "type": "string",
+          "enum": ["pending", "pass", "fail"]
+        },
+        "operator_observation": {"type": "string"},
+        "final_safe_idle_confirmed": {"type": "boolean"},
+        "usb_telemetry_status_before": {
+          "type": "object",
+          "required": [
+            "compile_enabled",
+            "runtime_enabled",
+            "period_ms",
+            "pending_bytes",
+            "transmitted_frames",
+            "dropped_frames",
+            "backpressure_dropped_frames",
+            "console_interrupted_frames",
+            "unterminated_partial_frames",
+            "serialization_errors"
+          ],
+          "properties": {
+            "compile_enabled": {"type": "boolean"},
+            "runtime_enabled": {"type": "boolean"},
+            "period_ms": {"type": "integer", "minimum": 50, "maximum": 5000},
+            "pending_bytes": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "transmitted_frames": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "dropped_frames": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "backpressure_dropped_frames": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "console_interrupted_frames": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "unterminated_partial_frames": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "serialization_errors": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+          },
+          "additionalProperties": false
+        },
+        "usb_telemetry_status_after": {
+          "type": "object",
+          "required": [
+            "compile_enabled",
+            "runtime_enabled",
+            "period_ms",
+            "pending_bytes",
+            "transmitted_frames",
+            "dropped_frames",
+            "backpressure_dropped_frames",
+            "console_interrupted_frames",
+            "unterminated_partial_frames",
+            "serialization_errors"
+          ],
+          "properties": {
+            "compile_enabled": {"type": "boolean"},
+            "runtime_enabled": {"type": "boolean"},
+            "period_ms": {"type": "integer", "minimum": 50, "maximum": 5000},
+            "pending_bytes": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "transmitted_frames": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "dropped_frames": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "backpressure_dropped_frames": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "console_interrupted_frames": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "unterminated_partial_frames": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "serialization_errors": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type"],
+        "properties": {
+          "id": {"type": "string"},
+          "type": {
+            "type": "string",
+            "enum": ["sequence", "static30s", "pulse_to_silence"]
+          },
+          "start_timestamp_ms": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+          "warmup_ms": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+          "duration_ms": {"type": "integer", "minimum": 30000, "maximum": 9007199254740991},
+          "minimum_capture_duration_ms": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+          "max_sample_gap_ms": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+          "max_new_evt": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+          "max_actuator_abs": {"type": "number", "minimum": 0},
+          "max_energy": {"type": "number", "minimum": 0},
+          "pulse_timestamp_ms": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+          "baseline_duration_ms": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+          "response_deadline_ms": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+          "settle_deadline_ms": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+          "silence_duration_ms": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+          "min_response_actuator": {"type": "number", "minimum": 0},
+          "min_response_energy": {"type": "number", "minimum": 0},
+          "max_silence_actuator": {"type": "number", "minimum": 0},
+          "max_silence_energy": {"type": "number", "minimum": 0}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

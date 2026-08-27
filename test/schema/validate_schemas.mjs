@@ -3,6 +3,8 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { validateSchemaSubset } from "../../tools/lib/schema_subset.mjs";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..", "..");
 
@@ -73,106 +75,6 @@ function loadExpectedInvalidJsonl(relativePath) {
   });
 }
 
-function typeOf(value) {
-  if (Array.isArray(value)) {
-    return "array";
-  }
-  if (value === null) {
-    return "null";
-  }
-  if (Number.isInteger(value)) {
-    return "integer";
-  }
-  return typeof value;
-}
-
-function matchesType(value, expected) {
-  if (expected === "number") {
-    return typeof value === "number" && Number.isFinite(value);
-  }
-  if (expected === "integer") {
-    return Number.isInteger(value);
-  }
-  if (expected === "array") {
-    return Array.isArray(value);
-  }
-  if (expected === "object") {
-    return value !== null && typeof value === "object" && !Array.isArray(value);
-  }
-  return typeof value === expected;
-}
-
-function validate(schema, value, location = "$") {
-  const errors = [];
-
-  const addError = (keyword, discriminator, message) => {
-    errors.push({
-      code: `${keyword}|${location}|${discriminator}`,
-      message: `${location}: ${message}`,
-    });
-  };
-
-  if (!schema || Object.keys(schema).length === 0) {
-    return errors;
-  }
-
-  if (schema.type && !matchesType(value, schema.type)) {
-    addError("type", schema.type, `expected ${schema.type}, got ${typeOf(value)}`);
-    return errors;
-  }
-
-  if (schema.enum && !schema.enum.some((entry) => Object.is(entry, value))) {
-    addError(
-      "enum",
-      JSON.stringify(value),
-      `expected one of ${JSON.stringify(schema.enum)}, got ${JSON.stringify(value)}`,
-    );
-  }
-
-  if (typeof schema.minimum === "number" && typeof value === "number" && value < schema.minimum) {
-    addError("minimum", schema.minimum, `expected >= ${schema.minimum}, got ${value}`);
-  }
-
-  if (typeof schema.maximum === "number" && typeof value === "number" && value > schema.maximum) {
-    addError("maximum", schema.maximum, `expected <= ${schema.maximum}, got ${value}`);
-  }
-
-  if (Array.isArray(value)) {
-    if (typeof schema.minItems === "number" && value.length < schema.minItems) {
-      addError("minItems", schema.minItems, `expected at least ${schema.minItems} items, got ${value.length}`);
-    }
-    if (typeof schema.maxItems === "number" && value.length > schema.maxItems) {
-      addError("maxItems", schema.maxItems, `expected at most ${schema.maxItems} items, got ${value.length}`);
-    }
-    if (schema.items) {
-      value.forEach((item, index) => {
-        errors.push(...validate(schema.items, item, `${location}[${index}]`));
-      });
-    }
-  }
-
-  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-    const properties = schema.properties ?? {};
-    const required = schema.required ?? [];
-
-    for (const property of required) {
-      if (!Object.prototype.hasOwnProperty.call(value, property)) {
-        addError("required", property, `missing required property ${property}`);
-      }
-    }
-
-    for (const [key, childValue] of Object.entries(value)) {
-      if (Object.prototype.hasOwnProperty.call(properties, key)) {
-        errors.push(...validate(properties[key], childValue, `${location}.${key}`));
-      } else if (schema.additionalProperties === false) {
-        addError("additionalProperties", key, `unexpected property ${key}`);
-      }
-    }
-  }
-
-  return errors;
-}
-
 let failureCount = 0;
 
 for (const validation of validations) {
@@ -182,7 +84,7 @@ for (const validation of validations) {
   let validationFailureCount = 0;
 
   for (const sample of samples) {
-    const errors = validate(schema, sample.value);
+    const errors = validateSchemaSubset(schema, sample.value);
     if (errors.length > 0) {
       validationFailureCount += 1;
       console.error(`${validation.samples}:${sample.index} failed ${validation.schema}`);
@@ -220,7 +122,7 @@ for (const validation of validations) {
   let invalidFixtureFailureCount = 0;
 
   for (const fixture of invalidSamples) {
-    const actualErrors = validate(schema, fixture.value);
+    const actualErrors = validateSchemaSubset(schema, fixture.value);
     const actualCodes = actualErrors.map((error) => error.code).sort();
     const expectedCodes = [...fixture.expectedErrorCodes].sort();
 

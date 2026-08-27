@@ -10,13 +10,18 @@ development order and safety rules; `16_PROGRESS_STATUS.md` records facts;
 bench automation, and a future observation-only wireless build support this
 roadmap without changing its gate order.
 
-Status reviewed on `2026-08-27`:
+Status reviewed on `2026-08-28`:
 
 - audio/TDM transport and bounded board probes are implemented and passed
 - the AtomS3 production image was uploaded and four-wall channel routing passed
 - the first powered liquid Live settling check failed because vibration decayed
   but did not stop after the device became still
 - Safe Idle after the failure restored verified digital zero
+- the default-off Gate 1 activity filter, pipeline time/validity state machine,
+  and truthful event counters are implemented in the repository; 20 native
+  production-layer tests pass
+- that corrected image has not been uploaded or powered, so Gate 1 remains
+  open on hardware
 - no material, spatial, servo, or transport expansion may bypass this blocker
 
 ## 2. Gate 1 — Close powered Live stability and safety
@@ -28,42 +33,61 @@ already implemented resonance-identification baseline. This gate corrects
 that baseline safety defect; it is not new Gate 3 mass-feature work moved
 ahead of the `AGENTS.md` order.
 
-### 2.1 Implement
+### 2.1 Implemented software correction
 
-1. Add a runtime feature flag such as
-   `features.enable_gravity_separated_mass_activity`, default `false`.
-2. Enable it explicitly only in the AtomS3 production hardware profile.
-3. Keep quasi-static gravity in latent mass position and tilt/pseudo-force
-   inputs.
-4. For mass energy and agitation only, subtract a low-pass gravity estimate,
-   band-limit the resulting hand-motion signal, and apply acceleration/gyro
-   deadbands.
-5. Preserve the generic/legacy path while the feature is disabled.
-6. Expose existing current-frame `pipeline_debug.event_count` as `new_evt` in
-   serial verbose/status output. Do not infer repeated firing from latched
-   `last_event`.
-7. Do not hide the symptom by raising liquid thresholds or reducing output
-   gain as the first fix.
+1. `features.enable_gravity_separated_mass_activity` defaults `false`; only
+   the as-built AtomS3 hardware profile opts in by default.
+2. `MotionActivityFilter` uses a 1 Hz gravity low-pass, 10 Hz motion low-pass,
+   and radial subtractive deadbands of `0.025 g` and `1.5 deg/s`.
+3. Raw accelerometer X/Y remains on the quasi-static latent-position path.
+   The filtered three-axis activity sample feeds energy/agitation only; the
+   existing energy magnitude remains planar X/Y while agitation uses 3D
+   activity.
+4. Non-finite/non-positive `dt` is side-effect-free. Missing samples hold
+   Mass/Event/Tilt while Texture/Spatial tails decay with raw loop time.
+   At `<=50 ms`, the filter runs once and Mass/Event use a dynamic
+   stability-bounded substep (`<=4 ms`, at most 64). A total `>50 ms` resets
+   all dynamic state and holds Tilt for a fresh baseline. An unsupported limit
+   resets state, submits neutral Tilt, and disarms the runtime servo interface
+   until an explicit re-arm. Texture/Spatial keep the outer raw clock and Tilt
+   submits once only for an accepted recovery. The first valid estimator frame
+   cannot generate an event.
+5. Runtime `set_param` supports the feature plus
+   `motion_activity.{gravity_cutoff_hz,motion_cutoff_hz,accel_deadband_g,gyro_deadband_dps}`.
+6. Serial, Recorder, Remote, and schema telemetry expose current-frame
+   `new_evt`, monotonic `frame_counter`, and boot-cumulative `evt_total`;
+   latched `last_event` remains history only.
+7. The feature-disabled valid-input path still matches the reviewed legacy
+   fingerprint. Event thresholds and output gain were not used to hide the
+   original symptom.
+8. With the feature enabled, every event family shares a zero-input quiet
+   contract: no wall hit, `energy<=0.02`, and planar `speed<=0.04` cannot
+   self-schedule; deliberate activity reopens the scheduler.
 
-### 2.2 Add deterministic checks
+### 2.2 Deterministic checks
 
-- constant `(1,0,0) g`, zero gyro: energy settles below `0.02` while latent
-  position retains the gravity direction
-- constant `(0,0,1) g`, zero gyro: energy settles below `0.02`
-- one bounded acceleration pulse: energy rises, then returns below `0.02`
-- high-frequency/carrier-alias input is strongly attenuated relative to
-  1–8 Hz hand motion
-- feature disabled: retained baseline behavior
+- 20 native tests pass against production sources
+- six principal one-g poses and a diagonal pose settle to `energy<=0.02`
+- fixed bias/noise, pulse-and-settle, reset, missing/invalid input, exact
+  50 ms boundary, 1/4/8 Hz translation, and 70/90 Hz attenuation are covered
+- all nine built-in presets remain event-silent across seven static poses,
+  then reopen their scheduler under deliberate activity
+- the dynamic Mass stability bound, worst supported recovery step, 64-step
+  ceiling, invalid-limit reset, and neutral-and-disarm policy are covered
+- feature-disabled behavior matches the retained fingerprint
 
-The repository currently has schema checks but no deterministic mass-motion
-harness; adding the smallest maintainable host-side harness is part of Gate 1.
+The finite-posture acceptance rotates to a new posture, then requires
+`energy<=0.02` within two seconds and summed `new_evt=0` during the following
+30-second hold; it passes in the native suite. Accelerometer-only continuous gravity rotation is
+not distinguishable from translation at the same frequency and is therefore
+not a valid indefinite classification requirement.
 
 ### 2.3 Powered acceptance
 
 Follow document 24 exactly. The minimum pass is:
 
 - static 30-second test in all six principal orientations: `new_evt=0`, no
-  perceived vibration, `energy<0.02` after settling, and no I2S error growth
+  perceived vibration, `energy<=0.02` after settling, and no I2S error growth
 - one deliberate movement: perceptible response, tactile silence within two
   seconds, then no new event for 30 seconds
 - S1 OFF/ON comparison shows no ON-only self-sustaining activity
@@ -80,16 +104,17 @@ The following work may proceed while Gate 1 is active because it reduces
 bench-only iteration without claiming progress through a later functional
 gate:
 
-- add a native deterministic layer harness and capture the feature-disabled
-  legacy fingerprint before changing the activity estimator
-- strengthen schema checks with invalid fixtures and support for schema
-  keywords already used by the repository
+- retain the implemented native deterministic layer harness and reviewed
+  feature-disabled legacy fingerprint as mandatory regression gates
+- maintain the strengthened schema checks, exact expected-invalid fixtures,
+  and shared schema-subset validator
 - define the minimum diagnostic contract: current-frame `new_evt`, monotonic
   frame sequence, build/profile identity, IMU age, loop timing, and bounded
   transport/drop counters
 - extract the existing JSON codec and remote command policy into host-testable
   modules
-- build a host-side NDJSON capture, assertion, manifest, and report workflow
+- maintain the implemented passive NDJSON capture, assertion, manifest, and
+  report workflow; add build/profile identity when canonical fields exist
 - prepare a separate AtomS3 monitor-only SoftAP environment after its command
   policy has tests
 
