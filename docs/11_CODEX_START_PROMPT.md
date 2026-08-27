@@ -1,34 +1,24 @@
 # 11 Codex Start Prompt
 
-Use the following prompt as the first Codex task after loading this repository:
+Use this concise prompt when starting a fresh automated-development session:
 
 ```text
-Read AGENTS.md and docs/README.md first.
-Then inspect the current baseline implementation without changing architecture.
-Your first task is to tighten bench-oriented validation and tuning while preserving the current build and documentation structure.
+Read AGENTS.md, docs/08_IMPLEMENTATION_PLAN.md,
+docs/16_PROGRESS_STATUS.md, and docs/24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md.
+Treat AGENTS.md as invariant rules, document 08 as the only roadmap,
+document 16 as factual status, and document 24 as the current runbook.
 
-Constraints:
-- additive changes only
-- do not remove feature flags
-- do not alter the four-layer model boundaries
-- keep low-frequency pseudo-force out of the 4-transducer path
-- use the existing dual-stereo I2S x2 backend, WebSocket path, and tilt-plane path rather than replacing them
-- update docs/04_HARDWARE_AND_PIN_SPEC.md, docs/07_TEST_AND_VALIDATION.md, and docs/09_CODEX_HANDOFF.md if implementation details change
-- preserve baseline env safety when optional backends are compiled out
-- keep telemetry and schemas in sync with runtime state
+Continue only the active Gate 1 task: implement a default-off,
+gravity-separated and motion-band-limited mass-activity path, enable it only
+for the AtomS3 production profile, expose current-frame new_evt in serial
+status, add deterministic tests, and preserve all generic defaults.
+
+Do not tune material thresholds, enable the production servo backend, add a
+new transport, format LittleFS, upload firmware, or emit hardware output unless
+the relevant documented gate and user authorization are satisfied.
+Update code, acceptance criteria, and current status together, and run the
+Definition of Done matrix in document 08 before handoff.
 ```
 
-Suggested second prompt:
-
-```text
-Validate and tune the current liquid/granular/hybrid presets on hardware.
-Focus on wall localization, flow SOA tuning, calibration quality, and perceptual separation between event families.
-Keep the shared four-layer model intact and do not break the recorder/replay or remote paths.
-```
-
-Suggested third prompt:
-
-```text
-Improve transport robustness and servo safety feedback without changing the canonical control schema.
-Keep SoftAP + WebSocket as the primary transport, retain compile-gated servo support, and update docs/schemas if runtime status changes.
-```
+After Gate 1 passes, generate the next task from document 08 rather than
+reusing this prompt unchanged.

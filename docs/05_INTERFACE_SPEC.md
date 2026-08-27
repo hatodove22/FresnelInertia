@@ -78,7 +78,7 @@ The internal message schema must be transport-independent.
 |---|---|---|---|
 | `m5stack-sticks3-audio` | USB serial + SoftAP page | WebSocket JSON | legacy bench path |
 | `m5stack-sticks3-remote` | USB serial + SoftAP page | WebSocket JSON | transport validation |
-| `m5stack-atoms3-pipeline` | USB serial | remote backend compiled out | built, not yet uploaded/tested |
+| `m5stack-atoms3-pipeline` | USB serial | remote backend compiled out | built/uploaded; routing passed; powered settling failed and is the active blocker |
 
 For the remote-enabled targets:
 
@@ -242,7 +242,9 @@ After Safe Idle, `live` changes only the run mode. Physical output remains OFF
 and zero asserted until a new explicit `audio on`. This prevents a mode change
 from replaying stale dynamic energy or silently re-arming hardware.
 
-The serial `status` line exposes `imu_stop` and `zero`. JSON/NDJSON clients use
+The serial `status` line exposes `imu_stop` and `zero`. Gate 1 in document 08
+also requires current-frame `pipeline_debug.event_count` to be exposed there as
+`new_evt`, because `last_event` is historical/latched. JSON/NDJSON clients use
 the always-present top-level `safety` object; pipeline-debug telemetry is not
 required for safety acceptance.
 

@@ -161,7 +161,8 @@ Passed on hardware on `2026-08-22`:
 
 Not yet demonstrated:
 
-- uploaded live `m5stack-atoms3-pipeline` output
+- passing powered Live settling: output was demonstrated, but residual
+  vibration decayed without stopping after one movement
 - mounted four-layer spatial localization and material separation
 - continuous-wave or long-duration mounted use at 15%
 - production AtomS3 servo actuation, feedback telemetry, and fault handling

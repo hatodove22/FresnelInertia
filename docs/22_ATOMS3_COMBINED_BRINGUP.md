@@ -1,5 +1,8 @@
 # 22 AtomS3 IMU + XL330x2 + 4CH TDM Combined Bring-Up
 
+> Status: COMPLETED PROBE EVIDENCE from `2026-08-22`. This is not the active
+> roadmap. Continue current work from documents 08 and 24.
+
 ## Scope
 
 This dedicated probe validates simultaneous use of the three active paths on

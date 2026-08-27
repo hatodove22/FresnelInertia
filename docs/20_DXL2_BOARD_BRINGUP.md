@@ -1,5 +1,8 @@
 # DXL2 Board Bring-Up
 
+> Status: COMPLETED PROBE EVIDENCE from `2026-08-22`. This is not the active
+> roadmap. Continue current work from documents 08 and 24.
+
 ## Scope
 
 `m5stack-atoms3-dxl2-probe` is the first-power communication probe for the

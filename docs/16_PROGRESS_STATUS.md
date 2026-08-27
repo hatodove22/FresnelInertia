@@ -1,6 +1,7 @@
 # 16 Progress Status
 
-This document is the repository status snapshot as of `2026-08-22`.
+This document was reconciled on `2026-08-27` and includes hardware evidence
+through `2026-08-22`.
 Its purpose is to make three things explicit:
 
 - what is implemented in code today
@@ -136,8 +137,10 @@ column so implemented cannot be read as production hardware passed.
   granular comparison, spatial checks, and soak must wait for the retest.
 - The new AtomS3 IMU stale safe-stop is implemented but still needs controlled
   fault injection and recovery validation on the production image.
-- Safe Idle, the requirement for a fresh `audio on` after returning to Live,
-  and audio-configuration guards still need production hardware validation.
+- Safe Idle from the tested live channel/output slice and the requirement for a
+  fresh `audio on` after returning to Live passed. Calibration/Replay/Record,
+  BtnA hold, controlled IMU-stale recovery, and audio-configuration guards
+  still need production hardware validation.
 - Four-wall localization and repeatability still need stronger bench evidence.
 - Liquid / granular / hybrid perceptual separation and gain balance still need tuning on real hardware.
 - Calibration currently uses an IMU-proxy response metric; stronger identification remains future work.

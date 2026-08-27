@@ -296,19 +296,21 @@ Mark each item independently:
 | Production 300 ms IMU stale safe-stop and clean recovery | pending |
 | Safe Idle from Calibration/Replay/Record/live output and BtnA hold | live channel-test passed; other modes and BtnA pending |
 | Live-after-Idle remains muted until explicit `audio on` | passed |
-| Always-present audio/safety telemetry | pending |
+| Always-present audio/safety telemetry | implemented and schema-validated; remaining production observations pending |
 | Muted-only transport/demo/layout guards and TDM demo rejection | pending |
-| Mounted spatial/material comparison | pending |
+| Mounted spatial/material comparison | deferred to the post-safety quality gate |
 | Production 8% soak and repeated arm/disarm | pending |
 | Production AtomS3 servo adapter | not implemented; compiled out |
 
-The production slice passes only when every pending haptic-only item above has
-a dated record. Servo integration remains a later slice and must not be folded
-into this acceptance by enabling the legacy backend.
+The production safety/transport slice passes when the pending haptic safety,
+state-transition, configuration-guard, and 8% stability items above have dated
+records. Mounted spatial/material quality is the next gate, not a prerequisite
+that creates a cycle with section 8. Servo integration remains a later slice
+and must not be folded into this acceptance by enabling the legacy backend.
 
 ## 8. Next implementation slice
 
-After the haptic-only production slice passes:
+After the haptic-only production safety/transport slice passes:
 
 1. perform mounted per-wall amplitude, crosstalk, and resonance measurements
 2. tune spatial/material parameters within the 8% initial and 15% hard limits

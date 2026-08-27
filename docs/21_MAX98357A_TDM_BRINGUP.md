@@ -1,5 +1,8 @@
 # 21 MAX98357A 4-Channel TDM Bring-Up
 
+> Status: COMPLETED PROBE EVIDENCE from `2026-08-22`. This is not the active
+> roadmap. Continue current work from documents 08 and 24.
+
 This procedure is for the as-built `M5AtomS3_MAX98357A_4CH_TDM_DXL2` PCB.
 It validates the four amplifier channels independently before the full haptic
 pipeline is connected to this transport.

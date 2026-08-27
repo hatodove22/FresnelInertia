@@ -419,9 +419,12 @@ Status on `2026-08-22`:
   `HAPTICS_ENABLE_TDM_AUDIO_BACKEND`
 - raw framing, CH1--CH4 isolation/order, and zero-filled idle passed with the
   dedicated probe
-- the production environment builds with this transport selected
-- the shared four-layer pipeline has not yet driven the hardware, so upstream
-  compatibility and mounted spatial performance remain pending
+- the production environment builds, was uploaded, and drove the hardware with
+  this transport selected
+- channel routing passed, but the first powered shared-pipeline settling check
+  failed because residual vibration did not stop; upstream closed-loop
+  stability, mounted spatial performance, and material comparison remain
+  pending under document 24
 
 ### Phase B: actuator tests
 - use channel test mode to excite each wall individually

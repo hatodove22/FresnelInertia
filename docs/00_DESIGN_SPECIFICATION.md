@@ -60,11 +60,13 @@ the live four-layer pipeline or the final mounted tilt mechanism.
 The final target including Safe Idle, always-present safety telemetry, and that
 safe-stop built successfully on `2026-08-22` (RAM 12.4%, flash 17.0%). It was
 then uploaded to the assembled AtomS3 board with S1 OFF and 12 V OFF. USB-only
-status confirmed a valid running IMU path, installed eight-slot TDM driver,
-digital zero, 8% effective limit, zero audio errors, and disabled tilt. Live
-four-channel routing then passed unloaded with 12 V and S1 ON: Front/CH1,
-Back/CH2, Top/CH3, and Bottom/CH4 each actuated alone. Live four-layer haptic
-rendering remains to be validated.
+  status confirmed a valid running IMU path, installed eight-slot TDM driver,
+  digital zero, 8% effective limit, zero audio errors, and disabled tilt. Live
+  four-channel routing then passed unloaded with 12 V and S1 ON: Front/CH1,
+  Back/CH2, Top/CH3, and Bottom/CH4 each actuated alone. The first powered
+  four-layer liquid run produced motion-driven output, but its settling check
+  failed because residual vibration decayed without stopping. Safe Idle then
+  restored verified zero output. Document 24 defines the corrective gate.
 
 ### Retained legacy development platform
 - M5StickS3
@@ -113,6 +115,7 @@ contract for the as-built AtomS3 PCB.
 - `21_MAX98357A_TDM_BRINGUP.md`
 - `22_ATOMS3_COMBINED_BRINGUP.md`
 - `23_ATOMS3_PRODUCTION_INTEGRATION.md`
+- `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md`
 
 ## 6. Current repository state
 
@@ -126,6 +129,7 @@ The repository currently contains:
   servo path intentionally compiled out,
 - dated hardware bring-up records for the custom PCB.
 
-It does **not** yet contain a hardware-validated live four-layer AtomS3 run,
-the as-built production DXL servo adapter, final mounted tuning, or published
-hardware design assets.
+It contains an initial powered live four-layer AtomS3 attempt, but not a passing
+closed-loop settling result. It also does **not** yet contain the as-built
+production DXL servo adapter, final mounted tuning, or published hardware
+design assets.
