@@ -118,11 +118,12 @@ Expected files:
 - `src/HapticPipeline.cpp`
 - relevant design, parameter, interface, progress, and validation documents
 
-Before changing the estimator, complete Slice 1 in
-`25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md`: add the native harness,
-capture the feature-disabled legacy fingerprint, and strengthen the schema
-validator. Wireless observation must remain a separate, later environment and
-must not be mixed into the first USB/powered Gate 1 retest.
+Slice 1 in `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` is now the
+committed pre-change checkpoint: the native harness and reviewed
+feature-disabled legacy fingerprint exist, and schema validation includes
+expected-invalid reasons. Preserve that baseline while changing the estimator.
+Wireless observation remains a separate, later environment and must not be
+mixed into the first USB/powered Gate 1 retest.
 
 Suggested initial parameters, to be confirmed by deterministic and hardware
 tests, are a gravity cutoff near 1 Hz, a motion low-pass near 10--12 Hz, an

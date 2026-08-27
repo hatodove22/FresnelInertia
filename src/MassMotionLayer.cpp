@@ -1,6 +1,5 @@
 #include "haptics/MassMotionLayer.hpp"
 
-#include <Arduino.h>
 #include <algorithm>
 #include <cmath>
 

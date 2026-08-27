@@ -10,12 +10,11 @@ Treat AGENTS.md as invariant rules, document 08 as the only roadmap,
 document 16 as factual status, document 24 as the current runbook, and
 document 25 as the supporting test/automation workflow.
 
-Continue only the active Gate 1 task. Start with Slice 1 in document 25: make
-the schema validator enforce the keywords already used, add expected-invalid
-fixtures, add a native deterministic layer harness, and capture a reviewed
-feature-disabled legacy fingerprint without changing firmware behavior. Only
-then implement the default-off gravity-separated activity path and expose
-current-frame new_evt.
+Continue only the active Gate 1 task. Slice 1 in document 25 is complete and is
+the retained regression baseline. Extend its native fixtures, then implement
+the default-off gravity-separated activity path, raw sample/time guard, reset
+contract, and truthful current-frame new_evt diagnostics without changing the
+feature-disabled valid-input fingerprint.
 
 Do not tune material thresholds, enable the production servo backend, add a
 new product transport, format LittleFS, upload firmware, or emit hardware

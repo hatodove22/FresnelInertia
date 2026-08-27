@@ -11,18 +11,26 @@ node test/schema/validate_schemas.mjs
 Current samples:
 
 - `schema/control_messages.valid.jsonl`
+- `schema/control_messages.invalid.jsonl`
 - `schema/telemetry_frames.valid.jsonl`
+- `schema/telemetry_frames.invalid.jsonl`
 
 See `schema/README.md` for the intentionally supported JSON Schema subset.
-The validator does not yet implement the `maximum` keyword already used by the
-telemetry schema and has no expected-invalid fixtures. Closing that gap is the
-first validation task in
-`docs/25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md`.
+Expected-invalid fixtures must be rejected for exactly their committed error
+codes; an accidental rejection for a different reason does not pass. Numeric
+upper bounds such as `audio.output_peak_limit <= 1` are enforced.
 
-## Required next harness
+## Native baseline and required next fixtures
 
 Gate 1 in `docs/08_IMPLEMENTATION_PLAN.md` requires a small deterministic
-mass-motion test harness. It must cover:
+mass-motion test harness. The production-layer baseline is now available as:
+
+```powershell
+pio test -e native-layers
+```
+
+It retains the feature-disabled legacy fingerprint and layer reset-equivalence
+checks. Gate 1 must extend that same suite to cover:
 
 - constant gravity in multiple orientations
 - a bounded acceleration pulse and decay
@@ -33,11 +41,10 @@ Do not replace these checks with subjective hardware observation. Hardware
 tests remain necessary, but deterministic input/output checks must fail before
 an unstable activity-path change reaches the board.
 
-The planned harness will use PlatformIO native tests against the production
-layer/filter code. It will first capture a feature-disabled legacy fingerprint,
-then cover all six one-g orientations plus a diagonal pose, fixed sensor bias
-and a committed numeric noise trace, pulse-and-settle, separate
-gravity-rotation and translational
+The implemented harness uses PlatformIO native tests against production layer
+code. Its next slice adds the production activity filter and covers all six
+one-g orientations plus a diagonal pose, fixed sensor bias and a committed
+numeric noise trace, pulse-and-settle, separate gravity-rotation and translational
 1--8 Hz motion, 70/90 Hz sampled alias candidates, invalid/non-finite input,
 non-positive `dt`, and long time gaps. Unit tests prove configure/explicit
 reset equivalence; firmware/HIL tests separately prove preset, Safe Idle, and

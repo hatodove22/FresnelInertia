@@ -80,6 +80,10 @@ transport work:
    pulse-to-silence checks
 7. repeat the 8% powered settling test from document 24
 
+Step 1 is implemented: the pinned `native-layers` suite has seven passing
+production-layer tests and a reviewed legacy fingerprint, while schema checks
+now include eleven expected-invalid fixtures. The active code task is step 2.
+
 The milestone passes only when static six-orientation tests generate no new
 events or perceived vibration, and one deliberate movement settles to tactile
 silence within the documented limit.

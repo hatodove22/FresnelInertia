@@ -1,0 +1,5 @@
+{"name":"missing required timestamp_ms","value":{"type":"record_stop"},"expected_error_codes":["required|$|timestamp_ms"]}
+{"name":"unknown top-level property","value":{"type":"request_telemetry","timestamp_ms":1,"unknown":true},"expected_error_codes":["additionalProperties|$|unknown"]}
+{"name":"unknown control type enum","value":{"type":"launch","timestamp_ms":1},"expected_error_codes":["enum|$.type|\"launch\""]}
+{"name":"unknown run mode enum","value":{"type":"set_run_mode","timestamp_ms":1,"run_mode":"armed"},"expected_error_codes":["enum|$.run_mode|\"armed\""]}
+{"name":"negative timestamp","value":{"type":"request_telemetry","timestamp_ms":-1},"expected_error_codes":["minimum|$.timestamp_ms|0"]}

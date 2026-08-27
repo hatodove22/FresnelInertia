@@ -127,6 +127,13 @@ column so implemented cannot be read as production hardware passed.
 - Preset application now has an explicit runtime-config preservation helper so
   built-in and filesystem preset loads keep hardware/session gates, output
   configuration, recorder/interface settings, and calibrated carriers stable.
+- A pinned `native-layers` PlatformIO environment directly tests the six
+  platform-independent production layers. Seven deterministic tests currently
+  pass, including reset equivalence and a reviewed 400-frame legacy
+  fingerprint that normal test execution cannot regenerate.
+- Schema validation now enforces the numeric `maximum` keyword and verifies
+  five control plus six telemetry expected-invalid fixtures for their exact
+  rejection reasons, in addition to the retained 11+3 valid samples.
 
 ## 5. Implemented but not yet proven enough
 
@@ -153,8 +160,8 @@ column so implemented cannot be read as production hardware passed.
 
 ## 6. Not implemented yet
 
-- The native deterministic layer harness, negative schema fixtures, host bench
-  runner, and separate AtomS3 monitor-only wireless environment described in
+- The Gate 1 activity fixtures/filter, host bench runner, and separate AtomS3
+  monitor-only wireless environment described in
   `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md`. The existing StickS3
   remote baseline is not yet safe to enable unchanged on the AtomS3 production
   path.
@@ -188,10 +195,9 @@ the existing reduced shared state, not via architectural replacement.
 
 ## 8. Recommended next focus
 
-- First strengthen schema validation, add the native deterministic layer
-  harness, and capture a reviewed feature-disabled legacy fingerprint. Then
-  implement and validate the feature-gated gravity-separated activity path
-  and current-frame `new_evt` contract in
+- Preserve the completed schema/native/fingerprint checkpoint, then implement
+  and validate the feature-gated gravity-separated activity path and
+  current-frame `new_evt` contract in
   `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md`.
 - Continue `m5stack-atoms3-pipeline` validation with Safe Idle from every
   active mode, IMU fault observation, configuration guards, and the exact

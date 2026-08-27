@@ -16,6 +16,18 @@ powered safety defect that blocks safe execution of the already implemented
 resonance-identification baseline. It is corrective work, not an attempt to
 move a new Gate 3 feature ahead of the required `AGENTS.md` order.
 
+Implementation checkpoint on `2026-08-27`:
+
+- Slice 1 schema validation is implemented: retained valid samples pass and
+  eleven expected-invalid fixtures are rejected for their exact reasons,
+  including the previously unenforced `maximum` bound.
+- `native-layers` is implemented with pinned native/Unity versions, a strict
+  six-production-layer source filter, seven passing deterministic tests, and a
+  reviewed 400-frame legacy fingerprint with no automatic update path.
+- `m5stack-atoms3-pipeline` still builds after the host-test dependency cleanup.
+- The extended Gate 1 activity fixtures and Slice 2 behavior remain next; no
+  gravity-separation firmware change or upload is claimed by this checkpoint.
+
 ## 2. Primary decisions
 
 1. The critical path remains:
@@ -61,20 +73,19 @@ move a new Gate 3 feature ahead of the required `AGENTS.md` order.
   does not need `dt_s`. These layers contain no random source. Most reset
   through `configure()`; `TiltPseudoForceModel` requires its explicit
   `reset()` as well.
-- `MassMotionLayer.cpp` has an unused `Arduino.h` dependency; removing that
-  dependency should make the layer directly usable in a PlatformIO native
-  test without changing firmware behavior.
+- `MassMotionLayer.cpp` no longer carries its unused `Arduino.h` dependency and
+  is directly compiled by the host harness without changing its legacy output.
 - `TelemetrySnapshot` already contains `frame_counter` and current-frame
   `pipeline_debug.event_count`.
 - `RemoteInterface` already provides SoftAP/station setup, an HTTP status page,
   WebSocket JSON telemetry, bounded client buffers, and a control-message
   queue for retained StickS3 targets.
-- control and telemetry schemas plus positive samples already exist.
+- control and telemetry schemas now have positive and expected-invalid samples.
 
 ### Gaps to close before AtomS3 wireless enablement
 
-- no native layer test environment or deterministic IMU fixture library
-- no automatic feature-off legacy fingerprint
+- the native layer environment and legacy fingerprint exist; the extended
+  orientation/noise/motion/alias/pulse fixture library is not complete yet
 - `event_count` is not printed as `new_evt`, and `frame_counter` is not emitted
   in remote JSON
 - JSON codec and command policy are embedded in `RemoteInterface.cpp`
@@ -84,8 +95,6 @@ move a new Gate 3 feature ahead of the required `AGENTS.md` order.
 - queue-full, parse failure, and output-drop cases are not all observable
 - receive work per control-loop tick is not budgeted tightly enough
 - no request ID or ACK/NACK with an explicit rejection reason
-- the schema validator has positive fixtures only and does not yet implement
-  the `maximum` keyword already used by the telemetry schema
 - no host-side capture/assertion tool produces a reproducible bench artifact
 - no build/profile identity is automatically attached to telemetry or logs
 
@@ -145,16 +154,18 @@ Scope:
   `platform = native`, `test_framework = unity`, and
   `test_build_src = yes`; use a strict `build_src_filter` that starts with
   `-<*>` and includes only the production layers under test
-- set `test_filter = native_layers` for the first suite so fixture directories
-  cannot be discovered as independent PlatformIO test suites
+- set `test_filter = native_layers/test_native_layers` for the first suite so
+  fixture directories cannot be discovered as independent PlatformIO test
+  suites
 - pin the exact native-platform and Unity/tool versions resolved by this
   slice in repository configuration rather than relying on a floating latest;
   record the host compiler name/version in test output, and pin that compiler
   in CI/container execution when the workflow is added
 - remove only the unused Arduino include required to compile the production
   mass layer on the host
-- create a shared deterministic IMU fixture runner at 250 Hz
-- capture the feature-disabled legacy output as a deliberate fingerprint
+- create a deterministic 400-frame production-layer trace runner at 250 Hz
+- capture the feature-disabled legacy output as a deliberate fingerprint with
+  an exact discrete timeline hash and tolerance-bounded output-shape statistics
 
 The first source filter covers only `MassMotionLayer`, `EventLayer`,
 `TextureLayer`, `ResonanceLayer`, `SpatialRenderer4`, and
@@ -163,24 +174,11 @@ are added explicitly when their slices begin. Pulling all of `src/` into the
 native build is not acceptable because it silently imports Arduino, storage,
 Wi-Fi, and audio dependencies.
 
-Fixture metadata must fix the sample rate, axis, phase, amplitude, warm-up,
-measurement window, and comparison tolerance. The initial set contains:
-
-- six principal one-g poses plus at least one diagonal pose
-- a committed numeric stationary-noise trace with fixed accelerometer and gyro
-  biases; do not depend on `std::normal_distribution`, whose sequence can vary
-  between standard-library implementations, even when a seed is fixed
-- separate gravity-vector rotation and translation-on-gravity traces at 1,
-  4, and 8 Hz; the two cases intentionally have different expected behavior
-- 70 and 90 Hz sampled alias traces, corresponding to the 320 and 160 Hz
-  carrier families at a 250 Hz sample rate, compared with 4 Hz motion at the
-  same input RMS, axis, phase convention, warm-up, and measurement window
-- a fixed pulse shape, amplitude, width, and axis followed by a 30-second hold
-
 The legacy golden file stores exact discrete fields and tolerance-bounded or
 quantized floating-point fields. Expected output is never regenerated during
-a normal test. Updating it requires a separate explicit command, a reason in
-the change description, and review of the golden diff.
+a normal test. Updating it requires a focused manual initializer edit, a reason
+in the change description, and review of the golden diff; the test binary has
+no update/write mode.
 
 Acceptance:
 
@@ -199,6 +197,16 @@ Acceptance:
 
 Scope:
 
+- add a shared deterministic IMU fixture runner whose metadata fixes sample
+  rate, axis, phase, amplitude, warm-up, measurement window, and comparison
+  tolerance
+- add six principal one-g poses plus at least one diagonal pose
+- add a committed numeric stationary-noise trace with fixed accelerometer and
+  gyro biases; do not depend on `std::normal_distribution`, whose sequence can
+  vary between standard-library implementations even with a fixed seed
+- add separate gravity-vector rotation and translation-on-gravity traces at 1,
+  4, and 8 Hz, plus 70/90 Hz alias traces and a fixed pulse followed by a
+  30-second hold
 - add a small production-owned `MotionActivityFilter` or equivalent state
 - keep quasi-static gravity available to latent position and tilt
 - use only gravity-separated, band-limited, deadbanded motion for energy and
@@ -672,9 +680,9 @@ before asking for bench time.
 
 ## 10. Immediate next start point
 
-The next code change should be Slice 1 only. It creates the native harness and
-negative schema checks without changing firmware behavior. Once the legacy
-fingerprint is committed, Slice 2 may implement the Gate 1 activity filter.
-Protocol and host-tool work may proceed in parallel in new files, but the Atom
-wireless environment should not be connected until the Monitor policy is
-tested.
+The Slice 1 harness, negative schema checks, and reviewed legacy fingerprint
+are complete. The next behavior change is Slice 2: extend the native fixtures,
+implement the default-off Gate 1 activity filter behind the raw sample/time
+guard, and expose truthful current-frame event diagnostics. Protocol and
+host-tool work may proceed in parallel in new files, but the Atom wireless
+environment must not be connected until the Monitor policy is tested.

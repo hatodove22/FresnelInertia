@@ -17,20 +17,21 @@ IMU behavior, WiFi range, flash persistence, or perceptual quality.
 - note that `test/schema/validate_schemas.mjs` is intentionally small and only
   covers this subset today:
   `type`, `required`, `enum`, `properties`, `items`, `additionalProperties`,
-  `minimum`, `minItems`, and `maxItems`
-- the telemetry schema already uses `maximum`, but the current validator does
-  not enforce it; add `maximum` support and expected-invalid fixtures before
-  treating the validator as a complete check of the current contract
+  `minimum`, `maximum`, `minItems`, and `maxItems`
+- the local validator enforces `maximum` and checks committed expected-invalid
+  fixtures for required fields, unknown properties, enums, actuator count,
+  numeric lower bounds, and peak-limit overflow
 
-### Planned native deterministic harness
+### Native deterministic harness
 
-The first implementation slice in
-`25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` must add a PlatformIO
-native test environment that calls the production rendering-layer code. It is
-not implemented yet.
+The `native-layers` PlatformIO environment directly compiles the production
+Mass, Event, Texture, Resonance, Spatial, and Tilt model sources. Its first
+checkpoint contains seven passing tests, reset-equivalence checks, and a
+reviewed 400-frame feature-disabled legacy fingerprint. Normal test execution
+has no golden-update or file-write path.
 
-Before the gravity-separated activity change, capture a reviewed
-feature-disabled legacy fingerprint. Then require fixed-250-Hz tests for:
+The legacy fingerprint is the required pre-change baseline. The Gate 1
+activity implementation must now extend the same fixed-250-Hz harness with:
 
 - all six static one-g orientations plus a committed diagonal orientation
 - fixed accelerometer/gyro bias and a committed numeric stationary-noise trace
@@ -49,8 +50,9 @@ The harness must use the same activity-filter implementation as firmware; a
 host-only mathematical copy is not acceptable. Layer-unit tests prove reset
 equivalence; firmware/HIL tests separately prove each pipeline path invokes
 the reset. Golden discrete fields compare exactly, floating fields use
-reviewed tolerances, and expected output changes only through a separate
-explicit update command and reviewed diff.
+reviewed tolerances, and expected output changes only through a focused manual
+edit to the committed initializer with a reviewed diff. The normal test binary
+has no fingerprint-update mode.
 The production guard sees raw `dt` and sample validity before any nominal-step
 substitution or Mass integration. A single invalid sample holds state and
 produces neutral current-frame activity; the 300 ms stale path clears state.
