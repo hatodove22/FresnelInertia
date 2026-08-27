@@ -87,11 +87,40 @@ For the remote-enabled targets:
 - the HTTP status page listens on `iface.http_port`
 - inbound control uses `schemas/control_message.schema.json`
 - low-rate telemetry uses `schemas/telemetry_frame.schema.json`
-- frame parsing is buffered and non-blocking so partial client frames do not
-  stall the main haptics loop
+- frame parsing buffers partial client frames, but receive work per tick,
+  malformed-frame behavior, queue overflow, and slow-client handling still
+  require explicit budgets and automated robustness tests
 
 TDM is an audio wire transport, not a control transport. The AtomS3 profile
 uses `tdm8_slot` internally while control remains USB serial in this slice.
+
+### Planned AtomS3 developer observer
+
+The first AtomS3 wireless target is a separate developer environment, not a
+change to `m5stack-atoms3-pipeline` and not the Gate 11 product transport. Its
+scope is defined in `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md`:
+
+- SoftAP only at first, one client, low-rate telemetry, and host-side NDJSON
+  capture
+- Monitor policy: telemetry and request telemetry only; no network state
+  mutation in the first observer
+- remote audio/tilt arm, Live/calibration/replay start, output/safety changes,
+  and OTA rejected
+- an authenticated priority Safe Idle command is a later sub-slice, after
+  queue clearing, generation invalidation, dual policy checks, and
+  postcondition telemetry exist; USB and AtomS3 BtnA remain the initial stop
+  paths
+- transport-independent JSON codec and command policy tested on the host
+  before the environment is enabled
+- request IDs, ACK/NACK reasons, strict enum validation, and observable
+  parse/auth/queue/drop counters
+- device-specific credentials delivered through a local channel rather than a
+  production password committed in source
+
+The existing StickS3 remote baseline does not yet meet this policy. In
+particular, the current generic control path can change output and safety
+related parameters, and a missing/invalid run-mode value must be changed from
+its current Live fallback to explicit rejection before AtomS3 reuse.
 
 ## 3. Message schemas
 

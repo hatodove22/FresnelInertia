@@ -6,6 +6,9 @@ This is the repository's only active roadmap. `AGENTS.md` defines the invariant
 development order and safety rules; `16_PROGRESS_STATUS.md` records facts;
 `23_ATOMS3_PRODUCTION_INTEGRATION.md` defines AtomS3 acceptance; and
 `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md` is the current execution runbook.
+`25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` defines how host tests,
+bench automation, and a future observation-only wireless build support this
+roadmap without changing its gate order.
 
 Status reviewed on `2026-08-27`:
 
@@ -19,6 +22,11 @@ Status reviewed on `2026-08-27`:
 ## 2. Gate 1 — Close powered Live stability and safety
 
 This is the only active implementation milestone.
+
+The mass-motion code already exists and currently blocks safe use of the
+already implemented resonance-identification baseline. This gate corrects
+that baseline safety defect; it is not new Gate 3 mass-feature work moved
+ahead of the `AGENTS.md` order.
 
 ### 2.1 Implement
 
@@ -65,6 +73,31 @@ Follow document 24 exactly. The minimum pass is:
 - muted-only transport/layout/demo guards and the 15% hard clamp pass
 - repeated 8% arm/disarm and the agreed soak complete without reset, feedback,
   rail anomaly, heating, or error growth
+
+### 2.4 Parallel developer-infrastructure lane
+
+The following work may proceed while Gate 1 is active because it reduces
+bench-only iteration without claiming progress through a later functional
+gate:
+
+- add a native deterministic layer harness and capture the feature-disabled
+  legacy fingerprint before changing the activity estimator
+- strengthen schema checks with invalid fixtures and support for schema
+  keywords already used by the repository
+- define the minimum diagnostic contract: current-frame `new_evt`, monotonic
+  frame sequence, build/profile identity, IMU age, loop timing, and bounded
+  transport/drop counters
+- extract the existing JSON codec and remote command policy into host-testable
+  modules
+- build a host-side NDJSON capture, assertion, manifest, and report workflow
+- prepare a separate AtomS3 monitor-only SoftAP environment after its command
+  policy has tests
+
+This lane must follow document 25. It may not enable remote audio/tilt arm,
+remote Live or calibration start, product smartphone/HMD control, or OTA while
+Gate 1 remains open. The normal AtomS3 production environment stays remote
+compile-disabled. Wireless OFF/ON powered comparison occurs only after the USB
+Gate 1 procedure passes.
 
 ## 3. Gate 2 — Mounted actuator and resonance identification
 
@@ -143,12 +176,15 @@ Release work is separate from the functional gate order:
 Every implementation milestone requires:
 
 - relevant deterministic checks
+- all native layer/protocol tests once their environments exist
 - successful builds for `m5stack-atoms3-pipeline`, `m5stack-sticks3`,
   `m5stack-sticks3-audio`, `m5stack-sticks3-tilt`,
   `m5stack-atoms3-dxl2-probe`,
   `m5stack-atoms3-max98357a-tdm-probe`, and
   `m5stack-atoms3-combined-probe`
 - schema samples passing when protocol/state changes
+- expected-invalid schema/protocol fixtures being rejected when those suites
+  are affected
 - WebXR typecheck/build passing when client code changes
 - generic defaults preserving prior behavior
 - dated hardware evidence for hardware-facing claims
@@ -162,6 +198,10 @@ Every implementation milestone requires:
 | Output feeds back into IMU | Gate 1 gravity separation, motion band limit, deadband, and powered settling test |
 | A threshold tweak hides instability | Gate 1 forbids material tuning before signal-path correction |
 | Probe success is mistaken for production success | Evidence labels and separate documents 20–24 |
+| Host tests duplicate firmware behavior | Native tests call the production layer/filter code and keep a reviewed legacy fingerprint |
+| Wireless monitoring changes timing or power conditions | Separate environment, low-rate bounded telemetry, and post-Gate-1 OFF/ON comparison |
+| A remote client arms an output | Monitor-only policy first; normal AtomS3 production remains remote compile-disabled |
+| OTA removes the recovery path | OTA is deferred to a maintenance-only, local-consent, authenticated, rollback-capable slice with USB recovery retained |
 | Servo integration expands risk too early | Production servo backend remains compiled out until Gate 10 |
 | Storage corruption blocks boot | Built-in fallback remains; no format without approval |
-| Documentation drifts | Authority is fixed to AGENTS, 08, 16, 23, and 24 |
+| Documentation drifts | Authority is fixed to AGENTS, 08, 16, 23, and 24; document 25 is the subordinate developer-workflow plan |

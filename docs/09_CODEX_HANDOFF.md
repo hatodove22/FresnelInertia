@@ -9,7 +9,9 @@ This document is a navigation and handoff policy. It is not a second roadmap.
 3. `docs/16_PROGRESS_STATUS.md`
 4. `docs/24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md`
 5. `docs/23_ATOMS3_PRODUCTION_INTEGRATION.md`
-6. the design and validation documents touched by the task
+6. `docs/25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` for test,
+   automation, protocol, or developer-observability work
+7. the design and validation documents touched by the task
 
 ## Current handoff
 
@@ -19,7 +21,10 @@ became still. Safe Idle restored zero output. Continue with Gate 1 in document
 08 and the exact procedure in document 24.
 
 Do not start material tuning, mounted spatial tuning, production XL330
-integration, or a new transport until that gate passes.
+integration, or a new product transport until that gate passes. The
+observation-only developer infrastructure in document 25 may proceed because
+it keeps physical output locally gated, uses a separate environment, and does
+not count as passing a later roadmap gate.
 
 ## Handoff requirements
 

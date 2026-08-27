@@ -15,9 +15,45 @@ IMU behavior, WiFi range, flash persistence, or perceptual quality.
 - require every telemetry sample to include `audio.output_silenced` and the
   top-level `safety` object even when `pipeline_debug` is omitted
 - note that `test/schema/validate_schemas.mjs` is intentionally small and only
-  covers the JSON Schema features currently used by the repo schemas:
+  covers this subset today:
   `type`, `required`, `enum`, `properties`, `items`, `additionalProperties`,
   `minimum`, `minItems`, and `maxItems`
+- the telemetry schema already uses `maximum`, but the current validator does
+  not enforce it; add `maximum` support and expected-invalid fixtures before
+  treating the validator as a complete check of the current contract
+
+### Planned native deterministic harness
+
+The first implementation slice in
+`25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` must add a PlatformIO
+native test environment that calls the production rendering-layer code. It is
+not implemented yet.
+
+Before the gravity-separated activity change, capture a reviewed
+feature-disabled legacy fingerprint. Then require fixed-250-Hz tests for:
+
+- all six static one-g orientations plus a committed diagonal orientation
+- fixed accelerometer/gyro bias and a committed numeric stationary-noise trace
+  that is independent of host standard-library random distributions
+- one fixed-shape/axis/amplitude/width acceleration pulse followed by a
+  30-second hold
+- separate gravity-vector rotation and translation-on-gravity fixtures at 1,
+  4, and 8 Hz
+- 70/90 Hz sampled alias candidates corresponding to the 320/160 Hz actuator
+  families at 250 Hz, with the same RMS/axis/phase/warm-up/window as the 4 Hz
+  comparison
+- invalid, non-finite, non-positive-`dt`, and long-gap inputs
+- reset behavior across configure, preset change, Safe Idle, and stale stop
+
+The harness must use the same activity-filter implementation as firmware; a
+host-only mathematical copy is not acceptable. Layer-unit tests prove reset
+equivalence; firmware/HIL tests separately prove each pipeline path invokes
+the reset. Golden discrete fields compare exactly, floating fields use
+reviewed tolerances, and expected output changes only through a separate
+explicit update command and reviewed diff.
+The production guard sees raw `dt` and sample validity before any nominal-step
+substitution or Mass integration. A single invalid sample holds state and
+produces neutral current-frame activity; the 300 ms stale path clears state.
 
 ### WebXR typecheck / build
 
@@ -491,14 +527,62 @@ telemetry exist:
   - total pseudo-force correction <= `6 deg`
   - final command <= `10 deg` unless intentionally retuned
 - require final torque-off read-back after normal stop, run-mode exit, stale
-  IMU, communication failure, watchdog timeout, and operator stop
+  IMU, watchdog timeout, and operator stop whenever bus communication remains
+  available
+- after communication failure or a missing read-back deadline, latch an
+  unconfirmed-stop fault, prohibit re-arm, instruct the operator to switch the
+  12 V/servo supply OFF, and never report torque-off as confirmed
 - repeat the safety sequence with the final linkage mounted before evaluating
   pseudo-force quality
 
 ## 7.1 Remote transport robustness
 
 - verify a partial or malformed WebSocket frame does not stall IMU polling or haptics updates
-- verify both `iface.wifi_mode_ap=true` and `iface.wifi_mode_ap=false` bring up the remote transport as expected
+- for retained StickS3 and later station-mode targets, verify both
+  `iface.wifi_mode_ap=true` and `iface.wifi_mode_ap=false`; the first AtomS3
+  observer is intentionally SoftAP-only
+- before enabling any AtomS3 wireless environment, verify missing or invalid
+  run modes are rejected rather than treated as Live
+- verify telemetry-only Monitor policy cannot mutate any state, including
+  arm audio/tilt, start Live/calibration/replay, change an output limit, load a
+  mutating preset, disable an IMU safety, or inject a command directly into the
+  execution queue
+- verify oversized frames, receive flooding, queue-full, slow clients, and
+  reconnect loops remain bounded and increment truthful diagnostic counters
+- verify inbound and outbound size limits separately; serializer overflow,
+  missing required output, or partial socket writes never publish a truncated
+  telemetry frame
+- verify missing/corrupt credentials plus SoftAP, bind, and server-start
+  failures leave networking disabled and expose a truthful USB-readable reason
+- verify the normal `m5stack-atoms3-pipeline` remains remote compile-disabled;
+  wireless observation uses a separate environment
+- begin at one SoftAP client and 5 Hz telemetry, with host-side NDJSON capture
+  rather than LittleFS storage
+- verify local Wi-Fi runtime OFF/ON switching is accepted only in Safe Idle
+  with audio zero and tilt disarmed; select and verify the radio state before
+  any powered arm rather than toggling it during Live
+- perform powered wireless evaluation only after the USB Gate 1 settling
+  sequence passes; keep a production compile-OFF regression, then compare the
+  same observer binary with Wi-Fi runtime OFF and ON under fixed 5 Hz,
+  slow-client, reconnect, and malformed-load scenarios
+- freeze timing/heap/IMU-age tolerances and run frame count from the OFF
+  baseline before viewing ON results; compare normalized missed-4-ms-period
+  rates, enforce the predeclared hard maximum gap, and require no I2S
+  error/underrun growth, reset, post-warm-up heap regression, or Wi-Fi-only
+  self-excitation
+- under receive load, measure local BtnA/USB detection-to-software-zero and
+  DMA-to-line-silence deadlines separately
+- treat this path as wireless telemetry first and separately gated bounded
+  bench control only at Slice 8 or later, not as a replacement for USB/JTAG
+  crash debugging
+- before Slice 8 control, verify every mutating request uses a
+  session-nonce/request-sequence/body-bound HMAC (or a trusted WSS bridge),
+  lease expiry is based on device monotonic time, and the XL330 torque-off
+  request plus independent watchdog enforce a stop deadline within 500 ms of
+  the last valid authority renewal; read-back is confirmation only when
+  communication remains available
+- follow document 25 for command policy, timing budgets, evidence capture, and
+  the separately deferred OTA gate
 
 ## 7.2 WebXR / smartphone visual demo
 

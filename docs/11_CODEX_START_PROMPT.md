@@ -4,18 +4,24 @@ Use this concise prompt when starting a fresh automated-development session:
 
 ```text
 Read AGENTS.md, docs/08_IMPLEMENTATION_PLAN.md,
-docs/16_PROGRESS_STATUS.md, and docs/24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md.
+docs/16_PROGRESS_STATUS.md, docs/24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md, and
+docs/25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md.
 Treat AGENTS.md as invariant rules, document 08 as the only roadmap,
-document 16 as factual status, and document 24 as the current runbook.
+document 16 as factual status, document 24 as the current runbook, and
+document 25 as the supporting test/automation workflow.
 
-Continue only the active Gate 1 task: implement a default-off,
-gravity-separated and motion-band-limited mass-activity path, enable it only
-for the AtomS3 production profile, expose current-frame new_evt in serial
-status, add deterministic tests, and preserve all generic defaults.
+Continue only the active Gate 1 task. Start with Slice 1 in document 25: make
+the schema validator enforce the keywords already used, add expected-invalid
+fixtures, add a native deterministic layer harness, and capture a reviewed
+feature-disabled legacy fingerprint without changing firmware behavior. Only
+then implement the default-off gravity-separated activity path and expose
+current-frame new_evt.
 
 Do not tune material thresholds, enable the production servo backend, add a
-new transport, format LittleFS, upload firmware, or emit hardware output unless
-the relevant documented gate and user authorization are satisfied.
+new product transport, format LittleFS, upload firmware, or emit hardware
+output unless the relevant documented gate and user authorization are
+satisfied. Monitor-only developer infrastructure may proceed only under the
+separate-environment and command-policy restrictions in document 25.
 Update code, acceptance criteria, and current status together, and run the
 Definition of Done matrix in document 08 before handoff.
 ```

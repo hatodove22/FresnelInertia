@@ -12,6 +12,7 @@ This index is organized by authority and task, not by filename number.
 | `23_ATOMS3_PRODUCTION_INTEGRATION.md` | AtomS3 production acceptance contract and result matrix |
 | `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md` | Exact runbook for the current powered-Live blocker |
 | `07_TEST_AND_VALIDATION.md` | Cross-project acceptance criteria and validation matrix |
+| `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` | Supporting execution plan for native tests, bench automation, and monitor-only wireless debugging; subordinate to document 08 |
 
 When two documents appear to disagree, use `AGENTS.md` for invariants,
 document 08 for order, document 16 for current facts, document 23 for AtomS3
@@ -27,7 +28,18 @@ document rather than carrying both interpretations forward.
 3. `16_PROGRESS_STATUS.md`
 4. `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md`
 5. `23_ATOMS3_PRODUCTION_INTEGRATION.md`
-6. relevant sections of `07_TEST_AND_VALIDATION.md`
+6. `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` when preparing
+   host-side or wireless developer infrastructure
+7. relevant sections of `07_TEST_AND_VALIDATION.md`
+
+### Improve testability or wireless diagnostics
+
+1. `../AGENTS.md`
+2. `08_IMPLEMENTATION_PLAN.md`
+3. `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md`
+4. `05_INTERFACE_SPEC.md`
+5. `07_TEST_AND_VALIDATION.md`
+6. `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md` before any hardware-facing test
 
 ### Change the pipeline or parameter model
 
@@ -72,6 +84,7 @@ document rather than carrying both interpretations forward.
 | `22_ATOMS3_COMBINED_BRINGUP.md` | Completed bounded combined-probe evidence |
 | `23_ATOMS3_PRODUCTION_INTEGRATION.md` | Active production acceptance contract |
 | `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md` | Active next-session runbook |
+| `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` | Active supporting workflow for test-first development and safe wireless observation |
 
 Probe success is supporting evidence only; it does not imply the production
 four-layer path passed.

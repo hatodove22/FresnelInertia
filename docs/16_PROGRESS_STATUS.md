@@ -153,6 +153,11 @@ column so implemented cannot be read as production hardware passed.
 
 ## 6. Not implemented yet
 
+- The native deterministic layer harness, negative schema fixtures, host bench
+  runner, and separate AtomS3 monitor-only wireless environment described in
+  `25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md`. The existing StickS3
+  remote baseline is not yet safe to enable unchanged on the AtomS3 production
+  path.
 - AtomS3 production DXL adapter for GPIO1 TX / GPIO2 RX automatic half-duplex,
   including device read-back, watchdog/fault state, and telemetry.
 - Automatic capture of resolved preset/build/calibration identity for
@@ -183,13 +188,16 @@ the existing reduced shared state, not via architectural replacement.
 
 ## 8. Recommended next focus
 
-- Continue `m5stack-atoms3-pipeline` validation with Safe Idle from every active
-  mode, IMU fault observation, and configuration guards. First implement and
-  validate the feature-gated gravity-separated activity path in
-  `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md`; only then resume liquid/granular 8%
-  comparison, spatial checks, and soak in document 23.
-- Bench-validate wall localization and material-family separation on the
-  mounted transducer stack while keeping the 15% hard ceiling.
+- First strengthen schema validation, add the native deterministic layer
+  harness, and capture a reviewed feature-disabled legacy fingerprint. Then
+  implement and validate the feature-gated gravity-separated activity path
+  and current-frame `new_evt` contract in
+  `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md`.
+- Continue `m5stack-atoms3-pipeline` validation with Safe Idle from every
+  active mode, IMU fault observation, configuration guards, and the exact
+  powered Gate 1 procedure. Only after Gate 1 passes, resume mounted resonance
+  identification and the later spatial/material-family gates; a wireless
+  observer comparison may run in parallel but does not block Gate 2.
 - Tighten the resonance identification metric and storage robustness.
 - Add resolved configuration identity to recordings and acceptance records.
 - Implement the AtomS3 servo adapter only after the haptic-only slice is stable,

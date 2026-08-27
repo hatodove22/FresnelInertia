@@ -60,6 +60,8 @@ Use these documents as the source of truth:
    — AtomS3 acceptance contract
 5. [docs/24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md](docs/24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md)
    — exact restart procedure for the current blocker
+6. [docs/25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md](docs/25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md)
+   — test-first workflow, bench automation, and safe monitor-only wireless plan
 
 The full role-based documentation index is in [docs/README.md](docs/README.md).
 
@@ -68,16 +70,25 @@ The full role-based documentation index is in [docs/README.md](docs/README.md).
 Before any material tuning, spatial tuning, servo integration, or new
 transport work:
 
-1. add a default-off gravity-separated mass-activity path
-2. enable it only in the AtomS3 production profile
-3. keep quasi-static gravity in the latent position/tilt path
-4. expose current-frame event count as `new_evt` in serial status
-5. add deterministic constant-gravity and pulse-response checks
-6. repeat the 8% powered settling test from document 24
+1. strengthen schema validation, add the native deterministic harness, and
+   capture the feature-disabled legacy fingerprint
+2. add a default-off gravity-separated mass-activity path
+3. enable it only in the AtomS3 production profile
+4. keep quasi-static gravity in the latent position/tilt path
+5. expose current-frame event count as `new_evt` in serial status
+6. pass the deterministic orientation, motion, alias, invalid-input, and
+   pulse-to-silence checks
+7. repeat the 8% powered settling test from document 24
 
 The milestone passes only when static six-orientation tests generate no new
 events or perceived vibration, and one deliberate movement settles to tactile
 silence within the documented limit.
+
+In parallel, document 25 permits host-side deterministic tests, stricter
+schema/protocol checks, log tooling, and preparation of a separate
+monitor-only AtomS3 wireless environment. The normal production environment
+remains remote compile-disabled, and wireless control/OTA do not bypass this
+milestone.
 
 ## Primary PlatformIO environments
 

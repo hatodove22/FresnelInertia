@@ -5,7 +5,9 @@
 1. `AGENTS.md` for invariant architecture and safety rules
 2. `docs/08_IMPLEMENTATION_PLAN.md` for the active gate
 3. `docs/16_PROGRESS_STATUS.md` for current facts
-4. the relevant design and validation documents
+4. `docs/25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` for native-test,
+   bench-automation, protocol, or wireless-debug work
+5. the relevant design and validation documents
 
 Do not treat `docs/09_CODEX_HANDOFF.md` or a probe result as a second roadmap.
 
@@ -17,6 +19,8 @@ Do not treat `docs/09_CODEX_HANDOFF.md` or a probe result as a second roadmap.
 - update `docs/` whenever behavior, interfaces, status, or hardware evidence
   changes
 - keep schemas and telemetry synchronized
+- add expected-invalid fixtures for parser/schema changes, not only positive
+  examples
 - distinguish source implementation, probe hardware pass, and production
   hardware pass
 - leave hardware in a documented safe state after bench work
