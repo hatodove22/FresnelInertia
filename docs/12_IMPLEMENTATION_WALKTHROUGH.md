@@ -16,6 +16,7 @@ Compile-time gates:
 - `HAPTICS_ENABLE_AUDIO_BACKEND`
 - `HAPTICS_ENABLE_REMOTE_BACKEND`
 - `HAPTICS_ENABLE_TILT_SERVO`
+- `HAPTICS_ENABLE_USB_TELEMETRY`
 
 Runtime gates live in `SystemParams.features` and default to safe-off for audio, tilt, remote, recorder, and runtime calibration. The debug display flag is now retained for probe-only use and is not part of the supported main-firmware path.
 
@@ -42,16 +43,18 @@ This is the orchestration layer. `begin()` wires up every subsystem in this orde
 1. preset store
 2. calibration carrier restore
 3. IMU sampler
-4. mass layer
-5. event layer
-6. texture layer
-7. resonance layer
-8. runtime calibrator
-9. spatial renderer
-10. audio output
-11. tilt interface
-12. remote interface
-13. recorder
+4. motion activity filter
+5. mass layer
+6. event layer
+7. texture layer
+8. resonance layer
+9. runtime calibrator
+10. spatial renderer
+11. audio output
+12. tilt model and interface
+13. remote interface
+14. passive USB telemetry producer
+15. recorder
 
 The main runtime loop is:
 
@@ -62,7 +65,8 @@ The main runtime loop is:
 
 Preset changes go through a small runtime-config preservation path inside
 `HapticPipeline`. `captureRuntimeConfig()` snapshots feature flags, pins,
-audio, tilt, interface, recorder, and calibrated low/high carrier arrays before
+audio, tilt, interface, recorder, motion-activity filter parameters, and
+calibrated low/high carrier arrays before
 a built-in or filesystem preset replaces the material model. `commitPresetParams()`
 then restores those runtime fields, reconfigures the pipeline, and resets the
 tilt model. This keeps preset cycling additive: material parameters can change
@@ -74,7 +78,32 @@ without silently changing the active hardware/session configuration.
 
 `src/ImuSampler.cpp` converts board IMU output into `ImuSample { accel_g, gyro_dps, timestamp_us, valid }`.
 
-### 2. Mass motion layer
+### 2. Optional motion activity and time boundary
+
+`src/MotionActivityFilter.cpp` and `HapticPipeline::processSample()`
+
+- The path is behind `features.enable_gravity_separated_mass_activity`.
+  Generic defaults keep it OFF for legacy equivalence; the as-built AtomS3
+  profile explicitly enables it.
+- A 1 Hz gravity estimate is removed before the remaining acceleration and
+  gyro signals pass through a 10 Hz motion low-pass and radial subtractive
+  `0.025 g` / `1.5 deg/s` deadbands.
+- Raw/quasi-static X/Y acceleration still drives latent position. The filtered
+  three-axis activity drives Mass energy/agitation, so posture and activity are
+  not collapsed into one signal.
+- Non-finite samples are treated as missing. Finite non-positive/invalid frame
+  time is rejected without state change; missing time accumulates while
+  Mass/Event/Tilt hold and Texture/Resonance/Spatial tails advance with raw
+  wall-clock time.
+- A valid recovery at or below 50 ms is integrated in stable substeps no larger
+  than 4 ms (maximum 64). A gap above 50 ms resets dynamic state to neutral and
+  holds Tilt until a new baseline exists. An unsupported stable-step bound
+  instead submits a neutral Tilt frame and disarms the runtime servo interface
+  after resetting dynamic state; parameter correction never implicitly re-arms
+  physical Tilt.
+- The first valid sample establishes gravity and cannot emit an event.
+
+### 3. Mass motion layer
 
 `src/MassMotionLayer.cpp`
 
@@ -88,7 +117,7 @@ Output:
 
 - `MassState { pos_norm, vel_norm_s, energy, fill, headspace, spans, family }`
 
-### 3. Event layer
+### 4. Event layer
 
 `src/EventLayer.cpp`
 
@@ -111,13 +140,22 @@ Output:
   - those ticks are still emitted as `WallHit` events but are rendered as a dedicated detent click inside the texture layer when the active family is `Detented`
 
 The event layer is stateful. It keeps cooldowns, phase accumulators, and activity variables so event density follows motion rather than emitting one-shot threshold spikes.
+When the gravity-separated path is enabled, a shared all-family quiet gate
+prevents new family events once Mass is below the accepted energy/speed floor
+and no wall hit occurred; internal activities may still decay. With the feature
+OFF, the legacy scheduler floors and fingerprint remain unchanged.
+All recovery substeps share one 16-event frame budget. Scheduler phase that is
+already due is consumed analytically even when the frame is full, so extreme
+rates cannot create an unbounded loop or a deferred burst. Only events actually
+admitted to the bounded frame replace `lastEvent()` and increment the canonical
+diagnostic counters.
 
 Output:
 
 - `EventFrame<kMaxEventsPerFrame>`
 - `lastEvent()` for telemetry
 
-### 4. Texture layer
+### 5. Texture layer
 
 `src/TextureLayer.cpp`
 
@@ -143,7 +181,7 @@ Output:
 
 - `TextureFrame<kMaxTexturesPerFrame>`
 
-### 5. Resonance layer
+### 6. Resonance layer
 
 `src/ResonanceLayer.cpp`
 
@@ -165,7 +203,7 @@ Output:
 
 - `ResonanceFrame<kMaxResonanceVoicesPerFrame>`
 
-### 6. Spatial renderer
+### 7. Spatial renderer
 
 `src/SpatialRenderer4.cpp`
 
@@ -177,7 +215,7 @@ Output:
   - full-band `DriveFrame4 { low[4], high[4], noise[4] }`
   - summarized `ActuatorFrame4` for telemetry
 
-### 7. Audio backend
+### 8. Audio backend
 
 `src/AudioOutput4Ch.cpp`
 
@@ -196,7 +234,7 @@ Output:
 
 When compile-disabled or runtime-disabled, `submit()` safely becomes a no-op.
 
-### 8. Tilt-plane backend
+### 9. Tilt-plane backend
 
 `src/TiltPseudoForceModel.cpp`
 
@@ -361,6 +399,16 @@ Implemented in `HapticPipeline::handleConsoleCommand()`:
 - `audio test front|back|top|bottom|off`
 - `audio test level <0..1>`
 - `audio layout 2ch|4ch`
+
+The local IMU-fault diagnostic is guarded by a production safety policy. While
+injection or stale-stop is active, non-Live operational modes and new physical
+arms are rejected; Safe Idle is the only release path after an asserted stop.
+The stale state itself is latched, so a later valid IMU sample or deadline
+refresh cannot resume the pipeline before that Safe Idle transition.
+The same policy rejects Tilt arm when the Mass dynamics cannot provide a
+finite, positive stable integration step that can cover the full 50 ms
+recovery envelope within the 64-substep safety cap. Replay completion enters
+Safe Idle instead of silently returning to real-IMU rendering.
 
 ## Where to edit for common tasks
 

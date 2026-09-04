@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "run_id": "dry-sequence-integrity",
+  "telemetry_schema": "schemas/telemetry_frame.schema.json",
+  "frame_counter_mode": "contiguous",
+  "timestamp_origin": "absolute",
+  "metadata": {
+    "source": "committed dry-run fixture",
+    "physical_output": false
+  },
+  "checks": [
+    {
+      "id": "sequence-integrity",
+      "type": "sequence",
+      "max_sample_gap_ms": 20
+    }
+  ]
+}

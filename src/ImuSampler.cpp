@@ -6,7 +6,7 @@
 namespace haptics {
 
 bool ImuSampler::begin() {
-  return true;
+  return M5.Imu.isEnabled();
 }
 
 ImuSample ImuSampler::poll() {

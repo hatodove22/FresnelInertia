@@ -27,6 +27,16 @@ constexpr uint32_t kDemoCompatSampleRateHz = 48000;
 constexpr uint16_t kDemoCompatDmaBufLen = 240;
 constexpr uint8_t kDemoCompatDmaBufCount = 3;
 constexpr uint8_t kDemoCompatSpeakerVolume = 255;
+constexpr uint8_t kTdmSlotsPerFrame = 8;
+constexpr uint8_t kTdmUsedSlots = 4;
+constexpr size_t kMaxTdmRenderFrames =
+    4092u / (kTdmSlotsPerFrame * sizeof(int16_t));
+constexpr float kCompileHardPeakLimit =
+    static_cast<float>(HAPTICS_AUDIO_HARD_PEAK_LIMIT_PERMILLE) / 1000.0f;
+
+static_assert(HAPTICS_AUDIO_HARD_PEAK_LIMIT_PERMILLE >= 0 &&
+                  HAPTICS_AUDIO_HARD_PEAK_LIMIT_PERMILLE <= 1000,
+              "HAPTICS_AUDIO_HARD_PEAK_LIMIT_PERMILLE must be in [0, 1000]");
 
 float clampf(float value, float lo, float hi) {
   return std::max(lo, std::min(value, hi));
@@ -47,6 +57,7 @@ bool AudioOutput4Ch::begin(const SystemParams& params) {
   params_ = params;
   underrun_count_ = 0;
   installed_ = false;
+  silence_asserted_ = true;
 #if HAPTICS_ENABLE_AUDIO_BACKEND
   smoothed_frame_ = {};
   low_phase_.fill(0.0f);
@@ -62,23 +73,35 @@ bool AudioOutput4Ch::begin(const SystemParams& params) {
 bool AudioOutput4Ch::configure(const SystemParams& params) {
   const bool was_demo_compat = usesDemoCompatMode();
   const bool was_using_second_bus = usesSecondBus();
+  const AudioTransport previous_transport = params_.audio.transport;
   const uint32_t previous_sample_rate = effectiveSampleRateHz();
   const uint16_t previous_dma_buf_len = effectiveDmaBufLen();
   const uint8_t previous_dma_buf_count = effectiveDmaBufCount();
   params_ = params;
   enabled_ = params.features.enable_audio_output && params.audio.runtime_enable;
 
+#if !HAPTICS_ENABLE_AUDIO_BACKEND
+  if (enabled_) {
+    enabled_ = false;
+    return false;
+  }
+#endif
+
 #if HAPTICS_ENABLE_AUDIO_BACKEND
   smoothed_frame_ = {};
-  if (params_.features.enable_audio_output) {
+  if (wantsDriverInstalled()) {
     const bool need_reinstall = !installed_ || port_installed_[1] != usesSecondBus() ||
                                 was_using_second_bus != usesSecondBus() || was_demo_compat != usesDemoCompatMode() ||
+                                previous_transport != params_.audio.transport ||
                                 previous_sample_rate != effectiveSampleRateHz() ||
                                 previous_dma_buf_len != effectiveDmaBufLen() ||
                                 previous_dma_buf_count != effectiveDmaBufCount();
     if (need_reinstall) {
       if (usesDemoCompatMode()) {
-        uninstallDriver();
+        if (!uninstallDriver()) {
+          enabled_ = false;
+          return false;
+        }
         if (!installDemoCompatSpeaker()) {
           enabled_ = false;
           return false;
@@ -92,8 +115,16 @@ bool AudioOutput4Ch::configure(const SystemParams& params) {
       }
     }
   } else {
-    uninstallDriver();
+    if (!uninstallDriver()) {
+      enabled_ = false;
+      return false;
+    }
     uninstallDemoCompatSpeaker();
+  }
+  if (!enabled_ && installed_) {
+    if (!clearHardwareOutput()) {
+      return false;
+    }
   }
 #endif
 
@@ -106,13 +137,16 @@ AudioBackendStatus AudioOutput4Ch::status() const {
       params_.audio.output_layout == AudioOutputLayout::QuadWall4Ch || params_.audio.channel_test_wall == WallId::Front ||
       params_.audio.channel_test_wall == WallId::Back;
   status.compile_enabled = HAPTICS_ENABLE_AUDIO_BACKEND != 0;
+  status.driver_installed = installed_;
   status.runtime_enabled =
 #if HAPTICS_ENABLE_AUDIO_BACKEND
       enabled_ && installed_;
 #else
       false;
 #endif
+  status.output_silenced = !installed_ || silence_asserted_;
   status.demo_compat_mode = usesDemoCompatMode();
+  status.transport = params_.audio.transport;
   status.output_layout = params_.audio.output_layout;
   status.active_output_channels =
       params_.audio.output_layout == AudioOutputLayout::FrontBack2Ch ? static_cast<uint8_t>(2) : static_cast<uint8_t>(4);
@@ -120,6 +154,7 @@ AudioBackendStatus AudioOutput4Ch::status() const {
       status.runtime_enabled && params_.audio.channel_test_enable && params_.audio.channel_test_wall != WallId::None &&
       valid_test_wall;
   status.test_wall = status.test_mode ? params_.audio.channel_test_wall : WallId::None;
+  status.output_peak_limit = effectivePeakLimit();
   status.underrun_count = underrun_count_;
   return status;
 }
@@ -128,8 +163,22 @@ bool AudioOutput4Ch::usesDemoCompatMode() const {
   return params_.audio.demo_compat_mode;
 }
 
+bool AudioOutput4Ch::usesTdmTransport() const {
+  return !usesDemoCompatMode() && params_.audio.transport == AudioTransport::Tdm8Slot;
+}
+
 bool AudioOutput4Ch::usesSecondBus() const {
-  return !usesDemoCompatMode() && params_.audio.output_layout == AudioOutputLayout::QuadWall4Ch;
+  return !usesDemoCompatMode() && !usesTdmTransport() &&
+         params_.audio.output_layout == AudioOutputLayout::QuadWall4Ch;
+}
+
+bool AudioOutput4Ch::wantsDriverInstalled() const {
+  return params_.features.enable_audio_output || params_.audio.keep_driver_installed_when_muted;
+}
+
+float AudioOutput4Ch::effectivePeakLimit() const {
+  return clampf(params_.audio.output_peak_limit, 0.0f,
+                clampf(kCompileHardPeakLimit, 0.0f, 1.0f));
 }
 
 uint32_t AudioOutput4Ch::effectiveSampleRateHz() const {
@@ -169,6 +218,7 @@ bool AudioOutput4Ch::installDemoCompatSpeaker() {
   demo_buffer_index_ = 0;
   demo_speaker_installed_ = M5.Speaker.begin();
   installed_ = demo_speaker_installed_;
+  silence_asserted_ = installed_;
   return demo_speaker_installed_;
 }
 
@@ -179,11 +229,20 @@ void AudioOutput4Ch::uninstallDemoCompatSpeaker() {
   M5.Speaker.stop();
   M5.Speaker.end();
   demo_speaker_installed_ = false;
-  installed_ = false;
+  installed_ = port_installed_[0] || port_installed_[1];
+  if (!installed_) {
+    silence_asserted_ = true;
+  }
 }
 
 bool AudioOutput4Ch::installDriver() {
-  uninstallDriver();
+  return usesTdmTransport() ? installTdmDriver() : installDualI2sDriver();
+}
+
+bool AudioOutput4Ch::installDualI2sDriver() {
+  if (!uninstallDriver()) {
+    return false;
+  }
 
   const i2s_config_t config = {
       .mode = static_cast<i2s_mode_t>(I2S_MODE_MASTER | I2S_MODE_TX),
@@ -228,6 +287,8 @@ bool AudioOutput4Ch::installDriver() {
   }
   if (i2s_zero_dma_buffer(I2S_NUM_0) != ESP_OK) {
     underrun_count_++;
+    uninstallDriver();
+    return false;
   }
 
   if (usesSecondBus()) {
@@ -244,28 +305,144 @@ bool AudioOutput4Ch::installDriver() {
     }
     if (i2s_zero_dma_buffer(I2S_NUM_1) != ESP_OK) {
       underrun_count_++;
+      uninstallDriver();
+      return false;
     }
   }
 
   installed_ = true;
+  silence_asserted_ = true;
   return true;
 }
 
-void AudioOutput4Ch::uninstallDriver() {
-  if (!installed_ && !port_installed_[0] && !port_installed_[1]) {
-    return;
+bool AudioOutput4Ch::installTdmDriver() {
+  if (!uninstallDriver()) {
+    return false;
   }
-  if (port_installed_[0]) {
-    i2s_zero_dma_buffer(I2S_NUM_0);
-    i2s_driver_uninstall(I2S_NUM_0);
-    port_installed_[0] = false;
+#if !HAPTICS_ENABLE_TDM_AUDIO_BACKEND
+  underrun_count_++;
+  return false;
+#else
+  const i2s_channel_t all_eight_slots = static_cast<i2s_channel_t>(
+      I2S_TDM_ACTIVE_CH0 | I2S_TDM_ACTIVE_CH1 | I2S_TDM_ACTIVE_CH2 |
+      I2S_TDM_ACTIVE_CH3 | I2S_TDM_ACTIVE_CH4 | I2S_TDM_ACTIVE_CH5 |
+      I2S_TDM_ACTIVE_CH6 | I2S_TDM_ACTIVE_CH7);
+  const i2s_config_t config = {
+      .mode = static_cast<i2s_mode_t>(I2S_MODE_MASTER | I2S_MODE_TX),
+      .sample_rate = effectiveSampleRateHz(),
+      .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+      .channel_format = I2S_CHANNEL_FMT_MULTIPLE,
+      .communication_format = I2S_COMM_FORMAT_STAND_PCM_SHORT,
+      .intr_alloc_flags = 0,
+      .dma_buf_count = std::max<int>(2, effectiveDmaBufCount()),
+      .dma_buf_len = std::max<int>(16, std::min<int>(effectiveDmaBufLen(), kMaxTdmRenderFrames)),
+      .use_apll = false,
+      .tx_desc_auto_clear = true,
+      .fixed_mclk = 0,
+      .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+      .bits_per_chan = I2S_BITS_PER_CHAN_16BIT,
+      .chan_mask = all_eight_slots,
+      .total_chan = kTdmSlotsPerFrame,
+      .left_align = false,
+      .big_edin = false,
+      // ESP-IDF 4.4 maps false to MSB-first on this legacy TDM API.
+      .bit_order_msb = false,
+      .skip_msk = false,
+  };
+  const i2s_pin_config_t pins = {
+      .mck_io_num = I2S_PIN_NO_CHANGE,
+      .bck_io_num = params_.pins.i2s0_bck,
+      .ws_io_num = params_.pins.i2s0_ws,
+      .data_out_num = params_.pins.i2s0_dout,
+      .data_in_num = I2S_PIN_NO_CHANGE,
+  };
+
+  if (i2s_driver_install(I2S_NUM_0, &config, 0, nullptr) != ESP_OK) {
+    underrun_count_++;
+    return false;
   }
-  if (port_installed_[1]) {
-    i2s_zero_dma_buffer(I2S_NUM_1);
-    i2s_driver_uninstall(I2S_NUM_1);
-    port_installed_[1] = false;
+  port_installed_[0] = true;
+  if (i2s_set_pin(I2S_NUM_0, &pins) != ESP_OK ||
+      i2s_zero_dma_buffer(I2S_NUM_0) != ESP_OK) {
+    underrun_count_++;
+    uninstallDriver();
+    return false;
   }
-  installed_ = false;
+
+  const size_t render_frames =
+      std::max<size_t>(16, std::min<size_t>(effectiveDmaBufLen(), kMaxTdmRenderFrames));
+  const size_t bytes_to_write =
+      render_frames * kTdmSlotsPerFrame * sizeof(int16_t);
+  tdm_samples_.fill(0);
+  for (uint8_t block = 0; block < 3; ++block) {
+    size_t bytes_written = 0;
+    if (i2s_write(I2S_NUM_0, tdm_samples_.data(), bytes_to_write,
+                  &bytes_written, pdMS_TO_TICKS(40)) != ESP_OK ||
+        bytes_written != bytes_to_write) {
+      underrun_count_++;
+      uninstallDriver();
+      return false;
+    }
+  }
+
+  installed_ = true;
+  silence_asserted_ = true;
+  return true;
+#endif
+}
+
+bool AudioOutput4Ch::clearHardwareOutput() {
+  smoothed_frame_ = {};
+  if (demo_speaker_installed_) {
+    M5.Speaker.stop();
+  }
+
+  bool cleared = true;
+  for (int port_index = 0; port_index < 2; ++port_index) {
+    if (!port_installed_[port_index]) {
+      continue;
+    }
+    const i2s_port_t port = port_index == 0 ? I2S_NUM_0 : I2S_NUM_1;
+    if (i2s_zero_dma_buffer(port) != ESP_OK) {
+      underrun_count_++;
+      cleared = false;
+    }
+  }
+  silence_asserted_ = cleared;
+  return cleared;
+}
+
+bool AudioOutput4Ch::uninstallDriver() {
+  bool all_uninstalled = true;
+  bool remaining_ports_silenced = true;
+  for (int port_index = 0; port_index < 2; ++port_index) {
+    if (!port_installed_[port_index]) {
+      continue;
+    }
+
+    const i2s_port_t port = port_index == 0 ? I2S_NUM_0 : I2S_NUM_1;
+    const bool zeroed = i2s_zero_dma_buffer(port) == ESP_OK;
+    if (!zeroed) {
+      underrun_count_++;
+    }
+
+    if (i2s_driver_uninstall(port) == ESP_OK) {
+      port_installed_[port_index] = false;
+    } else {
+      underrun_count_++;
+      all_uninstalled = false;
+      remaining_ports_silenced = remaining_ports_silenced && zeroed;
+    }
+  }
+
+  const bool raw_driver_installed = port_installed_[0] || port_installed_[1];
+  installed_ = demo_speaker_installed_ || raw_driver_installed;
+  if (raw_driver_installed) {
+    silence_asserted_ = remaining_ports_silenced;
+  } else if (!demo_speaker_installed_) {
+    silence_asserted_ = true;
+  }
+  return all_uninstalled;
 }
 
 DriveFrame4 AudioOutput4Ch::effectiveFrame(const DriveFrame4& frame) const {
@@ -321,8 +498,13 @@ float AudioOutput4Ch::nextSample(float env_low, float env_high, float env_noise,
   const float high = env_high * std::sin(high_phase_[channel_index]);
   const float noise = env_noise * ((static_cast<int32_t>(xorshift32(noise_state_)) & 0xFFFF) / 32768.0f - 1.0f);
   const float output_gain = std::max(0.0f, params_.audio.output_gain);
-  return clampf(output_gain * kOutputScale * (kLowScale * low + kHighScale * high + kNoiseScale * noise), -1.0f,
-                1.0f);
+  const float master_gain = params_.features.enable_physical_master_gain
+                                ? std::max(0.0f, params_.resonance.master_gain)
+                                : 1.0f;
+  const float peak_limit = effectivePeakLimit();
+  return clampf(output_gain * master_gain * kOutputScale *
+                    (kLowScale * low + kHighScale * high + kNoiseScale * noise),
+                -peak_limit, peak_limit);
 }
 
 void AudioOutput4Ch::renderBusBlock(int port_index, int left_channel, int right_channel, const DriveFrame4& frame) {
@@ -358,6 +540,38 @@ void AudioOutput4Ch::renderBusBlock(int port_index, int left_channel, int right_
   size_t bytes_written = 0;
   const esp_err_t result =
       i2s_write(port, samples.data(), bytes_to_write, &bytes_written, pdMS_TO_TICKS(10));
+  if (result != ESP_OK || bytes_written != bytes_to_write) {
+    underrun_count_++;
+  }
+}
+
+void AudioOutput4Ch::renderTdmBlock(const DriveFrame4& frame) {
+  const size_t render_frames =
+      std::max<size_t>(16, std::min<size_t>(effectiveDmaBufLen(), kMaxTdmRenderFrames));
+  const size_t sample_count = render_frames * kTdmSlotsPerFrame;
+  std::fill_n(tdm_samples_.begin(), sample_count, static_cast<int16_t>(0));
+
+  for (size_t i = 0; i < render_frames; ++i) {
+    const size_t base = i * kTdmSlotsPerFrame;
+    for (uint8_t channel = 0; channel < kTdmUsedSlots; ++channel) {
+      smoothed_frame_.low[channel] +=
+          (frame.low[channel] - smoothed_frame_.low[channel]) * kEnvelopeSlew;
+      smoothed_frame_.high[channel] +=
+          (frame.high[channel] - smoothed_frame_.high[channel]) * kEnvelopeSlew;
+      smoothed_frame_.noise[channel] +=
+          (frame.noise[channel] - smoothed_frame_.noise[channel]) * kEnvelopeSlew;
+      const float sample = nextSample(smoothed_frame_.low[channel],
+                                      smoothed_frame_.high[channel],
+                                      smoothed_frame_.noise[channel], channel);
+      tdm_samples_[base + channel] = static_cast<int16_t>(sample * 32767.0f);
+    }
+  }
+
+  const size_t bytes_to_write = sample_count * sizeof(int16_t);
+  size_t bytes_written = 0;
+  const esp_err_t result = i2s_write(I2S_NUM_0, tdm_samples_.data(),
+                                     bytes_to_write, &bytes_written,
+                                     pdMS_TO_TICKS(40));
   if (result != ESP_OK || bytes_written != bytes_to_write) {
     underrun_count_++;
   }
@@ -448,15 +662,33 @@ void AudioOutput4Ch::submit(const DriveFrame4& frame) {
   if (!installed_) {
     return;
   }
+  if (!enabled_) {
+    submitSilence();
+    return;
+  }
 
+  silence_asserted_ = false;
   const DriveFrame4 active_frame = effectiveFrame(frame);
   if (usesDemoCompatMode()) {
     renderDemoCompatFrame(static_cast<int>(WallId::Front), static_cast<int>(WallId::Back), active_frame);
+  } else if (usesTdmTransport()) {
+    renderTdmBlock(active_frame);
   } else {
     renderBusBlock(0, static_cast<int>(WallId::Front), static_cast<int>(WallId::Back), active_frame);
   }
   if (!usesDemoCompatMode() && usesSecondBus()) {
     renderBusBlock(1, static_cast<int>(WallId::Top), static_cast<int>(WallId::Bottom), active_frame);
+  }
+#endif
+}
+
+void AudioOutput4Ch::submitSilence() {
+#if HAPTICS_ENABLE_AUDIO_BACKEND
+  if (!installed_) {
+    return;
+  }
+  if (!silence_asserted_) {
+    clearHardwareOutput();
   }
 #endif
 }

@@ -53,7 +53,8 @@ void TiltPseudoForceModel::reset() {
   a_dyn_ms2_ = {};
   content_cg_m_ = {};
   delta_deg_ = {};
-  initialized_ = false;
+  content_initialized_ = false;
+  imu_initialized_ = false;
 }
 
 float TiltPseudoForceModel::contentCgScale(MaterialFamily family) const {
@@ -74,6 +75,7 @@ float TiltPseudoForceModel::contentCgScale(MaterialFamily family) const {
 
 TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const MassState& mass, float dt_s) {
   constexpr float eps = 1.0e-6f;
+  dt_s = clampf(dt_s, 0.0f, 0.050f);
 
   TiltPlaneCommand cmd{};
   const float base_thumb_deg = clampf(mass.pos_norm.x, -1.0f, 1.0f) * params_.tilt.max_tilt_deg;
@@ -91,20 +93,28 @@ TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const Mas
   raw_content_cg.x = clampf(mass.pos_norm.x, -1.0f, 1.0f) * content_half_span_x;
   raw_content_cg.y = clampf(mass.pos_norm.y, -1.0f, 1.0f) * content_half_span_y;
 
-  if (!initialized_) {
+  if (!content_initialized_) {
     content_cg_m_ = raw_content_cg;
+    content_initialized_ = true;
   } else {
     content_cg_m_.x = lowPassStep(content_cg_m_.x, raw_content_cg.x, params_.tilt.content_cg_cutoff_hz, dt_s);
     content_cg_m_.y = lowPassStep(content_cg_m_.y, raw_content_cg.y, params_.tilt.content_cg_cutoff_hz, dt_s);
   }
 
-  if (sample.valid) {
+  const bool finite_imu = sample.valid && std::isfinite(sample.accel_g.x) &&
+                          std::isfinite(sample.accel_g.y) &&
+                          std::isfinite(sample.accel_g.z) &&
+                          std::isfinite(sample.gyro_dps.x) &&
+                          std::isfinite(sample.gyro_dps.y) &&
+                          std::isfinite(sample.gyro_dps.z);
+  if (finite_imu) {
     Vec2f accel_ms2{};
     accel_ms2.x = sample.accel_g.x * kGravityMs2;
     accel_ms2.y = sample.accel_g.y * kGravityMs2;
-    if (!initialized_) {
+    if (!imu_initialized_) {
       g_qs_ms2_ = accel_ms2;
       a_dyn_ms2_ = {};
+      imu_initialized_ = true;
     } else {
       g_qs_ms2_.x = lowPassStep(g_qs_ms2_.x, accel_ms2.x, params_.tilt.g_qs_cutoff_hz, dt_s);
       g_qs_ms2_.y = lowPassStep(g_qs_ms2_.y, accel_ms2.y, params_.tilt.g_qs_cutoff_hz, dt_s);
@@ -116,7 +126,6 @@ TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const Mas
       a_dyn_ms2_.y = lowPassStep(a_dyn_ms2_.y, dyn_raw.y, params_.tilt.a_dyn_cutoff_hz, dt_s);
     }
   }
-  initialized_ = true;
 
   const float m_shell = std::max(0.0f, params_.container.shell_mass_kg);
   const float m_content_eff = std::max(0.0f, params_.container.content_mass_full_kg) * clamp01(mass.fill);

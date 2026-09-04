@@ -23,6 +23,7 @@ class TextureLayer {
     float age_s = 0.0f;
     float apparent_motion_s = 0.0f;
     bool distribute_to_neighbors = false;
+    bool first_frame = true;
   };
 
   Voice* acquireVoice();

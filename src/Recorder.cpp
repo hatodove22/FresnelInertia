@@ -85,6 +85,10 @@ const char* audioLayoutToString(AudioOutputLayout layout) {
   }
 }
 
+const char* audioTransportToString(AudioTransport transport) {
+  return transport == AudioTransport::Tdm8Slot ? "tdm8_slot" : "dual_i2s";
+}
+
 const char* runModeToString(RunMode mode) {
   switch (mode) {
     case RunMode::Live:
@@ -176,8 +180,11 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
     return;
   }
 
-  StaticJsonDocument<2048> doc;
+  StaticJsonDocument<2560> doc;
   doc["timestamp_ms"] = snapshot.timestamp_ms;
+  doc["frame_counter"] = snapshot.frame_counter;
+  doc["new_evt"] = snapshot.new_evt;
+  doc["evt_total"] = snapshot.evt_total;
   doc["preset"] = snapshot.active_preset;
   doc["run_mode"] = runModeToString(snapshot.run_mode);
 
@@ -231,13 +238,24 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
 
   JsonObject audio = doc.createNestedObject("audio");
   audio["compile_enabled"] = snapshot.audio.compile_enabled;
+  audio["driver_installed"] = snapshot.audio.driver_installed;
   audio["runtime_enabled"] = snapshot.audio.runtime_enabled;
+  audio["output_silenced"] = snapshot.audio.output_silenced;
   audio["test_mode"] = snapshot.audio.test_mode;
   audio["demo_compat_mode"] = snapshot.audio.demo_compat_mode;
+  audio["transport"] = audioTransportToString(snapshot.audio.transport);
   audio["output_layout"] = audioLayoutToString(snapshot.audio.output_layout);
   audio["active_output_channels"] = snapshot.audio.active_output_channels;
   audio["test_wall"] = wallToString(snapshot.audio.test_wall);
+  audio["output_peak_limit"] = snapshot.audio.output_peak_limit;
   audio["underrun_count"] = snapshot.audio.underrun_count;
+
+  JsonObject safety = doc.createNestedObject("safety");
+  safety["imu_stale_safe_stop"] = snapshot.safety.imu_stale_safe_stop;
+  safety["imu_fault_injection_active"] =
+      snapshot.safety.imu_fault_injection_active;
+  safety["audio_zero_asserted"] = snapshot.safety.audio_zero_asserted;
+  safety["tilt_disarmed"] = snapshot.safety.tilt_disarmed;
 
   JsonObject calibration = doc.createNestedObject("calibration");
   calibration["active"] = snapshot.calibration.active;
@@ -251,6 +269,19 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
   calibration["candidate_score"] = snapshot.calibration.candidate_score;
   calibration["best_score"] = snapshot.calibration.best_score;
   calibration["progress"] = snapshot.calibration.progress;
+
+  if (params_.features.enable_pipeline_debug_telemetry) {
+    JsonObject pipeline_debug = doc.createNestedObject("pipeline_debug");
+    pipeline_debug["event_count"] = snapshot.pipeline_debug.event_count;
+    pipeline_debug["texture_count"] = snapshot.pipeline_debug.texture_count;
+    pipeline_debug["resonance_count"] = snapshot.pipeline_debug.resonance_count;
+    pipeline_debug["mass_enabled"] = snapshot.pipeline_debug.mass_enabled;
+    pipeline_debug["event_enabled"] = snapshot.pipeline_debug.event_enabled;
+    pipeline_debug["texture_enabled"] = snapshot.pipeline_debug.texture_enabled;
+    pipeline_debug["resonance_enabled"] = snapshot.pipeline_debug.resonance_enabled;
+    pipeline_debug["spatial_enabled"] = snapshot.pipeline_debug.spatial_enabled;
+    pipeline_debug["imu_stale_safe_stop"] = snapshot.pipeline_debug.imu_stale_safe_stop;
+  }
 
   serializeJson(doc, record_file_);
   record_file_.println();

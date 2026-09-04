@@ -116,7 +116,9 @@ void SpatialRenderer4::accumulateImmediate(DriveFrame4& drive, const ResonanceVo
   if (voice.atom == TextureAtomKind::FlowRipple && voice.apparent_motion_soa_ms > 0.0f) {
     addDrive(drive, scaledDrive(voice, weights));
 
-    if (neighbor_weight > 0.0f) {
+    const bool enqueue_delays =
+        !params_.features.enable_single_shot_spatial_delay || voice.attack_frame;
+    if (neighbor_weight > 0.0f && enqueue_delays) {
       const float lead_weight = neighbor_weight * lead_share / total;
       const float trail_weight = neighbor_weight * trail_share / total;
       if (routing.lead >= 0 && lead_weight > 0.0f) {
@@ -131,7 +133,7 @@ void SpatialRenderer4::accumulateImmediate(DriveFrame4& drive, const ResonanceVo
       }
     }
 
-    if (opposite_weight > 0.0f && routing.opposite >= 0) {
+    if (opposite_weight > 0.0f && routing.opposite >= 0 && enqueue_delays) {
       std::array<float, 4> opposite_drive_weights{};
       opposite_drive_weights[routing.opposite] = opposite_weight / total;
       enqueueDelayed(scaledDrive(voice, opposite_drive_weights), 2.4f * voice.apparent_motion_soa_ms * 1.0e-3f);

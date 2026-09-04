@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "run_id": "dry-gate1-full-timing",
+  "telemetry_schema": "schemas/telemetry_frame.schema.json",
+  "frame_counter_mode": "monotonic",
+  "timestamp_origin": "first_frame",
+  "metadata": {
+    "purpose": "Gate 1 full-timing dry fixture",
+    "source": "committed synthetic telemetry",
+    "physical_output_authorization_required": false,
+    "evidence_complete": true
+  },
+  "checks": [
+    {
+      "id": "transport-sequence",
+      "type": "sequence",
+      "max_sample_gap_ms": 500
+    },
+    {
+      "id": "pulse-to-silence",
+      "type": "pulse_to_silence",
+      "pulse_timestamp_ms": 5000,
+      "baseline_duration_ms": 2000,
+      "response_deadline_ms": 1000,
+      "settle_deadline_ms": 32000,
+      "silence_duration_ms": 30000,
+      "minimum_capture_duration_ms": 40000,
+      "max_sample_gap_ms": 500,
+      "min_response_actuator": 0.03,
+      "min_response_energy": 0.03,
+      "max_silence_actuator": 0.02,
+      "max_silence_energy": 0.02
+    }
+  ]
+}

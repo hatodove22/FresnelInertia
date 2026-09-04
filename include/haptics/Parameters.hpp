@@ -21,6 +21,16 @@ struct FeatureFlags {
   bool enable_runtime_calibration = false;
   bool enable_verbose_serial = true;
   bool enable_debug_display = false;
+  bool enable_pipeline_debug_telemetry = false;
+  bool enable_usb_telemetry = false;
+  // Compatibility-safe pipeline improvements. Generic presets leave these
+  // disabled; verified hardware profiles may opt in explicitly.
+  bool enable_physical_master_gain = false;
+  bool enable_attack_preserving_texture = false;
+  bool enable_single_shot_spatial_delay = false;
+  bool enable_imu_stale_safe_stop = false;
+  bool enable_gravity_separated_mass_activity = false;
+  bool allow_remote_tilt_arm = false;
 };
 
 struct PlatformPins {
@@ -67,6 +77,13 @@ struct MassLayerParams {
   float rebound = 0.25f;
 };
 
+struct MotionActivityFilterParams {
+  float gravity_cutoff_hz = 1.0f;
+  float motion_cutoff_hz = 10.0f;
+  float accel_deadband_g = 0.025f;
+  float gyro_deadband_dps = 1.5f;
+};
+
 struct EventLayerParams {
   float wall_threshold = 0.78f;
   float wall_decay_span_m = 0.012f;
@@ -106,10 +123,13 @@ struct AudioBackendParams {
   uint32_t sample_rate_hz = 24000;
   uint16_t dma_buf_len = 64;
   uint8_t dma_buf_count = 4;
+  AudioTransport transport = AudioTransport::DualI2s;
   AudioOutputLayout output_layout = AudioOutputLayout::QuadWall4Ch;
   bool demo_compat_mode = false;
   bool runtime_enable = false;
+  bool keep_driver_installed_when_muted = false;
   float output_gain = 1.0f;
+  float output_peak_limit = 1.0f;
   bool channel_test_enable = false;
   WallId channel_test_wall = WallId::None;
   float channel_test_level = 0.20f;
@@ -189,6 +209,7 @@ struct SystemParams {
   PlatformPins pins{};
   ContainerParams container{};
   MassLayerParams mass{};
+  MotionActivityFilterParams motion_activity{};
   EventLayerParams event{};
   TextureLayerParams texture{};
   ResonanceLayerParams resonance{};

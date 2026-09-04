@@ -1,116 +1,232 @@
 # 08 Implementation Plan
 
-For the concrete as-built snapshot as of `2026-03-15`, see `16_PROGRESS_STATUS.md`.
-This document remains the intended development order and gap-management plan.
+## 1. Authority and current gate
 
-## Phase 0 - Documentation and scaffold
-- finalize design docs
-- stabilize C++ module boundaries
-- keep build passing
+This is the repository's only active roadmap. `AGENTS.md` defines the invariant
+development order and safety rules; `16_PROGRESS_STATUS.md` records facts;
+`23_ATOMS3_PRODUCTION_INTEGRATION.md` defines AtomS3 acceptance; and
+`24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md` is the current execution runbook.
+`25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md` defines how host tests,
+bench automation, and a future observation-only wireless build support this
+roadmap without changing its gate order.
 
-## Phase 1 - 4-channel audio backend
-- implemented: stereo I2S x2 backend in `AudioOutput4Ch`
-- implemented: compile-time flag for backend enable
-- implemented: runtime enable toggle and single-wall channel test mode
-- implemented: runtime-selectable `quad_wall_4ch` / `front_back_2ch` physical output layout
-- next refinement: bench validation and tuning of buffering / underrun behavior
+Status reviewed on `2026-08-28`:
 
-## Phase 1A - Additive TDM backend migration
-- goal: add a single-port TDM backend for simpler 4-channel wiring without changing the shared haptic pipeline
-- preserve: the current dual-stereo I2S x2 backend as the safe fallback during migration
-- preserve: `audio.demo_compat_mode` as the known-good mono single-amp route
-- preserve: the current `front_back_2ch` physical fallback semantics
-- planned first TDM target: ESP32-S3 TX-only path using the newer `esp_driver_i2s` API
-- planned first TDM profile: `48 kHz`, `16-bit`, `4 slots`, `PCM short`
-- planned slot mapping: `slot0=Front`, `slot1=Back`, `slot2=Top`, `slot3=Bottom`
-- planned bring-up hardware: MAX98357A boards with per-board slot straps
-- acceptance intent: the physical transport changes, but `DriveFrame4`, telemetry, presets, and spatial rendering remain source-compatible
+- audio/TDM transport and bounded board probes are implemented and passed
+- the AtomS3 production image was uploaded and four-wall channel routing passed
+- the first powered liquid Live settling check failed because vibration decayed
+  but did not stop after the device became still
+- Safe Idle after the failure restored verified digital zero
+- the default-off Gate 1 activity filter, pipeline time/validity state machine,
+  and truthful event counters are implemented in the repository; 20 native
+  production-layer tests pass
+- that corrected image has not been uploaded or powered, so Gate 1 remains
+  open on hardware
+- no material, spatial, servo, or transport expansion may bypass this blocker
 
-## Phase 2 - Resonance sweep and storage
-- implemented: per-channel excitation sweep
-- implemented: low/high carrier storage in runtime parameters and NVS
-- implemented: telemetry for calibration state and progress
-- next refinement: tighten the response metric beyond the current IMU-proxy ratio
+## 2. Gate 1 — Close powered Live stability and safety
 
-## Phase 3 - Minimal end-to-end material rendering
-- implemented: geometry-aware baseline in the mass layer
-- implemented: geometry-aware `wall_hit` scheduling with size-dependent cooldown
-- next refinement: bench-confirm strong wall localization in 4 channels while other event families are still scaffold-level
+This is the only active implementation milestone.
 
-## Phase 4 - Shakers family
-- implemented: `roll_train` as a rate-driven train tied to wall contact and tangential motion
-- implemented: geometry-aware `impact_cluster` density tied to rolling activity
-- implemented: intermittent `scrape` scheduling for granular materials
-- implemented: starter granular presets for coin / sand / bead
-- next refinement: validate perceptual separation between roll, cluster, and scrape on hardware
+The mass-motion code already exists and currently blocks safe use of the
+already implemented resonance-identification baseline. This gate corrects
+that baseline safety defect; it is not new Gate 3 mass-feature work moved
+ahead of the `AGENTS.md` order.
 
-## Phase 5 - Liquid family
-- implemented: liquid convective-bias latent baseline
-- implemented: burst-based `droplet_cluster`
-- implemented: `roof_slap` gated by `container.enable_roof_contact`
-- implemented: starter liquid presets for small box / dense jar / half tube
-- next refinement: perceptual tuning against granular and hybrid presets
+### 2.1 Implemented software correction
 
-## Phase 6 - Hybrid materials
-- implemented: sparse rigid impacts layered onto liquid bursts
-- implemented: hybrid preset baseline
-- next refinement: tune rigid/liquid balance on hardware
+1. `features.enable_gravity_separated_mass_activity` defaults `false`; only
+   the as-built AtomS3 hardware profile opts in by default.
+2. `MotionActivityFilter` uses a 1 Hz gravity low-pass, 10 Hz motion low-pass,
+   and radial subtractive deadbands of `0.025 g` and `1.5 deg/s`.
+3. Raw accelerometer X/Y remains on the quasi-static latent-position path.
+   The filtered three-axis activity sample feeds energy/agitation only; the
+   existing energy magnitude remains planar X/Y while agitation uses 3D
+   activity.
+4. Non-finite/non-positive `dt` is side-effect-free. Missing samples hold
+   Mass/Event/Tilt while Texture/Spatial tails decay with raw loop time.
+   At `<=50 ms`, the filter runs once and Mass/Event use a dynamic
+   stability-bounded substep (`<=4 ms`, at most 64). A total `>50 ms` resets
+   all dynamic state and holds Tilt for a fresh baseline. An unsupported limit
+   resets state, submits neutral Tilt, and disarms the runtime servo interface
+   until an explicit re-arm. Texture/Spatial keep the outer raw clock and Tilt
+   submits once only for an accepted recovery. The first valid estimator frame
+   cannot generate an event.
+5. Runtime `set_param` supports the feature plus
+   `motion_activity.{gravity_cutoff_hz,motion_cutoff_hz,accel_deadband_g,gyro_deadband_dps}`.
+6. Serial, Recorder, Remote, and schema telemetry expose current-frame
+   `new_evt`, monotonic `frame_counter`, and boot-cumulative `evt_total`;
+   latched `last_event` remains history only.
+7. The feature-disabled valid-input path still matches the reviewed legacy
+   fingerprint. Event thresholds and output gain were not used to hide the
+   original symptom.
+8. With the feature enabled, every event family shares a zero-input quiet
+   contract: no wall hit, `energy<=0.02`, and planar `speed<=0.04` cannot
+   self-schedule; deliberate activity reopens the scheduler.
 
-## Phase 7 - Recorder / replay and telemetry
-- implemented: LittleFS NDJSON recorder
-- implemented: IMU replay through the shared pipeline
-- implemented: run-mode / recorder / remote telemetry extensions
-- next refinement: deterministic comparison metrics and file management UX
+### 2.2 Deterministic checks
 
-## Phase 8 - XL330 tilt-plane integration
-- implemented: compile-gated raw DYNAMIXEL Protocol 2.0 half-duplex path
-- implemented: current clamp and software velocity clamp
-- implemented: mass-state to thumb/index tilt mapping
-- next refinement: bench safety validation and richer status feedback
+- 20 native tests pass against production sources
+- six principal one-g poses and a diagonal pose settle to `energy<=0.02`
+- fixed bias/noise, pulse-and-settle, reset, missing/invalid input, exact
+  50 ms boundary, 1/4/8 Hz translation, and 70/90 Hz attenuation are covered
+- all nine built-in presets remain event-silent across seven static poses,
+  then reopen their scheduler under deliberate activity
+- the dynamic Mass stability bound, worst supported recovery step, 64-step
+  ceiling, invalid-limit reset, and neutral-and-disarm policy are covered
+- feature-disabled behavior matches the retained fingerprint
 
-## Phase 9 - Smartphone / HMD interface
-- implemented: SoftAP + WebSocket JSON control/telemetry baseline
-- implemented: schema-shaped control message handling
-- next refinement: promote serial + SoftAP browser monitoring to the canonical human-facing workflow
+The finite-posture acceptance rotates to a new posture, then requires
+`energy<=0.02` within two seconds and summed `new_evt=0` during the following
+30-second hold; it passes in the native suite. Accelerometer-only continuous gravity rotation is
+not distinguishable from translation at the same frequency and is therefore
+not a valid indefinite classification requirement.
 
-## Phase 10 - Open-source cleanup
-- implemented: hardware placeholder contract and contribution checklist
-- deferred: license selection and actual hardware asset publication
+### 2.3 Powered acceptance
 
-## Current priority
+Follow document 24 exactly. The minimum pass is:
 
-- keep the shared haptic pipeline intact
-- improve observability and hardware-side tuning workflow
-- use USB serial + SoftAP browser monitoring as the supported main-firmware path
-- treat display work as probe-only until the low-level panel issue is understood
+- static 30-second test in all six principal orientations: `new_evt=0`, no
+  perceived vibration, `energy<=0.02` after settling, and no I2S error growth
+- one deliberate movement: perceptible response, tactile silence within two
+  seconds, then no new event for 30 seconds
+- S1 OFF/ON comparison shows no ON-only self-sustaining activity
+- 300 ms IMU stale safe-stop and neutral recovery pass
+- Safe Idle passes from Live, Calibration, Record, Replay, and AtomS3 BtnA hold
+- Live remains muted until a fresh explicit `audio on`
+- muted-only transport/layout/demo guards and the 15% hard clamp pass
+- repeated 8% arm/disarm and the agreed soak complete without reset, feedback,
+  rail anomaly, heating, or error growth
 
-## Implemented now vs needs improvement
+### 2.4 Parallel developer-infrastructure lane
 
-- implemented now:
-  - geometry-aware mass layer
-  - wall / shaker / liquid / hybrid event families
-  - stateful texture atoms and resonance/spatial rendering
-  - audio backend with `quad_wall_4ch` / `front_back_2ch`
-  - dual-I2S backend as the current shipped 4-channel transport
-  - runtime calibration with NVS persistence
-  - recorder/replay
-  - SoftAP/WebSocket remote baseline
-  - tilt pseudo-force baseline
-- needs improvement:
-  - additive TDM backend migration and bench validation
-  - liquid / granular / hybrid percept realism
-  - localization and repeatability on hardware
-  - storage robustness
-  - monitoring reliability
-  - servo safety validation
-  - browser monitoring UX
+The following work may proceed while Gate 1 is active because it reduces
+bench-only iteration without claiming progress through a later functional
+gate:
 
-## Risk register
+- retain the implemented native deterministic layer harness and reviewed
+  feature-disabled legacy fingerprint as mandatory regression gates
+- maintain the strengthened schema checks, exact expected-invalid fixtures,
+  and shared schema-subset validator
+- define the minimum diagnostic contract: current-frame `new_evt`, monotonic
+  frame sequence, build/profile identity, IMU age, loop timing, and bounded
+  transport/drop counters
+- extract the existing JSON codec and remote command policy into host-testable
+  modules
+- maintain the implemented passive NDJSON capture, assertion, manifest, and
+  report workflow; add build/profile identity when canonical fields exist
+- prepare a separate AtomS3 monitor-only SoftAP environment after its command
+  policy has tests
 
-| Risk | Why it matters | Early mitigation |
-|---|---|---|
-| Output self-couples into IMU | can destabilize model behavior | keep sensor path band-limited and architected before output tuning |
-| Audio backend complexity | can delay research progress | keep dual-I2S as the stable baseline, then add TDM behind an explicit backend migration path |
-| Liquid model overfitting | may produce “hum” instead of rich texture | keep event-centric liquid rendering |
-| Servo safety | risk of mechanical overdrive | start with current-limited position mode and conservative angle bounds |
-| Architecture drift | Codex may implement locally convenient hacks | use AGENTS.md + docs as source of truth |
+This lane must follow document 25. It may not enable remote audio/tilt arm,
+remote Live or calibration start, product smartphone/HMD control, or OTA while
+Gate 1 remains open. The normal AtomS3 production environment stays remote
+compile-disabled. Wireless OFF/ON powered comparison occurs only after the USB
+Gate 1 procedure passes.
+
+## 3. Gate 2 — Mounted actuator and resonance identification
+
+Start only after Gate 1 passes.
+
+- measure per-wall amplitude, crosstalk, and low/high response on the mounted
+  transducer stack
+- repeat each sweep at least three times and require selected bins within one
+  configured step
+- verify NVS store and reboot restore
+- improve the current IMU-proxy metric only from measured evidence
+- record firmware/build identity, hardware orientation, output limit, fixture,
+  and calibration result
+
+## 4. Gates 3 through 8 — Close the shared renderer in AGENTS order
+
+Each gate must pass before the next begins.
+
+| Gate | Area | Required closure |
+|---:|---|---|
+| 3 | Mass motion | Static orientation, pulse response, geometry ordering, and no powered feedback |
+| 4 | Wall-hit | One approach produces one plausible wall event with correct wall identity |
+| 5 | Shaker families | Roll/cluster/scrape statistics and perception are distinct on hardware |
+| 6 | Liquid/hybrid | No hum/self-run; liquid, hybrid, and granular outputs are distinguishable |
+| 7 | Texture atoms | Measured envelopes match intent; add no atom without a demonstrated gap |
+| 8 | Four-wall spatial rendering | Mounted localization, adjacent-wall SOA direction, and crosstalk pass |
+
+Geometry must continue to constrain travel, collision density, and wall-contact
+frequency for every material family.
+
+## 5. Gate 9 — Reproducibility, recorder, and storage
+
+- automatically record firmware/build/profile identity, preset source/path,
+  resolved parameters, calibration identity, and effective output limit
+- add deterministic recorder/replay comparison metrics
+- validate every active mode's Safe Idle transition
+- decide how to recover or replace the corrupted LittleFS state; formatting
+  requires explicit approval and a data-recovery decision
+- improve file management without making storage a boot/output dependency
+
+## 6. Gate 10 — AtomS3 XL330 production path
+
+Start only after the haptic-only path is stable.
+
+- implement the GPIO1 TX / GPIO2 RX automatic-half-duplex production adapter
+- read back model, ID, operating mode, torque, position, current, voltage,
+  temperature, and hardware error
+- add watchdog, fault latch, boot torque-off, bounded commands, and truthful
+  telemetry
+- calibrate home, sign, direction, and mounted mechanical stops
+- repeat the combined safety matrix before enabling tilt perception tests
+
+The servo branch remains low-frequency augmentation; it does not enter the
+four-transducer texture path.
+
+## 7. Gate 11 — Live smartphone/HMD integration
+
+- first connect the existing schema-shaped WebSocket control/telemetry path to
+  the stabilized device
+- close phone/Quest reconnect and long-session robustness
+- add BLE, UDP, or OSC only for a concrete experiment requirement
+- keep the WebUSB page a feasibility probe until repeated Quest sessions pass
+
+## 8. Release hygiene
+
+Release work is separate from the functional gate order:
+
+- publish authoritative EasyEDA Pro exports, BOM, fabrication, and mechanical
+  assets under `hardware/`
+- select and document software/hardware licenses
+- add CI after the local validation commands and matrix are stable
+- prepare public assembly, safety, and revision documentation
+
+## 9. Common Definition of Done
+
+Every implementation milestone requires:
+
+- relevant deterministic checks
+- all native layer/protocol tests once their environments exist
+- successful builds for `m5stack-atoms3-pipeline`, `m5stack-sticks3`,
+  `m5stack-sticks3-audio`, `m5stack-sticks3-tilt`,
+  `m5stack-atoms3-dxl2-probe`,
+  `m5stack-atoms3-max98357a-tdm-probe`, and
+  `m5stack-atoms3-combined-probe`
+- schema samples passing when protocol/state changes
+- expected-invalid schema/protocol fixtures being rejected when those suites
+  are affected
+- WebXR typecheck/build passing when client code changes
+- generic defaults preserving prior behavior
+- dated hardware evidence for hardware-facing claims
+- relevant updates to design docs and `07_TEST_AND_VALIDATION.md`
+- `git diff --check` and a clean, intentional working tree
+
+## 10. Risk register
+
+| Risk | Current control |
+|---|---|
+| Output feeds back into IMU | Gate 1 gravity separation, motion band limit, deadband, and powered settling test |
+| A threshold tweak hides instability | Gate 1 forbids material tuning before signal-path correction |
+| Probe success is mistaken for production success | Evidence labels and separate documents 20–24 |
+| Host tests duplicate firmware behavior | Native tests call the production layer/filter code and keep a reviewed legacy fingerprint |
+| Wireless monitoring changes timing or power conditions | Separate environment, low-rate bounded telemetry, and post-Gate-1 OFF/ON comparison |
+| A remote client arms an output | Monitor-only policy first; normal AtomS3 production remains remote compile-disabled |
+| OTA removes the recovery path | OTA is deferred to a maintenance-only, local-consent, authenticated, rollback-capable slice with USB recovery retained |
+| Servo integration expands risk too early | Production servo backend remains compiled out until Gate 10 |
+| Storage corruption blocks boot | Built-in fallback remains; no format without approval |
+| Documentation drifts | Authority is fixed to AGENTS, 08, 16, 23, and 24; document 25 is the subordinate developer-workflow plan |

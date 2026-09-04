@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "run_id": "synthetic-hardware-contract-operator-fail",
+  "telemetry_schema": "schemas/telemetry_frame.schema.json",
+  "frame_counter_mode": "monotonic",
+  "timestamp_origin": "first_frame",
+  "metadata": {
+    "source": "synthetic analyzer contract fixture; not hardware evidence",
+    "physical_output_authorization_required": true,
+    "evidence_complete": true,
+    "git_commit": "0123456789abcdef",
+    "build_id": "synthetic-build-operator-fail",
+    "platformio_environment": "m5stack-atoms3-pipeline",
+    "hardware_profile": "as-built AtomS3 custom board",
+    "preset_id": "liquid_small_box",
+    "gate1_run_variant": "active",
+    "preset_source": "synthetic built-in fixture",
+    "preset_hash": "synthetic-preset-hash",
+    "resolved_feature_flags": "synthetic resolved flags",
+    "calibration_identity": "synthetic default calibration",
+    "effective_output_peak_limit": 0.08,
+    "s1_state": "on",
+    "supply_12v_state": "on",
+    "fixture_orientation": "synthetic flat hold",
+    "expected_run_mode": "live",
+    "expected_audio_runtime_enabled": true,
+    "expected_audio_compile_enabled": true,
+    "expected_audio_driver_installed": true,
+    "expected_audio_transport": "tdm8_slot",
+    "expected_audio_output_layout": "quad_wall_4ch",
+    "expected_active_output_channels": 4,
+    "operator_confirmed_physical_output_authorization": true,
+    "operator_observation_outcome": "fail",
+    "operator_observation": "Synthetic rejection: unexpected physical response",
+    "final_safe_idle_confirmed": true,
+    "usb_telemetry_status_before": {
+      "compile_enabled": true,
+      "runtime_enabled": false,
+      "period_ms": 100,
+      "pending_bytes": 0,
+      "transmitted_frames": 0,
+      "dropped_frames": 0,
+      "backpressure_dropped_frames": 0,
+      "console_interrupted_frames": 0,
+      "unterminated_partial_frames": 0,
+      "serialization_errors": 0
+    },
+    "usb_telemetry_status_after": {
+      "compile_enabled": true,
+      "runtime_enabled": false,
+      "period_ms": 100,
+      "pending_bytes": 0,
+      "transmitted_frames": 68,
+      "dropped_frames": 0,
+      "backpressure_dropped_frames": 0,
+      "console_interrupted_frames": 0,
+      "unterminated_partial_frames": 0,
+      "serialization_errors": 0
+    }
+  },
+  "checks": [
+    {
+      "id": "static-hold",
+      "type": "static30s",
+      "start_timestamp_ms": 0,
+      "warmup_ms": 2000,
+      "duration_ms": 30000,
+      "minimum_capture_duration_ms": 33000,
+      "max_sample_gap_ms": 500,
+      "max_new_evt": 0,
+      "max_actuator_abs": 0.02,
+      "max_energy": 0.02
+    },
+    {
+      "id": "transport-sequence",
+      "type": "sequence",
+      "max_sample_gap_ms": 500
+    }
+  ]
+}

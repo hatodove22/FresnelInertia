@@ -1,0 +1,11 @@
+{"type":"set_param","timestamp_ms":1000,"path":"audio.output_gain","value":0.55}
+{"type":"load_preset","timestamp_ms":1010,"preset":"granular_single_marble_box"}
+{"type":"set_run_mode","timestamp_ms":1020,"run_mode":"live"}
+{"type":"start_calibration","timestamp_ms":1030,"payload":{"enabled":true,"path":"front.low"}}
+{"type":"stop_calibration","timestamp_ms":1040}
+{"type":"request_telemetry","timestamp_ms":1050}
+{"type":"set_tilt_mode","timestamp_ms":1060,"payload":{"enabled":false}}
+{"type":"record_start","timestamp_ms":1070,"payload":{"file":"session_001.ndjson"}}
+{"type":"record_stop","timestamp_ms":1080}
+{"type":"replay_start","timestamp_ms":1090,"payload":{"file":"session_001.ndjson"}}
+{"type":"replay_stop","timestamp_ms":1100}

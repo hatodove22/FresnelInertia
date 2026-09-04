@@ -42,7 +42,9 @@ body {
   right: max(14px, env(safe-area-inset-right));
   bottom: max(14px, env(safe-area-inset-bottom));
   width: min(430px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
   padding: 14px;
+  overflow-y: auto;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
   background: rgba(10, 15, 19, 0.78);
@@ -55,7 +57,10 @@ body {
 .readout,
 .readout div,
 .panel-header,
-.method-grid {
+.method-grid,
+.range-control,
+.trial-actions,
+.trial-fields {
   display: flex;
 }
 
@@ -102,6 +107,7 @@ h1 {
 }
 
 select,
+input,
 button {
   min-height: 42px;
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -111,9 +117,17 @@ button {
   font: inherit;
 }
 
-select {
+select,
+input[type="text"],
+input[type="number"] {
   width: 100%;
   padding: 0 10px;
+}
+
+input[type="range"] {
+  min-height: 28px;
+  padding: 0;
+  accent-color: #65d6cf;
 }
 
 button {
@@ -140,6 +154,43 @@ button:disabled {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.055);
+}
+
+.tuning-panel,
+.trial-strip {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.range-control {
+  align-items: center;
+  gap: 8px;
+  color: #aebdc5;
+  font-size: 12px;
+}
+
+.range-control + .range-control {
+  margin-top: 7px;
+}
+
+.range-control span {
+  flex: 0 0 58px;
+}
+
+.range-control input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.range-control output {
+  flex: 0 0 38px;
+  color: #f0f8f9;
+  font-size: 12px;
+  font-weight: 750;
+  text-align: right;
 }
 
 .panel-header {
@@ -228,6 +279,61 @@ dd {
   white-space: nowrap;
 }
 
+.trial-strip {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+#trial-elapsed {
+  color: #9fe0da;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.trial-fields {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.trial-fields label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #aebdc5;
+  font-size: 11px;
+}
+
+.trial-fields label:last-child {
+  flex: 0 0 92px;
+}
+
+.trial-fields span {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.trial-fields input {
+  min-height: 36px;
+  font-size: 13px;
+}
+
+.trial-actions {
+  gap: 6px;
+}
+
+.trial-actions button,
+.trial-actions select {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.trial-actions select {
+  flex: 0 0 68px;
+}
+
 @media (max-width: 520px) {
   .hud {
     width: auto;
@@ -252,5 +358,13 @@ dd {
 
   .method {
     flex-basis: calc(33.333% - 6px);
+  }
+
+  .trial-actions {
+    flex-wrap: wrap;
+  }
+
+  .trial-actions button {
+    flex-basis: calc(33.333% - 4px);
   }
 }

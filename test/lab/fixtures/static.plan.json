@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "run_id": "dry-static-30s",
+  "telemetry_schema": "schemas/telemetry_frame.schema.json",
+  "frame_counter_mode": "contiguous",
+  "timestamp_origin": "absolute",
+  "metadata": {
+    "source": "committed dry-run fixture",
+    "physical_output": false
+  },
+  "checks": [
+    {
+      "id": "static-hold",
+      "type": "static30s",
+      "start_timestamp_ms": 0,
+      "warmup_ms": 5000,
+      "duration_ms": 30000,
+      "max_sample_gap_ms": 5000,
+      "max_new_evt": 0,
+      "max_actuator_abs": 0.02,
+      "max_energy": 0.02
+    }
+  ]
+}

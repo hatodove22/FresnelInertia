@@ -1,143 +1,236 @@
 # Parametric Container Haptics
 
-Docs-first PlatformIO repository for an **on-device vibrotactile generation pipeline** built around:
+Firmware, validation tools, and design documentation for an on-device
+container-content haptics system.
 
-- **4-layer haptic model**: mass motion -> events -> texture -> resonance
-- **4 spatial transducers** for wall-aligned rendering
-- **2 low-frequency tilt-plane channels** driven by **XL330-M077-T** servos
-- **M5StickS3 + MAX98360A x4** as the first experimental electronics stack
+The shared rendering path is:
 
-This repository is intentionally prepared as a **Codex handoff package**:
+```text
+IMU -> mass motion -> events -> texture -> resonance -> 4-wall spatial output
+```
 
-- the architecture is fully documented,
-- interfaces are defined before implementation,
-- the PlatformIO project builds from a minimal scaffold,
-- feature flags are reserved so later implementation can be added **without breaking the baseline**.
+In the corrected AtomS3 profile, an optional gravity-separated activity filter
+feeds Mass energy/agitation while raw quasi-static acceleration remains the
+latent-position input. Generic profiles keep that filter OFF for legacy
+equivalence.
 
-## Product goal
+The four transducers render mid/high-frequency wall events and texture. Two
+XL330-M077-T servos are reserved for a separate low-frequency tilt/pseudo-force
+path; they must not be used as a substitute for the four-layer renderer.
 
-The project has one goal:
+## Current hardware
 
-- make the device a reliable **on-device container-content haptics platform** that can be tuned on real hardware
+The primary board is the assembled
+`M5AtomS3_MAX98357A_4CH_TDM_DXL2` custom PCB:
 
-That means:
+- M5AtomS3
+- four MAX98357A channels over one eight-slot TDM bus
+- canonical slot map: Front, Back, Top, Bottom, then four zero slots
+- two XL330 connections on the DXL2 section
+- manual amplifier switch S1
 
-- the shared material pipeline is the product
-- observability exists to tune that pipeline on-device
-- low-level display experiments are not the product and must not block the main firmware path
-
-## Scope
-
-This repository targets **material and container-content haptics**, not only liquids.
-The common framework must cover:
-
-- liquids,
-- granular shakers (sand, rice, beads),
-- sparse rigid inclusions (coins, marbles, ice cubes),
-- hybrid contents,
-- future detents / scrape / stick-slip style materials.
+The older M5StickS3 dual-I2S, remote-monitoring, and DATA+DIR servo targets are
+retained as regression and diagnostic paths. They are not the production
+electrical contract for the custom AtomS3 board.
 
 ## Current status
 
-For the precise repository snapshot, remaining gaps, and ideal end-state, see `docs/16_PROGRESS_STATUS.md`.
+Evidence recorded on `2026-08-22`:
 
-- **Done now**
-  - shared on-device 4-layer haptic pipeline for liquid, granular, hybrid, and detented families
-  - geometry-aware mass layer plus stateful event / texture / resonance / spatial rendering
-  - compile-gated ESP32-S3 audio backend with `quad_wall_4ch` and `front_back_2ch`
-  - runtime calibration with NVS-backed low/high carrier persistence
-  - LittleFS-backed recorder / replay
-  - compile-gated SoftAP HTTP status page plus WebSocket JSON remote backend
-  - compile-gated XL330 tilt pseudo-force baseline
-  - standalone `webxr/` visual demo for phone and Quest MR, with procedural assets, local material dynamics, and live device communication deferred
-  - serial console control and telemetry
-- **Implemented but still validation-heavy**
-  - perceptual realism and gain balance, especially liquid vs granular vs hybrid
-  - hardware-side validation of localization and repeatability
-  - storage robustness and deterministic comparison workflow
-  - monitoring reliability and browser-based polish
-  - servo safety validation
-- **Not implemented yet**
-  - single-port TDM audio backend
-  - BLE / UDP / OSC transports
-  - explicit HMD / host integration path
-  - final hardware asset publication and license selection
-- **Builds verified on 2026-03-15**
-  - `m5stack-sticks3`
-  - `m5stack-sticks3-audio`
-  - `m5stack-sticks3-remote`
-  - `m5stack-sticks3-tilt`
+- AtomS3 production firmware built and uploaded successfully
+- USB-only zero-data boot passed
+- CH1 through CH4 isolation/order passed on unloaded hardware
+- DXL IDs 1 and 2, torque-off read-back, bounded unloaded movement, and the
+  combined IMU + servo + 4CH probe passed
+- Safe Idle and explicit audio re-arm passed for the tested Live/channel slice
+- the first powered four-layer liquid settling test failed: vibration decayed
+  after one movement but did not stop while the device was held still
+- Safe Idle after that failure restored `energy=0`, `audio=0`, `zero=1`, and
+  `errors=0`
+
+The remaining Gate 1 blocker is hardware confirmation of corrected closed-loop
+Live stability, not TDM routing or initial board bring-up.
+
+Software checkpoint on `2026-08-28` (not uploaded or powered):
+
+- all 22 embedded PlatformIO environments build successfully
+- the production-layer native suite passes `20/20`
+- the passive host-lab cases pass `20/20` and its integration suite passes
+  `8/8`
+- schema validation accepts all 15 valid control/telemetry fixtures and rejects
+  all 18 expected-invalid fixtures with their exact committed codes
+- WebXR type checking and the production web build pass
+
+These results prepare the next bench session; they do not replace the pending
+powered acceptance run in document 24.
+
+## Start here
+
+Use these documents as the source of truth:
+
+1. [AGENTS.md](AGENTS.md) — invariant architecture, safety rules, and required
+   development order
+2. [docs/19_DEVELOPMENT_SETUP.md](docs/19_DEVELOPMENT_SETUP.md) — clone,
+   dependency, build, and validation setup for another development machine
+3. [docs/08_IMPLEMENTATION_PLAN.md](docs/08_IMPLEMENTATION_PLAN.md) — the only
+   active roadmap and priority list
+4. [docs/16_PROGRESS_STATUS.md](docs/16_PROGRESS_STATUS.md) — factual repository
+   status and dated evidence
+5. [docs/23_ATOMS3_PRODUCTION_INTEGRATION.md](docs/23_ATOMS3_PRODUCTION_INTEGRATION.md)
+   — AtomS3 acceptance contract
+6. [docs/24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md](docs/24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md)
+   — exact restart procedure for the current blocker
+7. [docs/25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md](docs/25_DEVELOPMENT_WORKFLOW_AND_WIRELESS_DEBUG_PLAN.md)
+   — test-first workflow, bench automation, and safe monitor-only wireless plan
+
+The full role-based documentation index is in [docs/README.md](docs/README.md).
+
+## Active milestone
+
+Before any material tuning, spatial tuning, servo integration, or new
+transport work:
+
+1. strengthen schema validation, add the native deterministic harness, and
+   capture the feature-disabled legacy fingerprint
+2. add a default-off gravity-separated mass-activity path
+3. enable it only in the AtomS3 production profile
+4. keep quasi-static gravity in the latent position/tilt path
+5. expose current-frame event count as `new_evt` in serial status
+6. pass the deterministic orientation, motion, alias, invalid-input, and
+   pulse-to-silence checks
+7. repeat the 8% powered settling test from document 24
+
+Steps 1 through 6 are implemented in software: the pinned `native-layers`
+suite has 20 passing production-layer tests and an
+unchanged reviewed legacy fingerprint, while schema checks include eighteen
+expected-invalid fixtures. The Gate 1 activity path is generic-default OFF and
+as-built-AtomS3-profile ON, with 1 Hz gravity / 10 Hz motion filters and
+`0.025 g` / `1.5 deg/s` radial deadbands. Canonical serial, Recorder, and
+Remote telemetry always carry `frame_counter`, `new_evt`, and boot-cumulative
+`evt_total`; optional pipeline debug mirrors `new_evt`.
+
+The finite-posture test settles to `energy<=0.02` within two seconds and then
+produces no new event for 30 seconds. The corrected image has not been uploaded
+or powered; the next operator-dependent step is the powered retest in document
+24.
+
+The milestone passes only when static six-orientation tests generate no new
+events or perceived vibration, and one deliberate movement settles to tactile
+silence within the documented limit.
+
+In parallel, document 25 permits host-side deterministic tests, stricter
+schema/protocol checks, log tooling, and preparation of a separate
+monitor-only AtomS3 wireless environment. The normal production environment
+remains remote compile-disabled, and wireless control/OTA do not bypass this
+milestone.
+
+The passive host lab tool is ready for the next session:
+
+```text
+node tools/lab/lab.mjs self-test
+node tools/lab/lab.mjs validate --plan tools/lab/plans/gate1-static.template.json
+node tools/lab/lab.mjs check --plan RUN-PLAN.json --telemetry TELEMETRY.ndjson --out NEW-EVIDENCE-DIRECTORY
+```
+
+It evaluates static, S1-OFF control, and pulse-to-silence runs from canonical
+telemetry and writes hashed JSON/Markdown evidence without connecting to or
+controlling the device. Hardware plans remain failed with
+`RUN_METADATA_INCOMPLETE` until their identity, bench conditions,
+authorization, structured tactile outcome, final Safe Idle observation, and
+evidence-completion fields are filled truthfully. A completed plan also fails
+unless it uses the fixed as-built AtomS3 profile and `liquid_small_box`
+active/S1-ON or pulse-only S1-OFF-control variant, first-frame/monotonic timing, exactly one canonical
+sequence check and one unmodified measurement check, plus clean structured
+before/after USB producer-status snapshots. It fails if canonical frames from
+first-frame origin through the active check end do not match the fixed Atom
+production Gate 1 context or carry valid IMU: Live,
+compiled/installed/runtime audio, TDM8, 4CH, 8% limit, non-silenced output, and
+disabled channel-test/demo modes. It also fails if audio/I2S errors grow, if required
+non-stale/non-injected safety state is absent, if the final canonical frame does not prove Safe Idle,
+or if the operator outcome is `fail`. See
+[tools/lab/README.md](tools/lab/README.md).
+
+## Primary PlatformIO environments
+
+| Environment | Purpose |
+|---|---|
+| `m5stack-atoms3-pipeline` | Primary AtomS3 production haptic firmware |
+| `m5stack-atoms3-max98357a-tdm-probe` | Bounded raw TDM/channel probe |
+| `m5stack-atoms3-dxl2-probe` | Torque-off DXL communication/status probe |
+| `m5stack-atoms3-dxl2-provision-id2` | One-device ID 1 to ID 2 provisioner |
+| `m5stack-atoms3-dxl2-motion-probe` | Explicit bounded unloaded servo probe |
+| `m5stack-atoms3-combined-probe` | Bounded IMU + XL330x2 + equal-4CH probe |
+| `m5stack-sticks3` | Legacy feature-off baseline regression build |
+| `m5stack-sticks3-audio` | Legacy audio/remote regression build |
+| `m5stack-sticks3-tilt` | Legacy DATA+DIR servo regression build |
+
+Other StickS3 smoke/display/main-ladder environments are retained for
+historical fault isolation. Their roles are documented in
+[docs/07_TEST_AND_VALIDATION.md](docs/07_TEST_AND_VALIDATION.md).
+
+## Validation
+
+Use the repository's PlatformIO workflow for firmware builds. The required
+pre-handoff matrix is defined in the active roadmap and includes the AtomS3
+production image, the three retained StickS3 paths, and the three AtomS3 probe
+paths.
+
+Protocol-facing changes:
+
+```powershell
+node test/schema/validate_schemas.mjs
+```
+
+Run the complete embedded compile matrix with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\build_firmware_matrix.ps1
+```
+
+The script builds 21 environments with the normal PlatformIO package store and
+the pinned pioarduino/Arduino 3.3.7 smoke environment with a separate short
+user cache. This avoids both cross-platform package-name collisions and the
+Windows first-install path-length failure; it performs compilation only.
+
+WebXR/WebUSB changes:
+
+```powershell
+cd webxr
+npm.cmd ci
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+Hardware upload and serial work must follow the staged S1/12 V procedures in
+documents 20 through 24. No production target arms audio or servos merely by
+entering Live mode.
 
 ## Repository layout
 
 ```text
 parametric-container-haptics/
-├── AGENTS.md
-├── README.md
-├── LICENSE_TODO.md
-├── platformio.ini
-├── include/haptics/
-├── src/
-├── docs/
-├── presets/
-├── schemas/
-├── webxr/
-├── hardware/
-└── test/
+|-- AGENTS.md
+|-- README.md
+|-- platformio.ini
+|-- include/haptics/       Public firmware interfaces and parameters
+|-- src/                   Pipeline, backends, and bounded probe entry points
+|-- docs/                  Specifications, roadmap, evidence, and runbooks
+|-- presets/               Material preset JSON
+|-- schemas/               Control and telemetry schemas
+|-- test/                  Native regressions, schema checks, and passive host-lab fixtures
+|-- webxr/                 Phone/Quest visual client and WebUSB probe
+`-- hardware/              Hardware publication contract and future exports
 ```
 
-## Quick start
+## Development rules
 
-1. Open the repository in VS Code + PlatformIO.
-2. Select `m5stack-sticks3` for the baseline build, `m5stack-sticks3-audio` for the main tuning firmware, `m5stack-sticks3-audio-storageless` to A/B the same main firmware with LittleFS / Preferences / recorder persistence disabled, `m5stack-sticks3-audio-direct-display` only if you are still isolating the old display issue, `m5stack-sticks3-audio-smoke` for the minimal mono smoke test on GPIO `7/5/43`, `m5stack-sticks3-display-probe` and the `main-*probe` envs only for isolated display / bring-up experiments, `m5stack-sticks3-transducer-probe` for a simple burst-based haptic probe, `m5stack-sticks3-raw-i2s-probe` for direct duplicated-stereo `driver/i2s.h` output on GPIO `7/5/43`, `m5stack-sticks3-audio-smoke-pioarduino` to A/B the same smoke test on the community `pioarduino` ESP32 platform, `m5stack-sticks3-remote` for WiFi/WebSocket validation without the full audio path, or `m5stack-sticks3-tilt` for XL330 experiments.
-3. Build and flash.
-4. Open the serial monitor at `115200`.
-5. Press **BtnA** click to cycle material families.
-6. Press **BtnA** hold to cycle `OFF -> Front -> Back -> Top -> Bottom -> OFF` audio test routing.
-7. Press **BtnB** click to toggle verbose telemetry.
-8. Press **BtnB** hold to toggle runtime audio enable.
-9. Use the serial monitor commands `status`, `cal ...`, `preset ...`, `record ...`, `replay ...`, `tilt ...`, `audio ...`, and `remote status` as needed.
-10. `m5stack-sticks3-audio` now boots with single-amp bench defaults enabled: `front_back_2ch`, mono `48 kHz` demo-compat audio, and SoftAP monitoring enabled by default.
-11. In SoftAP mode, open the browser status page from the printed AP URL or the default `http://192.168.4.1/`.
-12. If a single external amp worked in an older demo, try `audio diag on` before deeper wiring changes. It forces the same mono `48 kHz` bus-A-only compatibility profile.
-13. If you want to isolate the audio path from the full haptics pipeline, flash `m5stack-sticks3-audio-smoke`. It now boots into a conservative `burst` mode by default and accepts `mode tone|burst`, `tone 180`, `amp 0.45`, `burst 60`, `period 220`, and `sweep on` in the serial monitor when USB CDC is available.
-14. If a pure tone is hard to feel on the transducer, flash `m5stack-sticks3-transducer-probe` and use `status`, `freq 180`, `level 0.45`, `burst 60`, `period 220`, or `sweep on`.
-15. If `M5.Speaker`-based tests boot but still do not drive the amp, flash `m5stack-sticks3-raw-i2s-probe`. It bypasses `M5.Speaker`, writes directly to `I2S_NUM_0`, duplicates the same waveform into both left and right slots so mono amps such as MAX98357A cannot miss the active channel, and can switch between `external` pins `7/5/43` and the StickS3 `legacy` speaker pins `17/15/14`.
-16. If the full main firmware is unstable, do not keep editing `m5stack-sticks3-audio` in place. Walk the probe ladder instead: `main-boot-probe -> main-pipeline-probe -> main-loop-probe -> main-audio-probe -> main-delta-probe`.
-17. For the visual WebXR demo, run `cd webxr`, `npm.cmd install`, then `npm.cmd run dev` for local development or `npm.cmd run quest` for a temporary Quest-accessible Cloudflare URL.
+- Preserve the four-layer architecture and canonical `DriveFrame4` contract.
+- Keep new behavior behind safe compile-time and/or runtime gates.
+- Generic defaults must preserve the existing baseline.
+- Update relevant documentation and acceptance criteria with every feature.
+- Do not promote probe evidence to a production-pipeline hardware pass.
+- Do not format LittleFS or enable AtomS3 production servo motion without an
+  explicit recovery/safety decision.
 
-## Development principles
-
-1. **Additive changes only** at first.
-2. New features must be gated behind flags and default to the current baseline.
-3. The four-layer pipeline is the architectural source of truth.
-4. Low-frequency force cues will later be added by the **thumb/index tilt-plane mechanism**, not by overloading the 4-transducer texture path.
-5. The repository should remain suitable for future open-source release.
-
-## Must-read docs
-
-Read these in order before implementing:
-
-1. `docs/01_FUNCTIONAL_REQUIREMENTS.md`
-2. `docs/02_SYSTEM_ARCHITECTURE.md`
-3. `docs/03_PIPELINE_SPEC.md`
-4. `docs/04_HARDWARE_AND_PIN_SPEC.md`
-5. `docs/05_INTERFACE_SPEC.md`
-6. `docs/06_PARAMETER_MODEL.md`
-7. `docs/07_TEST_AND_VALIDATION.md`
-8. `docs/08_IMPLEMENTATION_PLAN.md`
-9. `docs/09_CODEX_HANDOFF.md`
-10. `docs/10_REFERENCES.md`
-11. `docs/11_CODEX_START_PROMPT.md`
-12. `docs/12_IMPLEMENTATION_WALKTHROUGH.md`
-13. `docs/13_COLLABORATION_INPUT_CHECKLIST.md`
-14. `docs/14_TILT_PSEUDOFORCE_SPEC_REV2.md`
-15. `docs/15_ENVIRONMENT_BRINGUP_NOTES.md`
-16. `docs/16_PROGRESS_STATUS.md`
-17. `docs/17_PARAMETRIC_CONTAINER_HAPTICS_MODEL_SPEC.md`
-18. `docs/18_WEBXR_SMARTPHONE_DEMO.md`
-
-## Notes for future open-source release
-
-- The hardware folder is intentionally a placeholder for your KiCad, BOM, and mechanical design.
-- A concrete license is **not selected yet**. See `LICENSE_TODO.md` before publishing.
+Hardware design assets and a final open-source license are not yet published.
+See [hardware/README.md](hardware/README.md) and [LICENSE_TODO.md](LICENSE_TODO.md).

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 
 #include "haptics/Parameters.hpp"
 #include "haptics/Types.hpp"
@@ -10,7 +11,10 @@ namespace haptics {
 class EventLayer {
  public:
   void configure(const SystemParams& params);
-  EventFrame<kMaxEventsPerFrame> update(const MassState& state, float dt_s);
+  EventFrame<kMaxEventsPerFrame> update(
+      const MassState& state,
+      float dt_s,
+      std::size_t max_output_events = kMaxEventsPerFrame);
   const HapticEvent& lastEvent() const { return last_event_; }
 
  private:
@@ -35,6 +39,7 @@ class EventLayer {
   float detent_scrape_cooldown_s_ = 0.0f;
   bool detent_tick_ready_ = true;
   WallId roll_wall_ = WallId::None;
+  std::size_t output_limit_ = kMaxEventsPerFrame;
 };
 
 }  // namespace haptics

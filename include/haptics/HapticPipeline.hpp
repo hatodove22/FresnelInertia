@@ -6,16 +6,23 @@
 #include "haptics/EventLayer.hpp"
 #include "haptics/ImuSampler.hpp"
 #include "haptics/MassMotionLayer.hpp"
+#include "haptics/MotionActivityFilter.hpp"
 #include "haptics/Parameters.hpp"
 #include "haptics/PresetStore.hpp"
 #include "haptics/Recorder.hpp"
 #include "haptics/RemoteInterface.hpp"
 #include "haptics/ResonanceLayer.hpp"
+#include "haptics/RuntimeSafetyPolicy.hpp"
 #include "haptics/RuntimeCalibrator.hpp"
 #include "haptics/SpatialRenderer4.hpp"
 #include "haptics/TextureLayer.hpp"
 #include "haptics/TiltPseudoForceModel.hpp"
 #include "haptics/TiltPlaneServoInterface.hpp"
+#include "haptics/UsbTelemetryProducer.hpp"
+
+#ifndef HAPTICS_ENABLE_IMU_FAULT_INJECTION
+#define HAPTICS_ENABLE_IMU_FAULT_INJECTION 0
+#endif
 
 namespace haptics {
 
@@ -24,6 +31,7 @@ class HapticPipeline {
   bool begin(const SystemParams& params);
   void tick();
   void processSample(const ImuSample& sample, float dt_s);
+  void enterSafeIdle();
   void cyclePreset();
   void toggleVerbose();
   void cycleAudioTestMode();
@@ -42,6 +50,7 @@ class HapticPipeline {
     TiltPlaneParams tilt{};
     InterfaceParams iface{};
     RecorderParams recorder{};
+    MotionActivityFilterParams motion_activity{};
     std::array<float, 4> low_carrier_hz{};
     std::array<float, 4> high_carrier_hz{};
   };
@@ -53,8 +62,10 @@ class HapticPipeline {
   void commitPresetParams(SystemParams next_params, const RuntimeConfigSnapshot& snapshot);
   TiltPlaneCommand updateTiltCommand(const ImuSample& sample, const MassState& state, float dt_s);
   MassState makeDefaultMassState() const;
-  void reconfigurePipeline();
+  bool reconfigurePipeline();
   void refreshOutputConfig();
+  void resetDynamicPipelineState();
+  bool applyAudioConfigOrRollback(const SystemParams& previous_params);
   ActuatorFrame4 summarizeDriveFrame(const DriveFrame4& frame) const;
   RunMode currentRunMode() const;
   bool applyControlMessage(const ControlMessage& message);
@@ -62,6 +73,7 @@ class HapticPipeline {
 
   SystemParams params_{};
   ImuSampler imu_{};
+  MotionActivityFilter motion_activity_filter_{};
   MassMotionLayer mass_layer_{};
   EventLayer event_layer_{};
   TextureLayer texture_layer_{};
@@ -72,12 +84,16 @@ class HapticPipeline {
   TiltPseudoForceModel tilt_model_{};
   TiltPlaneServoInterface tilt_{};
   RemoteInterface remote_{};
+  UsbTelemetryProducer usb_telemetry_{};
   Recorder recorder_{};
   PresetStore preset_store_{};
 
   TelemetrySnapshot telemetry_{};
   uint32_t last_tick_us_ = 0;
+  uint32_t last_valid_imu_ms_ = 0;
   uint32_t last_print_ms_ = 0;
+  bool imu_stale_safe_stop_ = false;
+  bool imu_fault_injection_active_ = false;
   MaterialFamily current_family_ = MaterialFamily::Liquid;
   RunMode requested_run_mode_ = RunMode::Live;
 };

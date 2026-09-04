@@ -1,10 +1,19 @@
 .pio/
 .vscode/
+.idea/
 .DS_Store
+Thumbs.db
 *.pyc
 __pycache__/
 *.log
 *.tmp
+*.orig
+.env
+.env.*
+!.env.example
 webxr/node_modules/
 webxr/dist/
 webxr/*.tsbuildinfo
+
+# Local hardware-lab evidence bundles can be large and are run-specific.
+artifacts/lab/

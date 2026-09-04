@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "run_id": "dry-pulse-monotonic-baseline",
+  "telemetry_schema": "schemas/telemetry_frame.schema.json",
+  "frame_counter_mode": "monotonic",
+  "timestamp_origin": "absolute",
+  "metadata": {
+    "source": "committed hidden-event baseline fixture",
+    "physical_output": false
+  },
+  "checks": [
+    {
+      "id": "pulse-settle",
+      "type": "pulse_to_silence",
+      "pulse_timestamp_ms": 500,
+      "baseline_duration_ms": 200,
+      "response_deadline_ms": 300,
+      "settle_deadline_ms": 1400,
+      "silence_duration_ms": 400,
+      "max_sample_gap_ms": 100,
+      "min_response_actuator": 0.1,
+      "min_response_energy": 0.05,
+      "max_silence_actuator": 0.02,
+      "max_silence_energy": 0.02
+    }
+  ]
+}

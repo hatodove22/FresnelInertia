@@ -11,12 +11,14 @@ The app is intentionally kept as a nested web project. Its Node dependencies, Vi
 - Phone: normal browser mode with touch drag and optional device-orientation tilt.
 - Quest MR: WebXR AR session targeting Meta Quest 3/3S, with hand-tracking near-grab support and an in-scene experiment panel.
 - Desktop: normal browser mode plus IWSDK/IWER emulation during local development.
+- WebUSB probe: standalone `/webusb.html` diagnostics for testing Quest Browser access to Atom S3 / ESP32-S3 USB devices.
 
 ## Project layout
 
 ```text
 webxr/
 |-- index.html
+|-- webusb.html
 |-- package.json
 |-- scripts/
 |   `-- start-quest-tunnel.ps1
@@ -29,9 +31,13 @@ webxr/
 |   |   |-- ProceduralAssets.ts
 |   |   `-- SpatialControlPanel.ts
 |   |-- xr/WebXrBridge.ts
+|   |-- experimentRecorder.ts
 |   |-- main.ts
 |   |-- presets.ts
 |   |-- simulator.ts
+|   |-- stimulusScripts.ts
+|   |-- webusb-test.ts
+|   |-- webusb-test.css
 |   `-- types.ts
 `-- vite.config.ts
 ```
@@ -40,7 +46,10 @@ webxr/
 
 - Procedural texture assets are generated in-browser for the wooden bench, calibration mat, liquid normals, and sample label.
 - The scene includes a small lab-bench environment so phone demos read as an object in space rather than a floating cube.
-- A lightweight spatial experiment panel is rendered as a Three.js canvas texture in the MR scene. It provides a preset list, two sliders, and a fixed Reset Object button so ray and fingertip direct-touch behavior can be evaluated before adopting a fuller IWSDK UIKit/UIKitML surface.
+- A lightweight spatial experiment panel is rendered as a Three.js canvas texture in the MR scene. It provides a paged preset list, repeatable stimulus selection, motion/damping sliders, trial controls, and a fixed Reset Object button so ray and fingertip direct-touch behavior can be evaluated before adopting a fuller IWSDK UIKit/UIKitML surface.
+- The phone HUD mirrors the spatial panel's motion-boost and damping-preview sliders. Changes from either surface update the same `SpatialPanelState` used by the visual simulator.
+- The phone HUD includes a browser-local trial strip for condition/repeat entry, start/stop, mark, next, elapsed time, and JSON/CSV export. Trial data stays in memory until exported or the page is refreshed.
+- Optional stimulus scripts can override tilt for repeatable demos: manual, gentle roll, wall tap, swirl, and settle. Manual remains the default, and Reset returns to manual/rest.
 - During near-grab, the app-side hand mesh for the active hand is hidden and replaced by simple contact markers attached to the container. Input still comes from the tracked WebXR hand joints.
 - Box presets are rendered as hand-scale 7 cm cubes in the WebXR demo so Quest hand tracking reads at a plausible physical size. This visual normalization does not rewrite the repository preset files.
 - A WebXR-only `liquid_cylinder_bottle` preset adds a cylindrical bottle body with a neck, cap, circular liquid volume, and circular liquid surface.
@@ -55,9 +64,16 @@ The visual state is local to the browser:
 - `ContainerScene` renders the transparent container, label, liquid, foam, and particles,
 - `GripProxy` renders the thumb/index contact markers used during visual grab substitution,
 - `EnvironmentScene` provides the bench-like spatial context,
-- `SpatialControlPanel` provides the in-scene prototype UI for ray/direct-touch list, slider, and reset interaction,
+- `SpatialControlPanel` provides the in-scene prototype UI for ray/direct-touch paged preset selection, stimulus cycling, trial start/mark/next, sliders, and reset interaction,
+- `ExperimentRecorder` keeps in-memory trial records and exports JSON or CSV without external dependencies,
+- `stimulusScripts` provides repeatable visual-only tilt paths for experiment setup,
 - `WebXrBridge` prefers the thumb-index midpoint as the grab position when fingertips are separated enough to bracket the object, and falls back to a broader hand-position estimate when needed,
 - no live telemetry, WebSocket, or StickS3 control path is used in v1.
+
+The WebUSB probe is separate from the visual app. It feature-detects WebUSB and
+native Web Serial, lists USB descriptors, claims selected interfaces, and sends
+or receives bytes through selected endpoints. It is meant to validate Quest
+Browser transport options before adding a firmware protocol.
 
 ## Development
 
@@ -103,7 +119,17 @@ For Quest tunnel validation:
 3. Confirm the phone/desktop view loads before entering MR.
 4. Press `Enter MR` and allow the browser's WebXR permissions.
 5. Bring a tracked hand near the container; it should attach to the estimated grab position without requiring a pinch.
-6. Aim a controller ray or bring an index fingertip near the spatial panel; preset rows, sliders, and Reset Object should respond without requiring the phone HUD.
+6. Aim a controller ray or bring an index fingertip near the spatial panel; preset rows, paging, stimulus controls, trial buttons, sliders, and Reset Object should respond without requiring the phone HUD.
+7. Move the DOM motion/damping sliders and confirm the MR panel mirrors those values; move the MR sliders and confirm the DOM values update.
+8. Start a trial from either the HUD or MR panel, select a stimulus script from either surface, mark/next/stop, and export JSON or CSV. Exported rows should include timestamp, preset, input mode, panel state, tilt, phase, and marker.
+
+For WebUSB validation:
+
+1. Run `npm.cmd run quest`.
+2. Open the printed URL plus `/webusb.html` in Quest Browser.
+3. Confirm the status strip reports whether WebUSB and native Web Serial are exposed.
+4. Connect an Atom S3 / ESP32-S3 over USB-C and try the default `0x303a` filter.
+5. Claim the interface that exposes bulk IN/OUT endpoints and test echo traffic.
 
 The firmware baseline should still be validated from the repository root:
 
@@ -117,5 +143,5 @@ pio run -e m5stack-sticks3
 - WebXR box geometry is normalized to 7 cm for hand-scale visual inspection; firmware and haptic dimensions remain unchanged.
 - Meta IWSDK packages are included for the Quest development foundation and IWER workflow. The runtime WebXR bridge is isolated so it can be swapped to deeper IWSDK ECS/grab, MultiPointer, UIKit, and UIKitML components as those APIs stabilize.
 - Smartphone support is not a blocker for the MR panel path. The phone HUD stays DOM-based for quick demos, while the MR panel is a separate in-scene surface with its own interaction path.
-- Live telemetry and control are intentionally deferred.
+- The trial strip is browser-local only. It is not firmware telemetry, and it does not change the deferred live telemetry/control plan.
 - Cloudflare Quick Tunnel URLs are temporary and last only while the local command is running.

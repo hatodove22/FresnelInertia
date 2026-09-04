@@ -1,6 +1,5 @@
 #include "haptics/MassMotionLayer.hpp"
 
-#include <Arduino.h>
 #include <algorithm>
 #include <cmath>
 
@@ -26,6 +25,46 @@ float safeSpan(float span_m) {
   return std::max(0.020f, span_m);
 }
 
+float familyDampingMultiplier(const SystemParams& params) {
+  const float viscosity = clampf(params.container.viscosity, 0.0f, 1.0f);
+  const float particle_count = clampf(params.container.particle_count, 0.0f, 1.0f);
+  const float fill = clampf(params.container.fill, 0.05f, 0.95f);
+  float multiplier = 1.0f + viscosity * 0.85f;
+  switch (params.container.family) {
+    case MaterialFamily::Granular:
+      return multiplier * (0.90f + 0.10f * particle_count);
+    case MaterialFamily::Hybrid:
+      return multiplier * (1.00f + 0.30f * viscosity);
+    case MaterialFamily::Detented:
+      return multiplier * 1.30f;
+    case MaterialFamily::Liquid:
+    case MaterialFamily::Custom:
+    default:
+      return multiplier * (1.00f + 0.25f * fill);
+  }
+}
+
+float stableAxisStepS(float natural_freq_hz,
+                      float span_gain,
+                      float damping_ratio) {
+  if (!std::isfinite(natural_freq_hz) || natural_freq_hz < 0.0f ||
+      !std::isfinite(damping_ratio) || damping_ratio < 0.0f) {
+    return 0.0f;
+  }
+  const float omega = 2.0f * kPi * natural_freq_hz * std::sqrt(span_gain);
+  if (omega <= 0.0f) {
+    return 0.004f;
+  }
+
+  // For the damped semi-implicit Euler update used below, stability requires
+  // r^2 + 4*zeta*r < 4 for r=omega*dt. Use 75% of the positive root and cap
+  // at the normal 250 Hz control period.
+  const float root = 2.0f /
+                     (std::sqrt(damping_ratio * damping_ratio + 1.0f) +
+                      damping_ratio);
+  return std::min(0.004f, 0.75f * root / omega);
+}
+
 }  // namespace
 
 void MassMotionLayer::configure(const SystemParams& params) {
@@ -43,7 +82,37 @@ void MassMotionLayer::configure(const SystemParams& params) {
   state_.family = params.container.family;
 }
 
+float MassMotionLayer::maxStableStepS() const {
+  const float span_gain_x =
+      clampf(kReferenceSpanM / safeSpan(params_.container.span_x_m), 0.60f, 2.40f);
+  const float span_gain_y =
+      clampf(kReferenceSpanM / safeSpan(params_.container.span_y_m), 0.60f, 2.40f);
+  const float damping_multiplier = familyDampingMultiplier(params_);
+  const float step_x = stableAxisStepS(
+      params_.mass.natural_freq_x_hz,
+      span_gain_x,
+      params_.mass.damping_ratio_x * damping_multiplier);
+  const float step_y = stableAxisStepS(
+      params_.mass.natural_freq_y_hz,
+      span_gain_y,
+      params_.mass.damping_ratio_y * damping_multiplier);
+  return std::min(step_x, step_y);
+}
+
 MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
+  return updateImpl(sample, sample, dt_s, false);
+}
+
+MassState MassMotionLayer::updateWithActivity(const ImuSample& raw_sample,
+                                              const ImuSample& activity_sample,
+                                              float dt_s) {
+  return updateImpl(raw_sample, activity_sample, dt_s, true);
+}
+
+MassState MassMotionLayer::updateImpl(const ImuSample& raw_sample,
+                                      const ImuSample& activity_sample,
+                                      float dt_s,
+                                      bool gravity_separated_activity) {
   const float span_x_m = safeSpan(params_.container.span_x_m);
   const float span_y_m = safeSpan(params_.container.span_y_m);
   const float span_gain_x = clampf(kReferenceSpanM / span_x_m, 0.60f, 2.40f);
@@ -58,7 +127,7 @@ MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
   const float particle_hardness = clampf(params_.container.particle_hardness, 0.0f, 1.0f);
 
   float mobility = clampf(0.55f + 0.90f * headspace, 0.35f, 1.40f);
-  float damping_multiplier = 1.0f + viscosity * 0.85f;
+  const float damping_multiplier = familyDampingMultiplier(params_);
   float rebound_multiplier = 0.85f;
   float energy_multiplier = 1.0f;
   float convective_gain = 0.0f;
@@ -67,13 +136,11 @@ MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
   switch (params_.container.family) {
     case MaterialFamily::Granular:
       mobility *= 1.05f + 0.20f * particle_hardness;
-      damping_multiplier *= 0.90f + 0.10f * particle_count;
       rebound_multiplier = 1.00f + 0.30f * particle_hardness;
       energy_multiplier = 1.10f + 0.20f * particle_count;
       break;
     case MaterialFamily::Hybrid:
       mobility *= 0.95f + 0.20f * headspace;
-      damping_multiplier *= 1.00f + 0.30f * viscosity;
       rebound_multiplier = 0.90f + 0.20f * particle_hardness;
       energy_multiplier = 1.00f + 0.10f * particle_count;
       convective_gain = clampf(0.18f + 0.35f * headspace - 0.10f * viscosity, 0.08f, 0.48f);
@@ -81,7 +148,6 @@ MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
       break;
     case MaterialFamily::Detented:
       mobility *= 0.60f;
-      damping_multiplier *= 1.30f;
       rebound_multiplier = 0.55f;
       energy_multiplier = 0.85f;
       break;
@@ -89,7 +155,6 @@ MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
     case MaterialFamily::Custom:
     default:
       mobility *= 0.95f - 0.15f * fill;
-      damping_multiplier *= 1.00f + 0.25f * fill;
       rebound_multiplier = 0.70f;
       convective_gain = clampf(0.28f + 0.55f * headspace - 0.35f * viscosity, 0.12f, 0.72f);
       convective_decay = clampf(1.00f + 1.80f * viscosity + 0.85f * fill, 0.90f, 3.40f);
@@ -101,12 +166,18 @@ MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
   const float damping_x = params_.mass.damping_ratio_x * damping_multiplier;
   const float damping_y = params_.mass.damping_ratio_y * damping_multiplier;
   const float rebound = clampf(params_.mass.rebound * rebound_multiplier, 0.08f, 0.92f);
-  const float ax = sample.valid ? sample.accel_g.x : 0.0f;
-  const float ay = sample.valid ? sample.accel_g.y : 0.0f;
-  const float az = sample.valid ? sample.accel_g.z : 0.0f;
-  const float gx = sample.valid ? sample.gyro_dps.x : 0.0f;
-  const float gy = sample.valid ? sample.gyro_dps.y : 0.0f;
-  const float gz = sample.valid ? sample.gyro_dps.z : 0.0f;
+  const float ax = raw_sample.valid ? raw_sample.accel_g.x : 0.0f;
+  const float ay = raw_sample.valid ? raw_sample.accel_g.y : 0.0f;
+  const float az = raw_sample.valid ? raw_sample.accel_g.z : 0.0f;
+  const float gx = raw_sample.valid ? raw_sample.gyro_dps.x : 0.0f;
+  const float gy = raw_sample.valid ? raw_sample.gyro_dps.y : 0.0f;
+  const float gz = raw_sample.valid ? raw_sample.gyro_dps.z : 0.0f;
+  const float activity_ax = activity_sample.valid ? activity_sample.accel_g.x : 0.0f;
+  const float activity_ay = activity_sample.valid ? activity_sample.accel_g.y : 0.0f;
+  const float activity_az = activity_sample.valid ? activity_sample.accel_g.z : 0.0f;
+  const float activity_gx = activity_sample.valid ? activity_sample.gyro_dps.x : 0.0f;
+  const float activity_gy = activity_sample.valid ? activity_sample.gyro_dps.y : 0.0f;
+  const float activity_gz = activity_sample.valid ? activity_sample.gyro_dps.z : 0.0f;
 
   // Map board acceleration into normalized container acceleration. A smaller container yields
   // larger normalized excursions for the same physical motion, which shortens travel time.
@@ -119,8 +190,11 @@ MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
   // Couple vertical/agitation motion into the 2D latent plane so pure up/down shakes
   // and yaw-dominant motion can still excite liquid and detented families.
   const float accel_mag = length3(ax, ay, az);
-  const float dynamic_accel_g = clampf(accel_mag - 1.0f, 0.0f, 2.0f);
-  const float spin_norm = clampf(gz / 180.0f, -1.5f, 1.5f);
+  const float dynamic_accel_g = gravity_separated_activity
+                                    ? clampf(length3(activity_ax, activity_ay, activity_az), 0.0f, 2.0f)
+                                    : clampf(accel_mag - 1.0f, 0.0f, 2.0f);
+  const float spin_norm =
+      clampf((gravity_separated_activity ? activity_gz : gz) / 180.0f, -1.5f, 1.5f);
   const float span_gain_mean = 0.5f * (span_gain_x + span_gain_y);
   float agitation_gain = 0.06f;
   switch (params_.container.family) {
@@ -211,8 +285,14 @@ MassState MassMotionLayer::update(const ImuSample& sample, float dt_s) {
   const float boundary_proximity =
       std::max(std::fabs(state_.pos_norm.x) / std::max(0.50f, 1.0f - wall_soft_zone_x),
                std::fabs(state_.pos_norm.y) / std::max(0.50f, 1.0f - wall_soft_zone_y));
-  const float drive = (length2(ax, ay) * params_.mass.accel_to_energy_gain * mobility * geometry_activity +
-                       length2(gx, gy) * params_.mass.gyro_to_energy_gain) *
+  const float accel_activity = gravity_separated_activity
+                                   ? length2(activity_ax, activity_ay)
+                                   : length2(ax, ay);
+  const float gyro_activity = gravity_separated_activity
+                                  ? length2(activity_gx, activity_gy)
+                                  : length2(gx, gy);
+  const float drive = (accel_activity * params_.mass.accel_to_energy_gain * mobility * geometry_activity +
+                       gyro_activity * params_.mass.gyro_to_energy_gain) *
                       energy_multiplier;
   const float decay = std::exp(-dt_s / std::max(0.001f, params_.mass.energy_decay_s));
   const float collision_bonus = clampf(boundary_proximity - 0.75f, 0.0f, 0.40f) *

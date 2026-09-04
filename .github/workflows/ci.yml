@@ -19,6 +19,7 @@ jobs:
           - m5stack-sticks3-tilt
           - m5stack-sticks3-transducer-probe
           - m5stack-sticks3-raw-i2s-probe
+          - m5stack-atoms3-pipeline
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,6 +29,28 @@ jobs:
         run: pip install platformio
       - name: Build
         run: pio run -e ${{ matrix.env }}
+
+  host-validation:
+    name: Native, schema, and lab validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Native production-layer tests
+        run: pio test -e native-layers
+      - name: Protocol schema fixtures
+        run: node test/schema/validate_schemas.mjs
+      - name: Passive lab fixtures
+        run: node tools/lab/lab.mjs self-test
+      - name: Passive lab integration tests
+        run: node --test test/lab/self_test.mjs
 
   webxr:
     name: WebXR typecheck and build

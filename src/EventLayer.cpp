@@ -7,10 +7,32 @@ namespace haptics {
 namespace {
 
 constexpr float kMinWallSpeedNorm = 0.06f;
+constexpr float kEnhancedQuietEnergy = 0.02f;
+constexpr float kEnhancedQuietSpeedNorm = 0.04f;
 constexpr WallId kWalls[4] = {WallId::Front, WallId::Back, WallId::Top, WallId::Bottom};
 
 float clampf(float value, float lo, float hi) {
   return std::max(lo, std::min(value, hi));
+}
+
+std::size_t consumeScheduledPhase(float& phase, std::size_t available_slots) {
+  if (!std::isfinite(phase)) {
+    phase = 0.0f;
+    return 0;
+  }
+  if (phase < 1.0f) {
+    return 0;
+  }
+
+  const float due = std::floor(phase);
+  phase -= due;
+  if (available_slots == 0 || due <= 0.0f) {
+    return 0;
+  }
+  if (due >= static_cast<float>(available_slots)) {
+    return available_slots;
+  }
+  return static_cast<std::size_t>(due);
 }
 
 size_t wallIndex(WallId wall) {
@@ -209,15 +231,23 @@ void EventLayer::configure(const SystemParams& params) {
 }
 
 void EventLayer::pushEvent(EventFrame<kMaxEventsPerFrame>& frame, const HapticEvent& event) {
-  if (frame.count >= frame.items.size()) {
+  if (frame.count >= frame.items.size() || frame.count >= output_limit_) {
     return;
   }
   frame.items[frame.count++] = event;
   last_event_ = event;
 }
 
-EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float dt_s) {
+EventFrame<kMaxEventsPerFrame> EventLayer::update(
+    const MassState& state,
+    float dt_s,
+    std::size_t max_output_events) {
   EventFrame<kMaxEventsPerFrame> frame{};
+  output_limit_ = std::min(max_output_events, frame.items.size());
+  const auto remainingOutputSlots = [this, &frame]() {
+    const std::size_t limit = std::min(output_limit_, frame.items.size());
+    return frame.count < limit ? limit - frame.count : 0U;
+  };
 
   for (auto& cooldown_s : wall_cooldown_s_) {
     cooldown_s = std::max(0.0f, cooldown_s - dt_s);
@@ -237,8 +267,6 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
     const float distance_norm = distanceToWallNorm(state, candidate);
     const float contact = wallContactNorm(state, params_, candidate);
     const float approach_norm = approachSpeedNorm(state, candidate);
-    const float impact_speed_m_s = 0.5f * span_m * approach_norm;
-
     if (distance_norm > zone_norm * 1.4f || contact < wall_contact_threshold * 0.55f || approach_norm <= 0.0f) {
       wall_armed_[index] = true;
     }
@@ -287,6 +315,16 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
     wall_cooldown_s_[index] = cooldown_s;
   }
 
+  // The legacy family schedulers intentionally retain their historical
+  // activity floors. The Gate 1 path removes only their zero-input
+  // self-excitation: once Mass is below the accepted energy/speed floor and
+  // no wall hit occurred, internal activities may decay but no new family
+  // event is scheduled.
+  const bool enhanced_quiet =
+      params_.features.enable_gravity_separated_mass_activity &&
+      hit_wall == WallId::None && state.energy <= kEnhancedQuietEnergy &&
+      speed <= kEnhancedQuietSpeedNorm;
+
   switch (state.family) {
     case MaterialFamily::Granular: {
       scrape_cooldown_s_ = std::max(0.0f, scrape_cooldown_s_ - dt_s);
@@ -327,20 +365,27 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
       }
 
       const float roll_target =
-          best_roll_drive * geometry_density * particle_gain * mobility_gain *
-          clampf(0.58f + 1.08f * state.energy, 0.0f, 1.55f);
+          enhanced_quiet
+              ? 0.0f
+              : best_roll_drive * geometry_density * particle_gain * mobility_gain *
+                    clampf(0.58f + 1.08f * state.energy, 0.0f, 1.55f);
       const float roll_blend = clampf(dt_s * 8.0f, 0.0f, 1.0f);
       rolling_activity_ += (roll_target - rolling_activity_) * roll_blend;
       rolling_activity_ = clampf(rolling_activity_, 0.0f, 2.0f);
 
-      if (best_roll_wall != WallId::None && rolling_activity_ > 0.10f) {
+      if (!enhanced_quiet && best_roll_wall != WallId::None &&
+          rolling_activity_ > 0.10f) {
         if (roll_wall_ != WallId::None && roll_wall_ != best_roll_wall) {
           roll_phase_ = std::min(roll_phase_, 0.35f);
         }
         const float roll_rate_hz =
             params_.event.roll_rate_hz * clampf(0.45f + rolling_activity_, 0.45f, 2.20f);
         roll_phase_ += dt_s * roll_rate_hz;
-        while (roll_phase_ >= 1.0f && frame.count < frame.items.size()) {
+        const std::size_t roll_event_count =
+            consumeScheduledPhase(roll_phase_, remainingOutputSlots());
+        for (std::size_t event_index = 0;
+             event_index < roll_event_count;
+             ++event_index) {
           HapticEvent roll{};
           roll.type = EventType::RollTrain;
           roll.primary_wall = best_roll_wall;
@@ -353,7 +398,6 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
           roll.density_hz = roll_rate_hz;
           roll.direction = state.vel_norm_s;
           pushEvent(frame, roll);
-          roll_phase_ -= 1.0f;
         }
         roll_wall_ = best_roll_wall;
       } else {
@@ -362,20 +406,27 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
       }
 
       const float wall_hit_bonus = (hit_wall != WallId::None) ? (0.35f + 0.65f * hit_priority) : 0.0f;
-      const float impact_target =
-          geometry_density * particle_gain * hardness_gain *
-          ((0.30f + 1.00f * state.energy) * (0.30f + best_impact_drive + 0.55f * rolling_activity_) +
-           wall_hit_bonus);
+      const float impact_target = enhanced_quiet
+                                      ? 0.0f
+                                      : geometry_density * particle_gain * hardness_gain *
+                                            ((0.30f + 1.00f * state.energy) *
+                                                 (0.30f + best_impact_drive +
+                                                  0.55f * rolling_activity_) +
+                                             wall_hit_bonus);
       const float impact_blend = clampf(dt_s * 6.0f, 0.0f, 1.0f);
       impact_activity_ += (impact_target - impact_activity_) * impact_blend;
       impact_activity_ = clampf(impact_activity_, 0.0f, 3.0f);
 
-      if (impact_activity_ > 0.12f) {
+      if (!enhanced_quiet && impact_activity_ > 0.12f) {
         const float impact_rate_hz =
             params_.event.impact_rate_hz * (sparse_hard_particle ? 0.62f : 1.0f) *
             clampf(0.30f + impact_activity_, 0.30f, 2.80f);
         impact_phase_ += dt_s * impact_rate_hz;
-        while (impact_phase_ >= 1.0f && frame.count < frame.items.size()) {
+        const std::size_t impact_event_count =
+            consumeScheduledPhase(impact_phase_, remainingOutputSlots());
+        for (std::size_t event_index = 0;
+             event_index < impact_event_count;
+             ++event_index) {
           HapticEvent cluster{};
           cluster.type = EventType::ImpactCluster;
           cluster.primary_wall = best_impact_wall;
@@ -397,7 +448,6 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
           cluster.clustered = true;
           cluster.direction = state.vel_norm_s;
           pushEvent(frame, cluster);
-          impact_phase_ -= 1.0f;
         }
       } else {
         impact_phase_ = std::min(impact_phase_, 0.45f);
@@ -407,7 +457,8 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
       const float scrape_contact = wallContactNorm(state, params_, scrape_wall);
       const float scrape_drive =
           tangentialSpeedNorm(state, scrape_wall) * (0.35f + 0.65f * scrape_contact) * hardness_gain;
-      if (scrape_cooldown_s_ <= 0.0f && scrape_drive > params_.event.scrape_threshold * 0.92f) {
+      if (!enhanced_quiet && scrape_cooldown_s_ <= 0.0f &&
+          scrape_drive > params_.event.scrape_threshold * 0.92f) {
         HapticEvent scrape{};
         scrape.type = EventType::Scrape;
         scrape.primary_wall = scrape_wall;
@@ -427,12 +478,12 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
       roof_cooldown_s_ = std::max(0.0f, roof_cooldown_s_ - dt_s);
       const float burst_drive = liquidBurstDrive(state, params_, speed);
       const float burst_gate = softThresholdGain(burst_drive, splashThreshold(params_), 0.35f);
-      const float burst_target = burst_drive * burst_gate;
+      const float burst_target = enhanced_quiet ? 0.0f : burst_drive * burst_gate;
       const float blend = clampf(dt_s * 5.0f, 0.0f, 1.0f);
       liquid_activity_ += (burst_target - liquid_activity_) * blend;
       liquid_activity_ = clampf(liquid_activity_, 0.0f, 2.2f);
 
-      if (liquid_activity_ > 0.04f) {
+      if (!enhanced_quiet && liquid_activity_ > 0.04f) {
         const float burst_rate_hz =
             params_.event.droplet_rate_hz * clampf(0.28f + liquid_activity_, 0.28f, 2.10f);
         if (liquid_burst_ready_ &&
@@ -443,7 +494,11 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
         droplet_phase_ += dt_s * burst_rate_hz;
         const WallId burst_wall = preferredFlowWall(state, params_);
         const float burst_contact = wallContactNorm(state, params_, burst_wall);
-        while (droplet_phase_ >= 1.0f && frame.count < frame.items.size()) {
+        const std::size_t droplet_event_count =
+            consumeScheduledPhase(droplet_phase_, remainingOutputSlots());
+        for (std::size_t event_index = 0;
+             event_index < droplet_event_count;
+             ++event_index) {
           HapticEvent droplets{};
           droplets.type = EventType::DropletCluster;
           droplets.primary_wall = burst_wall;
@@ -458,7 +513,6 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
           droplets.clustered = true;
           droplets.direction = state.vel_norm_s;
           pushEvent(frame, droplets);
-          droplet_phase_ -= 1.0f;
         }
       } else {
         droplet_phase_ = std::min(droplet_phase_, 0.35f);
@@ -470,7 +524,8 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
       const WallId roof_wall = topBottomWallFromPos(state);
       const float roof_contact = wallContactNorm(state, params_, roof_wall);
       const float roof_drive = (state.energy * 0.75f + speed * 0.45f) * roof_contact;
-      if (params_.container.enable_roof_contact && roof_cooldown_s_ <= 0.0f && state.fill > 0.72f &&
+      if (!enhanced_quiet && params_.container.enable_roof_contact &&
+          roof_cooldown_s_ <= 0.0f && state.fill > 0.72f &&
           roof_contact > params_.event.roof_slap_threshold) {
         HapticEvent roof{};
         roof.type = EventType::RoofSlap;
@@ -488,12 +543,12 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
       roof_cooldown_s_ = std::max(0.0f, roof_cooldown_s_ - dt_s);
       const float burst_drive = liquidBurstDrive(state, params_, speed) * 0.85f;
       const float burst_gate = softThresholdGain(burst_drive, splashThreshold(params_), 0.35f);
-      const float burst_target = burst_drive * burst_gate;
+      const float burst_target = enhanced_quiet ? 0.0f : burst_drive * burst_gate;
       const float blend = clampf(dt_s * 5.0f, 0.0f, 1.0f);
       liquid_activity_ += (burst_target - liquid_activity_) * blend;
       liquid_activity_ = clampf(liquid_activity_, 0.0f, 2.0f);
 
-      if (liquid_activity_ > 0.08f) {
+      if (!enhanced_quiet && liquid_activity_ > 0.08f) {
         const float burst_rate_hz =
             params_.event.droplet_rate_hz * clampf(0.30f + liquid_activity_, 0.30f, 1.95f);
         if (hybrid_burst_ready_ &&
@@ -504,7 +559,11 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
         droplet_phase_ += dt_s * burst_rate_hz;
         const WallId burst_wall = preferredFlowWall(state, params_);
         const float burst_contact = wallContactNorm(state, params_, burst_wall);
-        while (droplet_phase_ >= 1.0f && frame.count < frame.items.size()) {
+        const std::size_t droplet_event_count =
+            consumeScheduledPhase(droplet_phase_, remainingOutputSlots());
+        for (std::size_t event_index = 0;
+             event_index < droplet_event_count;
+             ++event_index) {
           HapticEvent droplets{};
           droplets.type = EventType::DropletCluster;
           droplets.primary_wall = burst_wall;
@@ -515,7 +574,6 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
           droplets.clustered = true;
           droplets.direction = state.vel_norm_s;
           pushEvent(frame, droplets);
-          droplet_phase_ -= 1.0f;
         }
       } else {
         droplet_phase_ = std::min(droplet_phase_, 0.30f);
@@ -526,26 +584,41 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
 
       const float rigid_gain =
           clampf(0.20f + 1.40f * params_.container.particle_count + 0.90f * params_.container.particle_hardness, 0.20f, 1.80f);
-      const float rigid_rate_hz =
-          params_.event.impact_rate_hz * 0.45f * clampf(0.20f + rigid_gain * (0.25f + state.energy), 0.20f, 1.80f);
-      hybrid_impact_phase_ += dt_s * rigid_rate_hz;
-      while (hybrid_impact_phase_ >= 1.0f && frame.count < frame.items.size()) {
-        HapticEvent impact{};
-        impact.type = EventType::ImpactCluster;
-        impact.primary_wall = wall;
-        impact.amplitude =
-            clampf(0.14f + 0.16f * liquid_activity_ + 0.20f * rigid_gain + 0.30f * state.energy, 0.0f, 1.0f);
-        impact.duration_ms = clampf(14.0f + 10.0f * params_.container.particle_hardness, 12.0f, 26.0f);
-        impact.density_hz = rigid_rate_hz;
-        impact.clustered = true;
-        impact.direction = state.vel_norm_s;
-        pushEvent(frame, impact);
-        hybrid_impact_phase_ -= 1.0f;
+      if (enhanced_quiet) {
+        hybrid_impact_phase_ = std::min(hybrid_impact_phase_, 0.45f);
+      } else {
+        const float rigid_rate_hz =
+            params_.event.impact_rate_hz * 0.45f *
+            clampf(0.20f + rigid_gain * (0.25f + state.energy), 0.20f, 1.80f);
+        hybrid_impact_phase_ += dt_s * rigid_rate_hz;
+        const std::size_t impact_event_count =
+            consumeScheduledPhase(hybrid_impact_phase_, remainingOutputSlots());
+        for (std::size_t event_index = 0;
+             event_index < impact_event_count;
+             ++event_index) {
+          HapticEvent impact{};
+          impact.type = EventType::ImpactCluster;
+          impact.primary_wall = wall;
+          impact.amplitude = clampf(
+              0.14f + 0.16f * liquid_activity_ + 0.20f * rigid_gain +
+                  0.30f * state.energy,
+              0.0f,
+              1.0f);
+          impact.duration_ms = clampf(
+              14.0f + 10.0f * params_.container.particle_hardness,
+              12.0f,
+              26.0f);
+          impact.density_hz = rigid_rate_hz;
+          impact.clustered = true;
+          impact.direction = state.vel_norm_s;
+          pushEvent(frame, impact);
+        }
       }
 
       const WallId roof_wall = topBottomWallFromPos(state);
       const float roof_contact = wallContactNorm(state, params_, roof_wall);
-      if (params_.container.enable_roof_contact && roof_cooldown_s_ <= 0.0f && state.fill > 0.74f &&
+      if (!enhanced_quiet && params_.container.enable_roof_contact &&
+          roof_cooldown_s_ <= 0.0f && state.fill > 0.74f &&
           roof_contact > params_.event.roof_slap_threshold) {
         HapticEvent roof{};
         roof.type = EventType::RoofSlap;
@@ -569,13 +642,17 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
       const float detent_engagement = std::max(contact, position_mag);
       const float speed_drive = speed * clampf(0.30f + 1.10f * state.energy, 0.0f, 1.60f);
       const float detent_drive =
-          (0.32f * state.energy + speed_drive * (0.45f + 0.55f * detent_engagement) + 0.25f * normal) *
-          geometry_density;
+          enhanced_quiet
+              ? 0.0f
+              : (0.32f * state.energy +
+                 speed_drive * (0.45f + 0.55f * detent_engagement) +
+                 0.25f * normal) *
+                    geometry_density;
       const float detent_blend = clampf(dt_s * 8.0f, 0.0f, 1.0f);
       detent_activity_ += (detent_drive - detent_activity_) * detent_blend;
       detent_activity_ = clampf(detent_activity_, 0.0f, 2.0f);
 
-      if (detent_activity_ > 0.05f) {
+      if (!enhanced_quiet && detent_activity_ > 0.05f) {
         const float detent_rate_hz =
             params_.event.impact_rate_hz * 0.48f *
             clampf(0.60f + detent_activity_ + 0.25f * state.energy, 0.60f, 2.20f);
@@ -584,7 +661,11 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
           detent_tick_ready_ = false;
         }
         detent_phase_ += dt_s * detent_rate_hz;
-        while (detent_phase_ >= 1.0f && frame.count < frame.items.size()) {
+        const std::size_t detent_event_count =
+            consumeScheduledPhase(detent_phase_, remainingOutputSlots());
+        for (std::size_t event_index = 0;
+             event_index < detent_event_count;
+             ++event_index) {
           HapticEvent tick{};
           tick.type = EventType::WallHit;
           tick.primary_wall = detent_wall;
@@ -596,7 +677,6 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
           tick.density_hz = detent_rate_hz;
           tick.direction = state.vel_norm_s;
           pushEvent(frame, tick);
-          detent_phase_ -= 1.0f;
         }
       } else {
         detent_phase_ = std::min(detent_phase_, 0.30f);
@@ -606,7 +686,8 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(const MassState& state, float 
       }
 
       const float scrape_drive = tangential * (0.20f + 0.55f * contact + 0.25f * detent_engagement);
-      if (detent_scrape_cooldown_s_ <= 0.0f && scrape_drive > params_.event.scrape_threshold * 0.75f) {
+      if (!enhanced_quiet && detent_scrape_cooldown_s_ <= 0.0f &&
+          scrape_drive > params_.event.scrape_threshold * 0.75f) {
         HapticEvent scrape{};
         scrape.type = EventType::Scrape;
         scrape.primary_wall = detent_wall;

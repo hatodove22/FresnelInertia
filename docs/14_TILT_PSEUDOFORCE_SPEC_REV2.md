@@ -231,22 +231,151 @@ Recommended command shaping:
 - starting hard upper bound: `120 deg/s`
 - deadband: `0.1` to `0.2 deg`
 
-## 11. XL330 operation policy
+## 11. XL330 integration and operation policy
 
-Use current-based position control mode.
+### 11.1 Current implementation boundary
 
-Policy:
+`TiltPseudoForceModel` is the current software model for producing the logical
+thumb/index commands described in this document. The existing
+`TiltPlaneServoInterface`, however, is a legacy StickS3-oriented prototype. It
+assumes one shared UART data pin plus a firmware-controlled direction pin and
+uses the older StickS3 pin and baud defaults. Those assumptions do not match the
+assembled AtomS3 `M5AtomS3_MAX98357A_4CH_TDM_DXL2` board.
 
-- position target from `phi_cmd`
-- conservative current limit
-- watchdog enabled
-- profile velocity and acceleration limited
+The as-built AtomS3 board instead uses:
 
-Safety:
+- `GPIO1` as DYNAMIXEL TX
+- `GPIO2` as DYNAMIXEL RX
+- automatic half-duplex direction control on the PCB
+- no firmware direction pin
+- `57,600 bps` for the two currently provisioned XL330 units
 
-- communication timeout returns safely to base tilt or neutral
-- disabled branch forces `delta_phi = 0` with a soft ramp
-- avoid sustaining long high current
+Therefore the legacy `TiltPlaneServoInterface` must not be enabled on the
+AtomS3 board. The current `m5stack-atoms3-pipeline` production-oriented
+environment deliberately builds with `HAPTICS_ENABLE_TILT_SERVO=0`. The
+dedicated DXL2 and combined probes remain the only approved AtomS3 servo paths
+until the state machine in this section is implemented and validated.
+
+This compile-out does not remove the logical pseudo-force model or change the
+four-transducer pipeline. It prevents unvalidated logical commands from being
+converted into physical servo motion.
+
+### 11.2 Arming and run-mode policy
+
+Physical servo output requires both compile-time inclusion and an explicit
+runtime arm operation. Enabling the pseudo-force model is not itself permission
+to energize either servo.
+
+The default policy is:
+
+- boot, reset, and configuration changes leave both servos torque-off
+- only `Live` and `Record` modes may request an arm
+- `Idle`, `Calibration`, and `Replay` keep the servo branch disarmed by default
+- remote stop/disarm is always allowed
+- remote arm is rejected by default and requires a separate, explicit safety
+  authorization before it may be added
+- changing an unrelated runtime parameter must never rewrite an XL330 operating
+  mode or re-enable torque
+- a disabled pseudo-force correction returns `delta_phi` to zero with a soft
+  ramp, while an explicit servo disarm proceeds to verified torque-off
+
+### 11.3 Required DXL2 safety state machine
+
+The AtomS3 production backend should use an explicit state machine:
+
+```text
+Disabled
+  -> Checking
+  -> ReadyTorqueOff
+  -> Arming
+  -> Armed
+  -> FaultLatched
+```
+
+Required behavior:
+
+1. `Disabled` initializes the UART and requests broadcast torque-off only.
+2. `Checking` verifies IDs `1` and `2`, model `1190`, operating mode, current
+   position, voltage, temperature, present current, and Hardware Error Status.
+3. `ReadyTorqueOff` means both units passed read-back and remain torque-off.
+4. `Arming` first writes a safe goal equal to the present or calibrated home
+   position, installs the bounded RAM settings and watchdog, and only then
+   enables torque with read-back.
+5. `Armed` accepts rate-limited low-frequency commands and periodically reads
+   both devices' health and position.
+6. Any limit violation, stale IMU, communication timeout, malformed status,
+   watchdog error, or explicit stop requests torque-off and enters
+   `FaultLatched`.
+7. `FaultLatched` cannot re-arm automatically. It requires an operator clear
+   followed by a complete new check.
+
+The DYNAMIXEL Bus Watchdog is a second line of defense for a stalled controller;
+it does not replace verified torque-off, health polling, or the fault latch.
+
+### 11.4 Initial AtomS3 motion envelope
+
+The first production integration must reproduce the already proven unloaded
+probe envelope before any wider motion or current-based position experiment:
+
+- TX=`GPIO1`, RX=`GPIO2`, `57,600 bps`
+- expected IDs `1` and `2`, expected model `1190`
+- Position Control Mode (`Operating Mode = 3`)
+- automatic torque-on disabled
+- measured session or calibrated raw home for each servo
+- maximum initial travel: `+/-40 pulses` (about `+/-3.52 deg`)
+- Profile Acceleration `1`
+- Profile Velocity `5`
+- Goal PWM limit `150` (about 17 percent)
+- Bus Watchdog `50` (1 second)
+- abort above `350 mA`
+- abort above `45 C`
+- abort outside `4.5` to `5.6 V`
+- abort on any hardware error, status-read failure, stale IMU, or motion timeout
+
+These are bring-up limits, not final loaded-system limits. Wider travel and
+higher sustained effort require a separate mounted-mechanism validation.
+
+Current-based Position Control Mode (`Operating Mode = 5`) remains the intended
+later control policy because it can bound finger force while tracking position.
+It must not be selected automatically during ordinary startup or configuration.
+Changing Operating Mode is a separate, explicit provisioning step, and Mode 5
+may be enabled only after the Mode 3 integration above passes. Software raw
+position limits remain mandatory because the XL330 Min/Max Position Limit
+registers do not constrain Current-based Position Control Mode.
+
+### 11.5 Home and direction calibration
+
+Logical degrees must be converted relative to a calibrated raw neutral rather
+than assuming that logical zero is encoder position `2047`:
+
+```text
+goal_raw = home_raw
+         + raw_direction * round(logical_angle_deg / 0.088)
+```
+
+Each servo requires:
+
+- `home_raw`
+- `home_raw_valid`
+- `raw_direction` (`+1` or `-1`)
+- an absolute software raw-position window around `home_raw`
+
+An invalid or missing home calibration rejects arming. `raw_direction` describes
+the mechanical encoder direction and is distinct from `s_thumb` / `s_index`,
+which describe the perceptual sign of the pseudo-force correction.
+
+### 11.6 Scheduling and branch separation
+
+The servo interface should store the latest logical command and service the bus
+at a bounded low-frequency cadence rather than issuing several blocking UART
+writes from every pipeline tick. Two-device synchronized writes are preferred,
+with slower alternating status reads. UART service time, command age, status
+age, communication errors, watchdog state, and actual position/current/voltage/
+temperature must be exposed through telemetry.
+
+The servo branch consumes only the IMU and shared low-frequency mass state. It
+must not consume wall events, texture atoms, resonance voices, or `DriveFrame4`.
+Likewise, servo enable/disable state must not alter the four TDM wall channels.
 
 ## 12. Reference implementation equations
 
@@ -318,6 +447,33 @@ w_eff_m = 0.050
    - total pseudo-force <= `6 deg`
    - total command <= `10 deg` initially
 8. The branch remains low-frequency and does not reproduce vibrotactile textures.
+9. The current AtomS3 production environment keeps physical servo output
+   compile-disabled until the new DXL2 state machine is implemented.
+10. Boot, reset, preset changes, and unrelated runtime parameter changes produce
+    no servo motion and leave both units torque-off.
+11. Preflight accepts only IDs `1` and `2` reporting model `1190` at
+    `57,600 bps`, with plausible voltage and temperature, zero hardware error,
+    and verified torque-off.
+12. The first integrated motion test uses Mode 3, stays within `+/-40 pulses` of
+    each validated `home_raw`, applies Profile Acceleration `1`, Profile Velocity
+    `5`, and Goal PWM `150`, and returns to home within the defined tolerance.
+13. Missing home calibration, invalid direction, mode mismatch, device mismatch,
+    or unsafe initial position rejects arming.
+14. Absolute current above `350 mA`, temperature above `45 C`, voltage outside
+    `4.5` to `5.6 V`, a hardware error, stale IMU, status timeout, or command
+    timeout causes a fault-latched stop and verified torque-off.
+15. A controller stall is bounded by Bus Watchdog `50` (1 second), and recovery
+    cannot re-arm without clearing the watchdog error and repeating preflight.
+16. Only `Live` and `Record` may be armed; `Idle`, `Calibration`, and `Replay`
+    remain disarmed by default, and a remote arm request is rejected by default.
+17. Servo activation does not change the canonical Front/Back/Top/Bottom TDM
+    mapping, the upstream `DriveFrame4`, or the four-transducer output level.
+18. Simultaneous IMU, two-servo, and four-channel operation completes with live
+    health read-back, no I2S error or reset, no unexpected motion, and final
+    torque-off confirmation.
+19. Current-based Position Mode is not accepted for production use until it has
+    a separate sign, load, current, thermal, software-position-limit, watchdog,
+    and fault-recovery validation record.
 
 ## 15. Notes for future integration
 

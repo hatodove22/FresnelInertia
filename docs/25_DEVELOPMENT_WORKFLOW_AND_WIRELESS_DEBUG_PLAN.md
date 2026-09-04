@@ -1,0 +1,840 @@
+# 25 Development Workflow and Wireless Debug Plan
+
+## 1. Status and authority
+
+This is a supporting execution plan for the active Gate 1 work. It does not
+replace the roadmap in `08_IMPLEMENTATION_PLAN.md`, change the required order
+in `AGENTS.md`, or claim that wireless operation has been validated.
+
+The purpose is to minimize bench-only iteration while preserving the current
+safe production defaults. Work in this plan may proceed ahead of hardware only
+when it does not enable a physical output, tune around the powered-settling
+failure, or bypass a roadmap gate.
+
+Gate 1 changes an already implemented mass-motion baseline only to remove a
+powered safety defect that blocks safe execution of the already implemented
+resonance-identification baseline. It is corrective work, not an attempt to
+move a new Gate 3 feature ahead of the required `AGENTS.md` order.
+
+Implementation checkpoint on `2026-08-27`:
+
+- Slice 1 schema validation is implemented: retained valid samples pass and
+  eighteen expected-invalid fixtures are rejected for their exact reasons,
+  including the previously unenforced `maximum` bound.
+- `native-layers` is implemented with pinned native/Unity versions, a strict
+  production-source filter, 20 passing deterministic tests, and a reviewed
+  400-frame legacy fingerprint with no automatic update path.
+- `m5stack-atoms3-pipeline` still builds after the host-test dependency cleanup.
+- Slice 2 is integrated in source: the default-off production activity filter,
+  raw time/validity boundary, missing-sample hold/tail behavior, long-gap
+  reset, and first-valid event suppression are implemented. The as-built
+  AtomS3 profile opts in, but no corrected image upload or powered validation
+  is claimed by this checkpoint.
+- Slice 3 event/sequence telemetry is implemented as described below.
+
+## 2. Primary decisions
+
+1. The critical path remains:
+
+   ```text
+   native harness -> legacy fingerprint -> activity fix + new_evt
+     -> USB-only Gate 1 -> powered Gate 1 -> mounted resonance Gate 2
+
+   diagnostic contract -> codec/policy/schema + bounded scheduler
+     -> muted wireless observer
+     -> optional post-Gate-1 wireless OFF/ON comparison
+        (required before wireless is used in powered work; it does not block Gate 2)
+   ```
+
+2. Wireless debugging will reuse the existing SoftAP, HTTP, WebSocket, JSON,
+   and telemetry foundations. BLE, UDP, OSC, and a new binary protocol are not
+   needed for the first developer workflow.
+   Here, wireless debugging means observation, log capture, automated
+   assertions, and later bounded control; USB/JTAG remains the path for
+   breakpoint and low-level crash debugging.
+3. The normal `m5stack-atoms3-pipeline` environment remains remote-compile-off.
+   Wireless observation is introduced in a separate AtomS3 debug environment.
+4. The first wireless build is telemetry-only and accepts no network request
+   that changes pipeline state. A priority Safe Idle network command is a
+   separate sub-slice after queue clearing, command-generation invalidation,
+   and dual policy checks exist. Remote output arm, Live entry, calibration
+   start, replay start, tilt arm, safety-disable, and output-limit changes stay
+   rejected.
+5. OTA is not part of the first wireless slice. Wireless telemetry must prove
+   stable first, and OTA later requires a separate maintenance gate, local
+   consent, image authentication, rollback, and retained USB recovery.
+6. `HapticPipeline` will not be broadly HAL-refactored to obtain tests. The
+   existing deterministic rendering layers will be tested directly first;
+   narrow clock, safety, storage, and audio-writer seams are added only when a
+   concrete fault-injection test needs them.
+
+## 3. Current leverage and gaps
+
+### Reusable now
+
+- `MassMotionLayer`, `EventLayer`, `TextureLayer`, `SpatialRenderer4`, and
+  `TiltPseudoForceModel` use explicit `dt_s`; `ResonanceLayer` is stateless and
+  does not need `dt_s`. These layers contain no random source. Most reset
+  through `configure()`; `TiltPseudoForceModel` requires its explicit
+  `reset()` as well.
+- `MassMotionLayer.cpp` no longer carries its unused `Arduino.h` dependency and
+  is directly compiled by the host harness without changing its legacy output.
+- `TelemetrySnapshot` and every serializer now carry always-present
+  `frame_counter`, current-frame `new_evt`, and boot-cumulative `evt_total`;
+  optional `pipeline_debug.event_count` mirrors `new_evt` for compatibility.
+- `RemoteInterface` already provides SoftAP/station setup, an HTTP status page,
+  WebSocket JSON telemetry, bounded client buffers, and a control-message
+  queue for retained StickS3 targets.
+- control and telemetry schemas now have positive and expected-invalid samples.
+
+### Gaps to close before AtomS3 wireless enablement
+
+- the finite posture-transition plus 30-second no-new-event acceptance passes
+  natively and still needs hardware confirmation
+- build/profile identity, boot identity, IMU age, loop timing, and bounded
+  transport/drop counters are not yet part of the canonical frame
+- JSON codec and command policy are embedded in `RemoteInterface.cpp`
+- missing or invalid `run_mode` currently falls back to Live
+- the existing remote control path can enable audio, start calibration, and
+  alter safety-related flags
+- queue-full, parse failure, and output-drop cases are not all observable
+- receive work per control-loop tick is not budgeted tightly enough
+- no request ID or ACK/NACK with an explicit rejection reason
+- the passive host capture/assertion tool now produces a reproducible artifact,
+  but its build/profile and operator evidence fields are supplied explicitly
+  rather than discovered from firmware
+- no build/profile identity is automatically attached to telemetry or logs
+
+## 4. Parallel work lanes
+
+| Lane | State | Remaining dependency | May change physical behavior |
+|---|---|---|---|
+| A - deterministic core | Complete for Gate 1 | hardware retest only | no |
+| B - observability contract | Event/frame counters and schema complete; automatic build/profile/timing/drop identity pending | protocol field design | no |
+| C - protocol safety | Pending | extract JSON codec/policy before observer control | no |
+| D - lab automation | Passive capture/check/evidence runner complete | physical-run evidence next | no |
+| E - wireless observer | Pending by design | Lanes B and C | no; output remains locally gated |
+| F - future-gate tests | Pending | post-Gate-1 roadmap | no tuning or new atoms |
+
+Lane A owns `Parameters.hpp`, `MassMotionLayer.*`, the implemented activity filter,
+and the Gate 1 algorithm. Lane B/C work should prefer new protocol/test files
+until Lane A stabilizes, reducing merge conflicts in `HapticPipeline.cpp` and
+`HardwareProfiles.hpp`.
+
+Planned ownership-oriented layout:
+
+```text
+include/haptics/
+  MotionActivityFilter.hpp       production estimator used by host tests
+  ControlProtocol.hpp            transport-independent JSON contract
+  RemoteCommandPolicy.hpp        pure access decision
+src/
+  MotionActivityFilter.cpp
+  ControlProtocol.cpp
+  RemoteCommandPolicy.cpp
+test/
+  native_layers/                 Unity production-layer tests
+    fixtures/imu/                committed numeric input traces
+  native_protocol/               codec/policy/scheduler tests
+  schema/                        positive and expected-invalid JSON samples
+tools/lab/                       capture, assertions, manifest, report
+schemas/
+  control_result.schema.json     planned ACK/NACK contract
+```
+
+Names may be adjusted during implementation, but the production estimator and
+policy must not be duplicated inside the test or host-tool directories.
+
+## 5. Small implementation slices
+
+Each slice answers one question and should remain independently reviewable.
+Hardware evidence is committed separately from the code that produced it.
+
+### Slice 1 - Make validation trustworthy
+
+Scope:
+
+- add `maximum` support to `test/schema/validate_schemas.mjs`
+- add invalid fixtures for required fields, unknown fields, enum errors,
+  actuator count, and peak-limit overflow
+- add a PlatformIO native test environment with, at minimum,
+  `platform = native`, `test_framework = unity`, and
+  `test_build_src = yes`; use a strict `build_src_filter` that starts with
+  `-<*>` and includes only the production layers under test
+- set `test_filter = native_layers/test_native_layers` for the first suite so
+  fixture directories cannot be discovered as independent PlatformIO test
+  suites
+- pin the exact native-platform and Unity/tool versions resolved by this
+  slice in repository configuration rather than relying on a floating latest;
+  record the host compiler name/version in test output, and pin that compiler
+  in CI/container execution when the workflow is added
+- remove only the unused Arduino include required to compile the production
+  mass layer on the host
+- create a deterministic 400-frame production-layer trace runner at 250 Hz
+- capture the feature-disabled legacy output as a deliberate fingerprint with
+  an exact discrete timeline hash and tolerance-bounded output-shape statistics
+
+The first source filter covers only `MassMotionLayer`, `EventLayer`,
+`TextureLayer`, `ResonanceLayer`, `SpatialRenderer4`, and
+`TiltPseudoForceModel`; the new activity filter and protocol-policy sources
+are added explicitly when their slices begin. Pulling all of `src/` into the
+native build is not acceptable because it silently imports Arduino, storage,
+Wi-Fi, and audio dependencies.
+
+The legacy golden file stores exact discrete fields and tolerance-bounded or
+quantized floating-point fields. Expected output is never regenerated during
+a normal test. Updating it requires a focused manual initializer edit, a reason
+in the change description, and review of the golden diff; the test binary has
+no update/write mode.
+
+Acceptance:
+
+- valid schema samples pass and invalid samples fail for the expected reason
+- native tests execute production layer code rather than a reimplementation
+- repeated runs match the reviewed fingerprint within its documented
+  quantization/tolerance
+- `configure()`/explicit layer reset returns stateful layer output to the
+  result of a fresh instance; separate firmware/HIL tests remain responsible
+  for proving that preset change, Safe Idle, and stale-stop paths actually
+  invoke those resets
+- firmware source behavior is unchanged
+- the standard firmware build matrix still passes
+
+### Slice 2 - Close the Gate 1 signal-path defect
+
+Implementation checkpoint on `2026-08-27`: the production
+`MotionActivityFilter`, `MassMotionLayer::updateWithActivity`, pipeline input
+state machine, AtomS3-only opt-in, fixed numeric noise fixture, and 20 native
+tests are complete. Generic defaults remain feature-disabled. The
+corrected image has not been uploaded or powered.
+
+Scope:
+
+- add a shared deterministic IMU fixture runner whose metadata fixes sample
+  rate, axis, phase, amplitude, warm-up, measurement window, and comparison
+  tolerance
+- add six principal one-g poses plus at least one diagonal pose
+- add a committed numeric stationary-noise trace with fixed accelerometer and
+  gyro biases; do not depend on `std::normal_distribution`, whose sequence can
+  vary between standard-library implementations even with a fixed seed
+- add translation traces at 1, 4, and 8 Hz, 70/90 Hz alias traces, a fixed
+  pulse, and a finite gravity-vector posture transition followed by a
+  30-second hold
+- add a small production-owned `MotionActivityFilter` or equivalent state
+- keep quasi-static gravity available to latent position and tilt
+- use only gravity-separated, band-limited, deadbanded motion for energy and
+  agitation
+- keep the feature default `false`; opt in only from the as-built AtomS3
+  profile
+- reset filter state on configure, Safe Idle, preset transition, a raw long
+  time gap, and stale-safe-stop; a single invalid IMU sample follows the hold
+  contract below rather than being described ambiguously as a reset
+
+The implemented defaults are a 1 Hz gravity low-pass, 10 Hz motion low-pass,
+and radial subtractive deadbands of `0.025 g` and `1.5 deg/s`. Raw
+accelerometer X/Y remains on the quasi-static latent-position path. The
+filtered three-axis activity sample is the only sensor-activity input to
+energy/agitation; the existing energy magnitude remains planar X/Y, while
+agitation consumes the 3D magnitude and filtered yaw. The feature and all four
+filter values have explicit runtime `set_param` paths. The fixed 50 ms gap is
+not runtime-configurable.
+
+Capture raw sample validity and raw `dt_s` before the current pipeline replaces
+large values with its nominal interval. Put that guard in a production-owned
+boundary used before any enabled-path `MassMotionLayer` update, and exercise
+that same boundary in native tests. The raw long-gap indication must reach the
+filter before any downstream `dt_s` normalization. Do not implement this only
+inside a host fixture or only inside the filter while still passing the raw
+invalid value to the Mass integrator.
+
+The enabled estimator has an explicit input-time contract. A non-finite or
+non-positive `dt_s` is rejected before the Mass update with no side effect,
+including no pending-time or telemetry advance. Missing/non-finite IMU data
+with a valid positive period holds Mass, Event, and Tilt, presents no new
+event, and accumulates sensor time; existing Texture and Spatial tails still
+decay with raw loop time. Pending time plus a fresh valid frame evaluates the
+filter once when the total is `<=0.05 s`, then presents the held raw/activity
+sample to each Mass -> Event stability substep. The Mass limit is derived from
+the current span, natural frequency, damping, and family damping, capped at
+`4 ms`, and limited to 64 substeps. Texture/Spatial advance once on the outer
+raw clock and Tilt is submitted once for an accepted recovery. A total
+`>0.05 s` clears all dynamic pipeline state and holds Tilt for a fresh
+baseline. An invalid bound or unsupported step count clears dynamic state,
+submits neutral Tilt, and disarms the runtime servo interface; repairing the
+parameters cannot implicitly re-arm it. The first valid frame establishes
+gravity with zero filtered activity and is explicitly prevented from
+generating an event.
+The existing 300 ms IMU-stale transition remains a separate pipeline safety
+path and clears all relevant dynamic state. The feature-disabled legacy path
+retains its current valid-input behavior and current long-gap normalization;
+the non-finite/non-positive guard is a separately reviewed safety correction.
+
+The enhanced Event layer has a cross-family zero-input contract rather than a
+family-specific threshold workaround. With no wall hit, `energy<=0.02`, and
+planar `speed<=0.04`, liquid, granular, hybrid, and detented schedulers must not
+create an event and may only decay existing activity. The same live EventLayer
+instance must resume normal scheduling after deliberate activity. The feature-
+disabled path remains covered by the legacy fingerprint.
+
+Acceptance at fixed `dt=0.004 s`:
+
+- all six static `+/-X`, `+/-Y`, `+/-Z` one-g orientations settle to
+  `energy<=0.02` for the enabled path
+- the committed diagonal, bias, and numeric-noise-trace cases satisfy the same
+  settled bound
+- a bounded pulse raises activity and returns to `energy<=0.02` within two seconds
+- after any allowed initialization transient, the sum of current-frame
+  `new_evt` is zero during the following 30-second simulated hold
+- translation at 1, 4, and 8 Hz remains observable. Rotation acceptance is a
+  finite posture change followed by a hold: `energy<=0.02` within two seconds,
+  then summed `new_evt=0` for 30 seconds. Accelerometer-only indefinite
+  gravity-vector rotation cannot be distinguished from translation at the
+  same frequency and is not an acceptance requirement
+- carrier/alias candidates are strongly attenuated relative to 4 Hz motion;
+  the primary metric is RMS of the `MotionActivityFilter` translational output
+  and the secondary metric is downstream `MassState.energy`. The initial
+  filter-output target is no more than 25 percent of the 4 Hz case. The
+  downstream bound is also no more than 25 percent of the 4 Hz energy RMS,
+  while the 4 Hz reference must exceed `0.005` energy RMS. Any threshold
+  change requires fixture evidence, a stated reason, and review before
+  hardware tuning
+- finite bounds hold for sensor bias, invalid, NaN/Inf, non-positive `dt`, and
+  a long time step
+- all nine built-in material presets stay silent at all seven committed static
+  poses, and a same-instance quiet -> active -> quiet -> active test proves
+  both scheduler reopening and complete quiet-gate coverage
+- worst supported Mass parameters remain finite at the 50 ms recovery edge;
+  invalid/unsupported stability limits reset rather than integrate and select
+  the neutral-and-disarm Tilt safety action
+- feature-disabled output matches the Slice 1 fingerprint
+
+### Slice 3 - Add the minimum diagnostic contract
+
+Implementation checkpoint on `2026-08-27`: the first three event/sequence
+items below are complete across `TelemetrySnapshot`, serial, Recorder, Remote,
+schema, and positive/expected-invalid fixtures. The wider identity, timing,
+heap, and transport-health portion remains open.
+
+Scope:
+
+- print current-frame event count as `new_evt`; retain `last_event` as history
+- emit `frame_counter` and a boot-cumulative `evt_total`, with both saturated
+  at the JSON safe-integer limit
+- preserve `evt_total` while clearing `new_evt` on Safe Idle, stale stop,
+  preset/reconfiguration, Record, and Replay transitions
+- add schema/build/profile identity needed to associate a log with firmware
+- expose a per-boot `boot_id`, reset reason/count, IMU sample age, and a
+  bounded loop-period summary including p99, p99.9, maximum, and missed 4 ms
+  periods
+- expose I2S error/underrun deltas, current/minimum free heap, largest free
+  block, remote processing-time summary, and remote parse/queue/drop counters
+  as optional debug telemetry
+- keep full-rate raw IMU and PCM data out of the wireless stream
+
+Acceptance:
+
+- a latched prior event is distinguishable from `new_evt=0`
+- every captured file identifies the firmware build, PlatformIO environment or
+  hardware profile, preset source, effective output limit, and schema version
+- reset, I2S, heap, loop-deadline, IMU-age, and remote-load fields needed by
+  the later acceptance tests are present or the test is explicitly marked
+  unsupported; no acceptance decision relies on an unrecorded value
+- debug fields are feature-gated and do not change baseline output
+- Remote, Recorder, schema fixtures, serial status, and documentation agree
+
+### Slice 4 - Separate and test protocol policy
+
+Scope:
+
+- move JSON parse/serialize into a transport-independent codec
+- represent missing/invalid enums as rejection, never a Live default
+- add a pure deny-by-default command-policy function with explicit access
+  modes and a compile-time maximum access level for each environment
+- carry transport origin, authenticated monitor session, access level,
+  mutating-authority generation, and any control lease with every accepted
+  message; enforce policy both before queue insertion and immediately before
+  execution
+- add a protocol version/capability envelope, server `boot_id`/session nonce,
+  monotonic client request sequence, and a `control_result` ACK/NACK envelope
+- define ACK as the executed result, not merely parse or queue success; reject
+  old-session, duplicate, and out-of-order requests without executing them
+- retain the existing StickS3 v1 behavior only in its existing environments;
+  the Atom observer requires the new protocol capability and never silently
+  falls back to the legacy command semantics
+- keep Wi-Fi network admission separate from command authorization; a later
+  mutating lease uses a secret delivered through the local approval channel
+  and never normal telemetry. Without WSS, every mutating request uses an HMAC
+  bound to the server session nonce, monotonic request sequence, and canonical
+  command body; a replayable bearer token is not accepted
+- validate the intended WebSocket path and allowed origin policy, require
+  masked client frames, handle close/ping correctly, and reject unsupported
+  fragmentation or payload sizes explicitly
+- bound receive bytes, decoded frames, and processing time per tick
+- count malformed, oversized, unauthenticated, rejected, queue-full, and
+  transmit-drop cases
+- require command-specific fields and maximum string/array lengths, reject
+  forbidden/extra fields and silent truncation, and add negative fixtures for
+  every command; if conditional JSON Schema keywords are used, extend or
+  replace the local validator before relying on them
+
+Safe Idle is also the mutating-authority invalidation point. Entering it clears
+queued mutating work, invalidates the control lease/token, increments the
+mutating command generation, and prevents a delayed or replayed arm command
+from surviving. The transport connection is downgraded to Monitor rather than
+destroyed, so it can return the executed ACK and postcondition telemetry. A
+later remote Safe Idle command uses a separate priority, idempotent path and is
+accepted only from an authenticated monitor session; it is not part of the
+first telemetry-only observer.
+
+Initial access modes:
+
+| Mode | Allowed |
+|---|---|
+| Disabled | no network service |
+| Monitor | outbound telemetry and request-telemetry only; no state mutation |
+| Monitor + safe stop | later: Monitor plus priority, authenticated, idempotent Safe Idle |
+| Tune muted | later: allowlisted non-output parameters only while Idle, audio zero, and tilt disarmed |
+| Bench lease | later: locally approved, expiring authority for selected output commands |
+
+Acceptance:
+
+- missing, unknown, stale, duplicate, malformed, and oversized commands are
+  rejected with an observable reason
+- every command type has a policy-table test
+- Monitor mode cannot arm audio/tilt, enter Live, start calibration/replay, or
+  disable an IMU safety or hard output clamp
+- direct queue injection, every command type, every `set_param` path, and
+  preset-loading attempts cannot bypass either policy check
+- once the later safe-stop sub-slice exists, parser/scheduler tests prove it
+  cannot be starved by a backlog, invalidates earlier work, and is confirmed
+  only by a newer telemetry sample reporting Idle, audio disabled, digital
+  zero asserted, tilt disarmed, and dynamic state cleared
+
+### Slice 5 - Add the AtomS3 wireless observer
+
+Scope:
+
+- add a separate environment such as
+  `m5stack-atoms3-pipeline-wireless-debug`
+- keep the normal production environment unchanged and remote-compile-off
+- add a local-only runtime enable/disable switch so the exact observer binary
+  can be measured with Wi-Fi OFF and ON; it remains OFF until credentials are
+  provisioned, and every capture records the resolved state. Toggling is
+  allowed only in Safe Idle with audio zero asserted and tilt disarmed; a
+  request to start or stop the radio from Live or another active mode is
+  rejected
+- start with SoftAP only, one client, telemetry-only Monitor policy, and 5 Hz
+  latest-value telemetry; compile OTA and HTTP application/status routes out
+  of this image, retaining only the bounded HTTP Upgrade needed for WebSocket
+- use a device-specific SSID and a cryptographically random credential stored
+  in NVS and revealed or rotated only through a deliberate local button/USB
+  procedure while outputs are safe; generation failure disables networking,
+  and there is no hard-coded fallback
+- treat WPA admission as the initial monitor-only trust boundary and document
+  its denial-of-service limitation; any later mutating command additionally
+  requires a boot-bound authenticated token from the local approval channel
+- never place a password/token in normal logs, telemetry, HTTP content, or a
+  URL query; define credential rotation and factory-reset erasure before use
+- fail closed to network-disabled if credentials are absent, corrupt, or the
+  wrong length, or if SoftAP creation, socket bind, or server start fails;
+  runtime status reports disabled plus a USB-readable reason rather than
+  claiming the observer is active
+- save telemetry on the host rather than LittleFS
+- use a dedicated lab client first. The HTTPS
+  WebXR app cannot be assumed to connect directly to an insecure `ws://`
+  endpoint because of browser mixed-content policy; WSS or a trusted bridge is
+  a later Gate 11 decision
+
+Initial scheduler budgets, to be confirmed or tightened by USB profiling
+before the first powered comparison, are:
+
+- at most one client, 256 received bytes and one total frame of any opcode per
+  4 ms control tick
+- a 500 microsecond hard remote-work budget per tick, covering handshake,
+  receive, every WebSocket opcode, JSON parse/serialize, socket-capacity
+  checks, and writes; bounded atomic operations must fit the remaining budget,
+  while unfinished work is deferred or dropped by a tested counter-visible
+  rule
+- a 2048-byte maximum inbound application frame, a separately bounded
+  4096-byte outbound telemetry frame, and a two-second deadline for both
+  handshake completion and an incomplete frame
+- immediate rejection of a second client; repeated telemetry requests are
+  coalesced
+- telemetry is latest-only, is written only when the socket has capacity,
+  increments a drop counter otherwise, and disconnects a client after a fixed
+  tested run of consecutive drops (initially 20)
+- serialization overflow, missing required output fields, schema-invalid test
+  output, or a partial socket write never emits a truncated frame; increment a
+  dedicated counter and disconnect when needed to discard a partial frame
+
+Host tests cover Upgrade/Connection/Version 13/Key/path/origin validation,
+mandatory client masking, FIN/RSV handling, binary/fragment rejection,
+ping/pong/close control frames, length rejection before allocation, partial
+handshake/frame deadlines, slow readers, malformed floods, and connection
+churn. Each limit is a named constant and is reported in the build/profile
+manifest.
+
+Acceptance with output disabled:
+
+- boot remains `audio=0`, `zero=1`, `tilt=0`
+- no network request can produce a nonzero output or arm a servo
+- a short worst-case scheduler test runs on every observer iteration;
+  connect, disconnect, reconnect, slow-client, and malformed-flood cases each
+  stay inside their receive/time budgets
+- a one-hour monitor soak is an integration gate, not an inner-loop test, and
+  causes no reset, I2S error growth, post-warm-up heap regression, or false
+  IMU stale stop
+- slow clients lose telemetry frames rather than delaying the haptic loop, and
+  loss is counted
+- AtomS3 BtnA and USB `stop` still enter Safe Idle during connection churn and
+  bounded receive-load tests
+- from local command/button detection, software audio-zero assertion occurs
+  within two control periods (8 ms); the I2S backend zero call completes in
+  that action and measured line-output silence occurs within one configured
+  DMA block plus 2 ms. Record these separately rather than calling an ACK
+  physical silence
+- the observer binary contains no OTA route or OTA update library
+- the regular AtomS3 production image remains behaviorally unchanged
+
+### Slice 6 - Add the bench runner and evidence bundle
+
+Implementation checkpoint on `2026-08-28`: the dependency-free passive host
+tool in `tools/lab/` now works against recorded canonical NDJSON or newline
+input from an external USB/wireless producer. It does not open a transport,
+change device state, or overwrite an existing output directory.
+
+Implemented commands are `validate`, `check`, stdin `capture`, and
+`self-test`, with stable exit codes `0` pass, `2` acceptance failure, `3`
+input/schema failure, and `4` tool failure. Static 30-second,
+pulse-to-silence, pre-pulse baseline, sequence/timestamp, `new_evt`/`evt_total`,
+and sample-gap checks are covered by twenty exact dry-run cases and eight
+integration tests.
+`frame_counter_mode` distinguishes full-rate `contiguous` recordings from
+latest-value `monotonic` telemetry; both honor JSON-safe counter saturation.
+`timestamp_origin=first_frame` makes plan times independent of device uptime.
+
+Stdin `capture` is byte-oriented. It writes and hashes the untouched producer
+stream as `mixed-input.raw` before fatal UTF-8 decoding, then derives canonical
+telemetry and transport chatter. Invalid UTF-8 returns input failure while the
+raw bytes and an `input_error` capture manifest remain available; replacement
+characters are never used to repair evidence.
+
+Each check preserves the original input plan/telemetry bytes, including
+malformed UTF-8 diagnostic input, and writes them with
+metrics, JSON/Markdown reports, a manifest, and
+exact copies of the telemetry/plan/report schemas with byte counts and SHA-256
+hashes. Acceptance failures and readable input/schema failures retain
+diagnostic evidence. Starting Gate 1 plans are committed under
+`tools/lab/plans/`. They deliberately carry incomplete evidence placeholders:
+schema validation may pass before a run, but `check` returns
+`RUN_METADATA_INCOMPLETE` until the unique run ID, all physical-run metadata,
+structured operator outcome, final Safe Idle confirmation, and typed
+before/after USB status snapshots at the fixed 100 ms period are filled.
+Normalized placeholder aliases such as `TODO`, `TBD`, `N/A`, `?`, `-`,
+`pending`, `unknown`, and `not applicable` are rejected rather than treated as
+identity. A Gate 1 marker cannot be
+downgraded to a generic dry run by changing
+`physical_output_authorization_required` to false.
+
+Completed physical plans are fixed to `m5stack-atoms3-pipeline`, the
+`as-built AtomS3 custom board` profile, `liquid_small_box`, first-frame time,
+monotonic counters, the active/S1-ON or pulse-only S1-OFF-control pairing, one
+500 ms sequence check, one unmodified canonical measurement, 12 V ON, Live,
+compiled/installed/runtime audio, TDM8, quad-wall 4CH, four channels, and the 8%
+limit. Every active canonical frame must also carry valid IMU, non-silenced
+output, disabled channel-test/demo modes, fixed production context, and the
+non-stale/non-injected/non-zero-asserted safety state with tilt disarmed. Plan
+metadata cannot redefine those production requirements. The static active
+window and event-integrity evaluation include the assessment-end anchor and
+continue through the powered 33-second capture anchor; the pulse active window
+continues through its powered 40-second anchor, and continuity includes the
+baseline/window boundary. Test/demo/wall-test and IMU
+injection stay off and tilt stays disarmed for the complete log. After the
+active end, every frame is either a fixed Live continuation or complete Safe
+Idle; Safe Idle may not re-arm in the same log, and final `evt_total` must equal
+the active-end value. The audio underrun counter must not change through that
+final frame, which must also prove neutral Mass/actuator/event state, the
+production audio configuration, and Safe Idle independently.
+`metrics.hardware_evidence.complete` becomes true only after these context,
+operator, transition, and final-state checks all pass. The fixed measurement
+contract also requires powered Live through a 33-second static or 40-second
+pulse anchor; static signal/event limits extend through its tail, and pulse
+silence may not recur after an initially qualifying interval. A shortened log,
+early Safe Idle, or tail recurrence fails. A mismatch, pre-active canonical
+JSON, missing Safe Idle proof, structured operator rejection, or USB
+status counter anomaly is an acceptance failure even if numerical signal checks
+pass. JSON reports also pass semantic count/code/status/check-reference
+consistency validation in addition to their schema. PASS reports require
+positive frame/check counts and at least one passing check. Input-error reports
+derive duration only from schema-safe timestamps so an unsafe timestamp cannot
+prevent preservation of the original diagnostic bytes.
+
+The two USB status objects are operator-transcribed and are byte-bound to the
+hashed run plan, but the current checker does not parse or cryptographically
+bind their source lines from the mixed transport log. Therefore Gate 1 uses the
+strict rule that drop, backpressure, console-interrupt, unterminated-partial,
+and serialization-error counters may not increase; each drop total must equal
+backpressure plus console-interrupt, and the transmitted delta must equal the
+canonical frame count. Any mismatch requires a new attempt. Automatic
+mixed-log/status correlation remains future lab-tool work.
+
+For each run it records:
+
+- run ID, date/time, git commit/build ID, environment/profile, schema version
+- preset source/path or hash, resolved feature flags, calibration identity,
+  effective output limit
+- operator-confirmed S1 and 12 V states
+- Gate 1 variant plus before/after USB producer status counters
+- fixture/orientation and requested procedure
+- raw NDJSON telemetry, derived metrics, structured tactile pass/fail plus
+  operator notes, and the final Safe Idle state
+
+The runner may prepare the next command, but it must not automatically arm
+physical output without an explicit operator confirmation at that step. The
+only automatic mutation allowed is a best-effort Safe Idle request when an
+already-authorized active run fails or is interrupted and a validated control
+channel is still present. Its result is accepted only after the required newer
+postcondition telemetry arrives. If the connection is lost, record device
+state as unknown and instruct the operator to use USB/BtnA, switch S1 OFF, and
+switch the 12 V/servo supply OFF before handling the device. Never report an
+unconfirmed remote stop as Safe Idle. Firmware cannot infer the physical S1 or
+12 V supply state.
+
+Acceptance:
+
+- the 30-second static, pulse-to-silence, no-new-event, schema-validity, and
+  sequence-gap checks pass on committed dry-run fixtures
+- the Gate 1 pulse plan rejects pre-existing vibration, requires response after
+  the planned onset, reaches silence within two seconds, and holds it for the
+  following 30 seconds and through the powered 40-second end anchor; full
+  40-second pass, shortened-capture, post-silence recurrence, and late-settle
+  checks use the production template without relaxed timing
+- a failure produces a useful nonzero exit and Markdown/JSON summary
+- the same evidence format works for USB and wireless capture
+
+The fixture and evidence-format acceptance above passes. Build/profile
+identity, structured tactile observation, physical S1/12 V confirmation, and
+final Safe Idle postcondition require truthful explicit plan metadata; current
+canonical telemetry independently binds first-frame-through-active-end
+preset/run/audio-backend/transport/layout/channel-test/output-limit/
+non-stale/non-injected/non-zero-asserted/tilt-disarmed state, plus a no-growth audio-underrun
+counter and the final Safe Idle frame, to that declaration. Build/profile,
+preset source/hash, resolved feature flags, and calibration identity remain
+operator-recorded metadata because the current USB frame has no canonical
+fields for them. The current passive tool intentionally implements no
+automatic Safe Idle mutation; the safety policy below remains a requirement
+for any later active runner.
+
+### Slice 7 - Cross the hardware gates in order
+
+1. Require the native deterministic suite to pass, then run the USB-only
+   zero/status checks with S1 OFF and 12 V OFF.
+2. Complete the exact powered Gate 1 sequence in document 24 without Wi-Fi.
+3. Gate 1 completion immediately permits mounted resonance Gate 2; wireless
+   evaluation is an optional parallel developer-infrastructure branch and
+   must not block that roadmap gate.
+4. Before wireless is used in any powered work, establish three conditions:
+   production compile-OFF regression, the same observer binary with Wi-Fi
+   runtime OFF, and that binary with Wi-Fi ON under a fixed traffic profile.
+   The OFF manifest confirms that the radio is actually in `WIFI_OFF`, not
+   only that telemetry publication is disabled.
+   Select the radio state while Safe Idle and verify it before any output arm;
+   never toggle Wi-Fi during the powered active interval.
+5. Fix firmware/build, fixture, preset, power state, warm-up, repetitions, AP
+   channel/RSSI, and client implementation. Run normal 5 Hz, slow-client,
+   reconnect-churn, and malformed-flood traffic as separate scenarios.
+6. Compare loop p99/p99.9/maximum and missed 4 ms periods, remote processing
+   time, IMU age, I2S errors/underruns, reset count/reason, current/minimum
+   heap and largest block, `energy`, `new_evt`, and tactile stopping behavior.
+7. Treat a Wi-Fi-only regression as a wireless-debug failure, not as a reason
+   to retune the material model.
+
+Initial wireless A/B acceptance:
+
+- Wi-Fi does not change the Gate 1 pass/fail result
+- no I2S error or underrun growth and no reset
+- before Wi-Fi is enabled, freeze run frame count, loop p99.9/maximum,
+  missed-deadline-rate, IMU-age, remote-time, and heap tolerances in the run
+  manifest from the USB and runtime-OFF baselines; do not move them after
+  seeing the ON result
+- compare `missed_4ms_periods / observed_frame_count` against the predeclared
+  rate-difference allowance rather than assigning cause to individual misses;
+  the repository-default hard maximum loop gap is 20 ms until baseline
+  evidence justifies tightening it, and the fixed remote scheduler budgets
+  remain satisfied
+- after warm-up, free heap has no sustained negative trend and minimum heap
+  and largest free block remain within the predeclared baseline tolerance
+- sequence gaps and dropped telemetry are visible in the host record
+- Safe Idle still takes precedence during connection churn and traffic load
+
+### Slice 8 - Optional locally approved bench control
+
+This slice starts only after Gate 1, the monitor soak, and the wireless OFF/ON
+comparison pass. It is developer bench control, not Gate 11 product control.
+
+- a distinct local physical action while Idle, audio zero, and tilt disarmed
+  opens a short control lease; the existing BtnA-hold Safe Idle action remains
+  unchanged and always wins
+- lease expiry uses the device monotonic clock in the control loop; queued
+  packets, a blocked network task, reconnect, or an old heartbeat cannot
+  extend authority
+- the display or USB channel shows lease state and expiry
+- remote output arm, calibration start, replay start, or other active commands
+  require both the live lease and a per-request session/sequence/body-bound
+  HMAC, or a later trusted WSS bridge; no bearer credential is sufficient
+- the initial lease keeps the 8% integration limit; it cannot disable the IMU
+  stale stop or compiled hard clamp
+- the initial lease/heartbeat validity window is at most 400 ms. Once expiry,
+  disconnect, or a policy violation is detected, Safe Idle and an immediate
+  DXL torque-off request begin within one control period, and software audio
+  zero follows the 8 ms local bound. The independent bus watchdog is a
+  fallback, not an additional window: from the last valid authority renewal to
+  its enforced stop deadline has a 500 ms end-to-end maximum. Read back
+  torque-off when communication remains available. If confirmation is absent
+  at the deadline, latch an unconfirmed-stop fault, prohibit re-arm, instruct
+  the operator to switch the 12 V supply OFF, and never record torque-off as
+  confirmed. Each stage is measured separately and a new local approval is
+  required before re-arm
+- S1 and 12 V remain operator-confirmed physical gates that software cannot
+  infer
+
+This is the point at which a genuinely cable-free powered bench session becomes
+reasonable. It is deliberately later than read-only monitoring so convenience
+cannot expand the initial failure surface.
+
+## 6. Test architecture after Gate 1
+
+The native harness becomes the reusable base for later gates without changing
+their order:
+
+- Event: one wall approach produces one hit; re-arm requires leaving the zone;
+  cooldown and 16-item bounds hold
+- Texture: attack occurs once; voices expire at the intended lifetime; full
+  arrays remain bounded
+- Resonance: carrier selection and envelopes stay finite and reproducible
+- Spatial: Front/Back neighbors are Top/Bottom and vice versa; delayed SOA
+  energy is emitted once; full queues remain safe
+- Full layer chain: each preset produces finite, repeatable event and four-wall
+  peak/RMS statistics, without requiring exact equality for tunable perceptual
+  values
+- Audio renderer, when a narrow seam is justified: muted PCM is zero, TDM
+  slots 0 through 3 preserve wall order, slots 4 through 7 are zero, and the
+  hard peak clamp cannot be bypassed
+
+Golden data is split into:
+
+- a quantized/tolerance-bounded legacy fingerprint, updated only by an
+  explicit review operation
+- physical invariants and statistical ranges that tolerate intentional tuning
+
+## 7. Validation cadence
+
+### During a small iteration
+
+- native tests for the touched layer
+- schema positive/negative tests when the contract changes
+- the directly affected firmware environment
+- `m5stack-atoms3-pipeline` for Gate 1 changes
+
+### Before integration
+
+- all native tests
+- schema tests
+- the seven-environment standard firmware matrix
+- the remote/observer environment when touched
+- WebXR typecheck/build only when the client changes
+- `git diff --check`
+
+### Before an upload
+
+- all integration checks above
+- a build/run manifest with commit and environment identity
+- confirmed COM port and explicit S1/12 V preparation
+- no automatic output arm
+
+This cadence keeps fast feedback during development while retaining the full
+repository Definition of Done at integration boundaries.
+
+### CI after the local commands stabilize
+
+Once Slices 1 through 4 have stable local entry points, add CI as release
+hygiene rather than inventing a second workflow:
+
+- native unit/fingerprint tests, with ASan/UBSan on the Linux host build where
+  practical
+- schema positive and expected-invalid fixtures
+- the seven-environment firmware matrix plus the observer environment when it
+  exists
+- WebXR typecheck/build
+
+CI proves reproducibility of software checks only. It must not promote a
+compile, synthetic trace, or network soak into production hardware evidence.
+
+## 8. OTA policy for a later slice
+
+The locally installed `default_8MB.csv` layout contains two OTA application
+slots and the current image is well within either slot, so capacity is not the
+primary blocker. Safety and recovery are.
+
+The first observer compiles OTA routes and libraries out entirely. A future OTA
+slice must commit its partition CSV to this repository rather than depend on a
+locally installed `default_8MB.csv` file. OTA remains behind a separate compile
+flag, default OFF, and may start only when:
+
+- Safe Idle is active
+- audio is OFF and digital zero is asserted
+- tilt is disarmed
+- a local button action opens a short maintenance window
+- the operator has confirmed S1 OFF and the 12 V/servo supply OFF
+- the image is authenticated; a checksum alone is not authentication
+
+The signed manifest binds board/profile, firmware version, image size, and
+cryptographic hash. Its trust key is stored separately from the wireless debug
+credential, and the downgrade policy is explicit. A trial image has a fixed
+boot-attempt count, mark-valid deadline, and self-test covering safe defaults,
+storage readability, and internal controller/safe-zero initialization that is
+valid with S1 and external 12 V power OFF. It does not require an XL330 or
+amplifier response.
+
+Before `mark-valid`, the trial image must not irreversibly migrate NVS or
+LittleFS. Any required format change is backward-compatible or uses a
+versioned copy-on-write migration that is exercised by rollback tests.
+
+After the internal test marks the image valid, outputs remain OFF. XL330,
+amplifier, and transducer checks occur only in a separate operator-confirmed
+post-update bring-up gate before that image is used for powered work.
+
+Power interruption is tested during erase, write, metadata/swap, and reboot.
+Maintenance mode rejects normal network control and continuously asserts
+digital zero. An interrupted or rejected update boots the prior image, and a
+rollback boot starts with remote control disabled, audio OFF, and tilt
+disarmed. OTA must not format LittleFS or NVS, must keep USB flashing
+available, and must not enable Secure Boot or burn eFuses without a separate
+explicit decision because those actions can be irreversible.
+
+## 9. Work that still requires the operator
+
+Automation should reduce the operator's role to observations and physical
+authority that software cannot provide:
+
+- confirm the actual COM port before upload
+- confirm S1 and 12 V state at every power gate
+- connect or reposition hardware and mounted fixtures
+- explicitly authorize each nonzero-output phase
+- report tactile vibration/no-vibration and abnormal sound, heat, rail, or
+  mechanical behavior
+- perform the final mounted localization, resonance, and servo-mechanics tests
+
+Everything else - builds, fixtures, schema checks, log capture, numeric
+assertions, comparison reports, and failure summaries - should be automated
+before asking for bench time.
+
+## 10. Immediate next start point
+
+Slices 1, the Gate 1 core/integration and finite-posture portions of Slice 2,
+the event/sequence portion of Slice 3, and the passive Slice 6 report workflow
+are complete in software. Next perform the exact
+USB and powered Gate 1 sequence in document 24. Protocol and host-tool work may
+continue in parallel, but the Atom wireless environment must not be connected
+until the Monitor policy is tested. The next operator-dependent action is the
+corrected-image upload with S1 OFF and 12 V OFF; it has not yet occurred.

@@ -94,6 +94,10 @@ const char* audioLayoutToString(AudioOutputLayout layout) {
   }
 }
 
+const char* audioTransportToString(AudioTransport transport) {
+  return transport == AudioTransport::Tdm8Slot ? "tdm8_slot" : "dual_i2s";
+}
+
 const char* runModeToString(RunMode mode) {
   switch (mode) {
     case RunMode::Live:
@@ -296,10 +300,24 @@ ControlMessage parseControlPayload(const char* payload) {
 }
 
 template <typename TDoc>
-void populateTelemetryDocument(TDoc& doc, const TelemetrySnapshot& telemetry) {
+void populateTelemetryDocument(TDoc& doc, const TelemetrySnapshot& telemetry, bool include_pipeline_debug) {
   doc["timestamp_ms"] = telemetry.timestamp_ms;
+  doc["frame_counter"] = telemetry.frame_counter;
+  doc["new_evt"] = telemetry.new_evt;
+  doc["evt_total"] = telemetry.evt_total;
   doc["preset"] = telemetry.active_preset;
   doc["run_mode"] = runModeToString(telemetry.run_mode);
+
+  JsonObject imu = doc.createNestedObject("imu");
+  imu["valid"] = telemetry.imu.valid;
+  JsonArray accel = imu.createNestedArray("accel_g");
+  accel.add(telemetry.imu.accel_g.x);
+  accel.add(telemetry.imu.accel_g.y);
+  accel.add(telemetry.imu.accel_g.z);
+  JsonArray gyro = imu.createNestedArray("gyro_dps");
+  gyro.add(telemetry.imu.gyro_dps.x);
+  gyro.add(telemetry.imu.gyro_dps.y);
+  gyro.add(telemetry.imu.gyro_dps.z);
 
   JsonObject mass = doc.createNestedObject("mass");
   JsonArray pos = mass.createNestedArray("pos_norm");
@@ -339,13 +357,24 @@ void populateTelemetryDocument(TDoc& doc, const TelemetrySnapshot& telemetry) {
 
   JsonObject audio = doc.createNestedObject("audio");
   audio["compile_enabled"] = telemetry.audio.compile_enabled;
+  audio["driver_installed"] = telemetry.audio.driver_installed;
   audio["runtime_enabled"] = telemetry.audio.runtime_enabled;
+  audio["output_silenced"] = telemetry.audio.output_silenced;
   audio["test_mode"] = telemetry.audio.test_mode;
   audio["demo_compat_mode"] = telemetry.audio.demo_compat_mode;
+  audio["transport"] = audioTransportToString(telemetry.audio.transport);
   audio["output_layout"] = audioLayoutToString(telemetry.audio.output_layout);
   audio["active_output_channels"] = telemetry.audio.active_output_channels;
   audio["test_wall"] = wallToString(telemetry.audio.test_wall);
+  audio["output_peak_limit"] = telemetry.audio.output_peak_limit;
   audio["underrun_count"] = telemetry.audio.underrun_count;
+
+  JsonObject safety = doc.createNestedObject("safety");
+  safety["imu_stale_safe_stop"] = telemetry.safety.imu_stale_safe_stop;
+  safety["imu_fault_injection_active"] =
+      telemetry.safety.imu_fault_injection_active;
+  safety["audio_zero_asserted"] = telemetry.safety.audio_zero_asserted;
+  safety["tilt_disarmed"] = telemetry.safety.tilt_disarmed;
 
   JsonObject recorder = doc.createNestedObject("recorder");
   recorder["recording"] = telemetry.recorder.recording;
@@ -373,11 +402,24 @@ void populateTelemetryDocument(TDoc& doc, const TelemetrySnapshot& telemetry) {
   remote["connected_clients"] = telemetry.remote.connected_clients;
   remote["received_messages"] = telemetry.remote.received_messages;
   remote["transmitted_messages"] = telemetry.remote.transmitted_messages;
+
+  if (include_pipeline_debug) {
+    JsonObject pipeline_debug = doc.createNestedObject("pipeline_debug");
+    pipeline_debug["event_count"] = telemetry.pipeline_debug.event_count;
+    pipeline_debug["texture_count"] = telemetry.pipeline_debug.texture_count;
+    pipeline_debug["resonance_count"] = telemetry.pipeline_debug.resonance_count;
+    pipeline_debug["mass_enabled"] = telemetry.pipeline_debug.mass_enabled;
+    pipeline_debug["event_enabled"] = telemetry.pipeline_debug.event_enabled;
+    pipeline_debug["texture_enabled"] = telemetry.pipeline_debug.texture_enabled;
+    pipeline_debug["resonance_enabled"] = telemetry.pipeline_debug.resonance_enabled;
+    pipeline_debug["spatial_enabled"] = telemetry.pipeline_debug.spatial_enabled;
+    pipeline_debug["imu_stale_safe_stop"] = telemetry.pipeline_debug.imu_stale_safe_stop;
+  }
 }
 
-String serializeTelemetryPayload(const TelemetrySnapshot& telemetry) {
-  StaticJsonDocument<2048> doc;
-  populateTelemetryDocument(doc, telemetry);
+String serializeTelemetryPayload(const TelemetrySnapshot& telemetry, bool include_pipeline_debug) {
+  StaticJsonDocument<2560> doc;
+  populateTelemetryDocument(doc, telemetry, include_pipeline_debug);
   String payload;
   serializeJson(doc, payload);
   return payload;
@@ -568,7 +610,10 @@ void RemoteInterface::configure(const SystemParams& params) {
   });
   g_http_server->on("/api/status", HTTP_GET, [this]() {
     const TelemetrySnapshot& telemetry = has_telemetry_ ? last_telemetry_ : TelemetrySnapshot{};
-    g_http_server->send(200, "application/json", serializeTelemetryPayload(telemetry));
+    g_http_server->send(
+        200,
+        "application/json",
+        serializeTelemetryPayload(telemetry, params_.features.enable_pipeline_debug_telemetry));
   });
   g_http_server->begin();
   g_server = new WiFiServer(params_.iface.websocket_port);
@@ -718,7 +763,7 @@ void RemoteInterface::publishTelemetry(const TelemetrySnapshot& telemetry) {
   }
   last_telemetry_ms_ = millis();
 
-  const String payload = serializeTelemetryPayload(telemetry);
+  const String payload = serializeTelemetryPayload(telemetry, params_.features.enable_pipeline_debug_telemetry);
 
   for (size_t i = 0; i < g_clients.size(); ++i) {
     if (g_client_handshaked[i] && g_clients[i] && g_clients[i].connected()) {

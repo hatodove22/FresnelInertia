@@ -62,6 +62,11 @@ enum class AudioOutputLayout : uint8_t {
   FrontBack2Ch = 1,
 };
 
+enum class AudioTransport : uint8_t {
+  DualI2s = 0,
+  Tdm8Slot = 1,
+};
+
 enum class RunMode : uint8_t {
   Idle = 0,
   Live = 1,
@@ -144,6 +149,7 @@ struct TextureCommand {
   float density_hz = 0.0f;
   float apparent_motion_soa_ms = 0.0f;
   bool distribute_to_neighbors = false;
+  bool attack_frame = false;
 };
 
 template <std::size_t N>
@@ -162,6 +168,7 @@ struct ResonanceVoice {
   float noise_env = 0.0f;
   float apparent_motion_soa_ms = 0.0f;
   bool distribute_to_neighbors = false;
+  bool attack_frame = false;
 };
 
 template <std::size_t N>
@@ -242,13 +249,24 @@ struct ControlMessage {
 
 struct AudioBackendStatus {
   bool compile_enabled = false;
+  bool driver_installed = false;
   bool runtime_enabled = false;
+  bool output_silenced = true;
   bool test_mode = false;
   bool demo_compat_mode = false;
+  AudioTransport transport = AudioTransport::DualI2s;
   AudioOutputLayout output_layout = AudioOutputLayout::QuadWall4Ch;
   uint8_t active_output_channels = 4;
   WallId test_wall = WallId::None;
+  float output_peak_limit = 1.0f;
   uint32_t underrun_count = 0;
+};
+
+struct SafetyStatus {
+  bool imu_stale_safe_stop = false;
+  bool imu_fault_injection_active = false;
+  bool audio_zero_asserted = true;
+  bool tilt_disarmed = true;
 };
 
 struct RuntimeCalibrationStatus {
@@ -268,9 +286,23 @@ struct RuntimeCalibrationStatus {
   bool loaded_from_storage = false;
 };
 
+struct PipelineDebugStatus {
+  uint16_t event_count = 0;
+  uint16_t texture_count = 0;
+  uint16_t resonance_count = 0;
+  bool mass_enabled = false;
+  bool event_enabled = false;
+  bool texture_enabled = false;
+  bool resonance_enabled = false;
+  bool spatial_enabled = false;
+  bool imu_stale_safe_stop = false;
+};
+
 struct TelemetrySnapshot {
   uint32_t timestamp_ms = 0;
-  uint32_t frame_counter = 0;
+  uint64_t frame_counter = 0;
+  uint16_t new_evt = 0;
+  uint64_t evt_total = 0;
   char active_preset[32]{};
   RunMode run_mode = RunMode::Idle;
   ImuSample imu{};
@@ -279,10 +311,16 @@ struct TelemetrySnapshot {
   ActuatorFrame4 actuators{};
   TiltPlaneCommand tilt{};
   AudioBackendStatus audio{};
+  SafetyStatus safety{};
   RuntimeCalibrationStatus calibration{};
   RecorderStatus recorder{};
   RemoteStatus remote{};
+  PipelineDebugStatus pipeline_debug{};
 };
+
+// JSON numbers are exactly integral only through Number.MAX_SAFE_INTEGER.
+// Keep boot-lifetime counters portable to JavaScript telemetry tools.
+constexpr uint64_t kTelemetryJsonSafeIntegerMax = 9007199254740991ULL;
 
 constexpr std::size_t kMaxEventsPerFrame = 16;
 constexpr std::size_t kMaxTexturesPerFrame = 16;

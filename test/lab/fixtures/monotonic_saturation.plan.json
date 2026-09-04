@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "run_id": "dry-monotonic-saturation",
+  "telemetry_schema": "schemas/telemetry_frame.schema.json",
+  "frame_counter_mode": "monotonic",
+  "timestamp_origin": "absolute",
+  "metadata": {
+    "source": "committed dry-run boundary fixture",
+    "physical_output": false
+  },
+  "checks": [
+    {
+      "id": "saturated-sequence-integrity",
+      "type": "sequence",
+      "max_sample_gap_ms": 200
+    }
+  ]
+}
