@@ -185,6 +185,16 @@ four-transducer texture path.
 - close phone/Quest reconnect and long-session robustness
 - add BLE, UDP, or OSC only for a concrete experiment requirement
 - keep the WebUSB page a feasibility probe until repeated Quest sessions pass
+- the preferred portable-demo candidate is now the optional Haptic Link path
+  documented in `27_HAPTIC_LINK_DONGLE_CONCEPT.md`: Android Chrome or Quest
+  Browser -> WebUSB -> StickS3 dongle -> ESP-NOW -> standalone AtomS3 device
+- expect one active Android or Quest client at a time; do not add a multi-client
+  session hub or ownership system without a new experiment requirement
+- synchronize `preset + overrides` from the device's applied state, and admit
+  Quest-originated collision/cracker triggers through the normal event pipeline
+- retain WebSocket as a developer/fallback transport while the WebUSB path is
+  hardware-validated; do not make either transport part of the real-time
+  actuator waveform path
 
 ## 8. Release hygiene
 

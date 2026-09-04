@@ -333,6 +333,14 @@ The HMD or host application shall be able to:
 - trigger experiment modes,
 - synchronize replay sessions.
 
+For the portable research demo, the current preferred candidate is an optional
+USB-to-radio Haptic Link rather than a required direct Wi-Fi connection to the
+haptic device. One Android phone or Quest client connects through WebUSB to a
+StickS3-class dongle, which relays preset/override changes, state, and transient
+VR collision/effect triggers to the standalone AtomS3 device. This candidate is
+not implemented or hardware-validated; see `27_HAPTIC_LINK_DONGLE_CONCEPT.md`.
+The existing WebSocket path remains a development/fallback transport.
+
 ## 6. Recorder / replay format
 
 ### Development format

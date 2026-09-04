@@ -51,6 +51,14 @@ document rather than carrying both interpretations forward.
 5. `07_TEST_AND_VALIDATION.md`
 6. `24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md` before any hardware-facing test
 
+### Continue smartphone, Quest, or Haptic Link planning
+
+1. `18_WEBXR_SMARTPHONE_DEMO.md`
+2. `27_HAPTIC_LINK_DONGLE_CONCEPT.md`
+3. `19_WEBUSB_QUEST_PROBE.md`
+4. `05_INTERFACE_SPEC.md`
+5. Gate 11 in `08_IMPLEMENTATION_PLAN.md`
+
 ### Change the pipeline or parameter model
 
 1. `00_DESIGN_SPECIFICATION.md`
@@ -106,6 +114,7 @@ four-layer path passed.
 |---|---|
 | `18_WEBXR_SMARTPHONE_DEMO.md` | Phone/Quest visual demo scope |
 | `19_WEBUSB_QUEST_PROBE.md` | WebUSB feasibility probe |
+| `27_HAPTIC_LINK_DONGLE_CONCEPT.md` | Preferred Android/Quest USB-to-radio demo-link concept, synchronized profile controls, external VR events, and supporting WebUSB evidence |
 
 ## Contributor and historical context
 

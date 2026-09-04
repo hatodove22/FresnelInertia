@@ -13,6 +13,12 @@ larger live transport:
 The page is intentionally separate from the visual WebXR demo. It does not
 change firmware schemas, presets, telemetry, or the on-device haptic pipeline.
 
+The later design discussion selected a StickS3-class USB-to-ESP-NOW Haptic
+Link as the preferred portable-demo candidate, subject to this probe passing on
+Android and Quest hardware. See `27_HAPTIC_LINK_DONGLE_CONCEPT.md` for the
+agreed standalone-device behavior, property synchronization, and external VR
+event scope.
+
 ## 2. Entry point
 
 Local development:
