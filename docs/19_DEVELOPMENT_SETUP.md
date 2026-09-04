@@ -30,6 +30,11 @@ git pull --ff-only
 
 No machine-specific library paths should be required. PlatformIO resolves firmware dependencies from `platformio.ini`.
 
+M5GFX and M5Unified are pinned to versions currently published in the
+PlatformIO registry. Treat registry availability as part of a dependency
+update: a locally cached version is not sufficient evidence that a clean
+machine or CI can install it.
+
 ## 3. Firmware bootstrap
 
 Check PlatformIO:
