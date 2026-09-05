@@ -75,6 +75,54 @@ bool layoutAllowsWall(AudioOutputLayout layout, WallId wall) {
   return wall == WallId::Front || wall == WallId::Back;
 }
 
+bool isHapticLinkTunablePath(const char* path) {
+  if (path == nullptr) {
+    return false;
+  }
+  constexpr const char* kAllowedPaths[]{
+      "container.fill",
+      "container.headspace",
+      "container.viscosity",
+      "container.particle_count",
+      "container.particle_hardness",
+      "container.span_x_m",
+      "container.span_y_m",
+      "container.span_z_m",
+      "mass.damping_ratio_x",
+      "mass.damping_ratio_y",
+      "mass.energy_decay_s",
+      "resonance.master_gain",
+  };
+  for (const char* allowed : kAllowedPaths) {
+    if (std::strcmp(path, allowed) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const char* controlResultDetail(EspNowControlResult result) {
+  switch (result) {
+    case EspNowControlResult::Applied:
+      return "applied";
+    case EspNowControlResult::Unsupported:
+      return "unsupported_operation";
+    case EspNowControlResult::NotPaired:
+      return "not_paired";
+    case EspNowControlResult::BadSession:
+      return "bad_session";
+    case EspNowControlResult::StaleRequest:
+      return "stale_request";
+    case EspNowControlResult::InvalidRequest:
+      return "invalid_request";
+    case EspNowControlResult::Busy:
+      return "paired_to_another_source";
+    case EspNowControlResult::Rejected:
+    default:
+      return "rejected";
+  }
+}
+
 bool parseAudioOutputLayout(const char* text, AudioOutputLayout& layout) {
   if (text == nullptr) {
     return false;
@@ -231,6 +279,8 @@ bool HapticPipeline::begin(const SystemParams& params) {
   const bool remote_ready = remote_.begin(params_);
   const bool usb_telemetry_ready = usb_telemetry_.begin(params_);
   params_.features.enable_usb_telemetry = false;
+  const bool espnow_telemetry_ready = espnow_telemetry_.begin(params_);
+  params_.features.enable_espnow_telemetry = false;
   const bool recorder_ready = recorder_.begin(params_);
 
   if (!imu_ready || !audio_ready || !tilt_ready) {
@@ -246,12 +296,13 @@ bool HapticPipeline::begin(const SystemParams& params) {
   std::strncpy(telemetry_.active_preset, params_.preset_name, sizeof(telemetry_.active_preset) - 1);
   telemetry_.run_mode = currentRunMode();
   telemetry_.audio = audio_.status();
+  telemetry_.tilt_servo = tilt_.status();
   telemetry_.safety.imu_stale_safe_stop = false;
   telemetry_.safety.imu_fault_injection_active = false;
   telemetry_.safety.audio_zero_asserted = telemetry_.audio.output_silenced;
   telemetry_.safety.tilt_disarmed = !tilt_.isEnabled();
   return imu_ready && audio_ready && tilt_ready && remote_ready &&
-         usb_telemetry_ready && recorder_ready;
+         usb_telemetry_ready && espnow_telemetry_ready && recorder_ready;
 }
 
 bool HapticPipeline::reconfigurePipeline() {
@@ -268,8 +319,224 @@ bool HapticPipeline::reconfigurePipeline() {
   tilt_.configure(params_);
   remote_.configure(params_);
   usb_telemetry_.configure(params_);
+  espnow_telemetry_.configure(params_);
   recorder_.configure(params_);
   return audio_ready;
+}
+
+bool HapticPipeline::setAudioRuntimeEnabled(bool enabled) {
+  if (calibrator_.isActive()) {
+    return false;
+  }
+  if (enabled &&
+      (!audio_.isCompileEnabled() ||
+       !imuSafetyInterlockAllowsPhysicalArm(
+           imu_stale_safe_stop_, imu_fault_injection_active_))) {
+    return false;
+  }
+  const SystemParams previous_params = params_;
+  params_.features.enable_audio_output = enabled;
+  params_.audio.runtime_enable = enabled;
+  if (!enabled) {
+    params_.audio.channel_test_enable = false;
+    params_.audio.channel_test_wall = WallId::None;
+  }
+  return applyAudioConfigOrRollback(previous_params);
+}
+
+void HapticPipeline::processEspNowControlRequests() {
+  EspNowControlEnvelope request{};
+  constexpr uint8_t kMaxRequestsPerTick = 2U;
+  for (uint8_t count = 0U;
+       count < kMaxRequestsPerTick &&
+       espnow_telemetry_.popControlRequest(request);
+       ++count) {
+    const bool safe_idle = currentRunMode() == RunMode::Idle &&
+                           audio_.status().output_silenced &&
+                           !tilt_.isEnabled();
+    EspNowControlResult result =
+        espnow_telemetry_.authorizeControl(request, safe_idle);
+    const auto operation =
+        static_cast<EspNowControlOperation>(request.packet.operation);
+    const char* detail = controlResultDetail(result);
+    bool publish_now = false;
+
+    if (result == EspNowControlResult::Applied) {
+      switch (operation) {
+        case EspNowControlOperation::Hello:
+          detail = "paired";
+          break;
+        case EspNowControlOperation::GetState:
+          publish_now = true;
+          break;
+        case EspNowControlOperation::SafeIdle:
+          enterSafeIdle();
+          detail = "safe_idle";
+          publish_now = true;
+          break;
+        case EspNowControlOperation::SetRunMode:
+          if (request.packet.run_mode ==
+              static_cast<uint8_t>(RunMode::Idle)) {
+            enterSafeIdle();
+            detail = "safe_idle";
+            publish_now = true;
+          } else if (request.packet.run_mode ==
+                         static_cast<uint8_t>(RunMode::Live) &&
+                     imuSafetyInterlockAllowsRunMode(
+                         imu_stale_safe_stop_, imu_fault_injection_active_,
+                         RunMode::Live)) {
+            requested_run_mode_ = RunMode::Live;
+            recorder_.stopReplay();
+            clearCurrentEventTelemetry(telemetry_);
+            detail = "live_output_still_gated";
+            publish_now = true;
+          } else {
+            result = EspNowControlResult::Unsupported;
+            detail = "only_idle_or_live_supported";
+          }
+          break;
+        case EspNowControlOperation::SetAudioEnabled:
+          if (request.packet.value_type !=
+              static_cast<uint8_t>(EspNowControlValueType::Boolean)) {
+            result = EspNowControlResult::InvalidRequest;
+            detail = "boolean_required";
+          } else if (request.packet.enabled != 0U &&
+                     currentRunMode() != RunMode::Live) {
+            result = EspNowControlResult::Rejected;
+            detail = "live_required_to_enable_audio";
+          } else if (!setAudioRuntimeEnabled(request.packet.enabled != 0U)) {
+            result = EspNowControlResult::Rejected;
+            detail = "audio_transition_rejected";
+          } else {
+            detail = request.packet.enabled != 0U ? "audio_enabled"
+                                                   : "audio_disabled";
+            publish_now = true;
+          }
+          break;
+        case EspNowControlOperation::LoadPreset:
+          if (!safe_idle) {
+            result = EspNowControlResult::Rejected;
+            detail = "safe_idle_required";
+          } else if (request.packet.value_type !=
+                         static_cast<uint8_t>(EspNowControlValueType::Text) ||
+                     request.packet.text[0] == '\0') {
+            result = EspNowControlResult::InvalidRequest;
+            detail = "preset_name_required";
+          } else if (!loadPresetByName(request.packet.text)) {
+            result = EspNowControlResult::Rejected;
+            detail = "preset_load_failed";
+          } else {
+            detail = "preset_loaded";
+            publish_now = true;
+          }
+          break;
+        case EspNowControlOperation::SetParam: {
+          if (!safe_idle) {
+            result = EspNowControlResult::Rejected;
+            detail = "safe_idle_required";
+            break;
+          }
+          if (request.packet.value_type !=
+                  static_cast<uint8_t>(EspNowControlValueType::Number) ||
+              !isHapticLinkTunablePath(request.packet.path)) {
+            result = EspNowControlResult::InvalidRequest;
+            detail = "parameter_not_allowlisted";
+            break;
+          }
+          ControlValue value{};
+          value.has_number = true;
+          value.number = request.packet.number;
+          if (!applyParamPath(request.packet.path, value)) {
+            result = EspNowControlResult::Rejected;
+            detail = "parameter_rejected";
+          } else {
+            detail = "parameter_applied";
+            publish_now = true;
+          }
+          break;
+        }
+        case EspNowControlOperation::TriggerEvent:
+          result = EspNowControlResult::Unsupported;
+          detail = "trigger_event_not_implemented";
+          break;
+        case EspNowControlOperation::SetTiltEnabled:
+          if (request.packet.value_type !=
+              static_cast<uint8_t>(EspNowControlValueType::Boolean)) {
+            result = EspNowControlResult::InvalidRequest;
+            detail = "boolean_required";
+          } else if (request.packet.enabled == 0U) {
+            params_.features.enable_tilt_plane = false;
+            tilt_.configure(params_);
+            result = tilt_.setRuntimeEnabled(false)
+                         ? EspNowControlResult::Applied
+                         : EspNowControlResult::Rejected;
+            detail = result == EspNowControlResult::Applied
+                         ? "tilt_disarmed"
+                         : "tilt_disarm_unverified";
+            publish_now = true;
+          } else if (!params_.features.allow_remote_tilt_arm) {
+            result = EspNowControlResult::Rejected;
+            detail = "remote_tilt_arm_disabled";
+          } else if (currentRunMode() != RunMode::Live) {
+            result = EspNowControlResult::Rejected;
+            detail = "live_required_to_arm_tilt";
+          } else if (!imuSafetyInterlockAllowsPhysicalArm(
+                         imu_stale_safe_stop_, imu_fault_injection_active_) ||
+                     !motionDynamicsAllowTiltArm(
+                         mass_layer_.maxStableStepS())) {
+            result = EspNowControlResult::Rejected;
+            detail = "tilt_safety_interlock";
+          } else {
+            params_.features.enable_tilt_plane = true;
+            tilt_.configure(params_);
+            if (!tilt_.setRuntimeEnabled(true)) {
+              params_.features.enable_tilt_plane = false;
+              result = EspNowControlResult::Rejected;
+              detail = "tilt_arm_failed";
+            } else {
+              tilt_.home();
+              detail = "tilt_armed";
+              publish_now = true;
+            }
+          }
+          break;
+        case EspNowControlOperation::ClearTiltFault:
+          if (!safe_idle) {
+            result = EspNowControlResult::Rejected;
+            detail = "safe_idle_required";
+          } else if (!tilt_.clearFault()) {
+            result = EspNowControlResult::Rejected;
+            detail = "tilt_preflight_failed";
+          } else {
+            params_.features.enable_tilt_plane = false;
+            detail = "tilt_fault_cleared";
+            publish_now = true;
+          }
+          break;
+      }
+    }
+
+    espnow_telemetry_.noteControlResult(result);
+    espnow_telemetry_.sendControlResponse(
+        request, result, telemetry_.frame_counter, detail);
+    if (publish_now) {
+      // Control is applied before the next IMU sample. Refresh configuration
+      // metadata now so this response cannot pair new resolved parameters with
+      // the previous preset/fill or report the previous output/run-mode state.
+      std::strncpy(telemetry_.active_preset, params_.preset_name,
+                   sizeof(telemetry_.active_preset) - 1U);
+      telemetry_.active_preset[sizeof(telemetry_.active_preset) - 1U] = '\0';
+      telemetry_.run_mode = currentRunMode();
+      if (telemetry_.run_mode == RunMode::Idle) {
+        telemetry_.mass = makeDefaultMassState();
+      }
+      telemetry_.audio = audio_.status();
+      telemetry_.safety.audio_zero_asserted = telemetry_.audio.output_silenced;
+      telemetry_.tilt_servo = tilt_.status();
+      telemetry_.safety.tilt_disarmed = !tilt_.isEnabled();
+      espnow_telemetry_.publishNow(telemetry_);
+    }
+  }
 }
 
 void HapticPipeline::refreshOutputConfig() {
@@ -311,6 +578,9 @@ bool HapticPipeline::applyAudioConfigOrRollback(
 void HapticPipeline::enterSafeIdle() {
   audio_.submitSilence();
   tilt_.setRuntimeEnabled(false);
+  tilt_manual_test_active_ = false;
+  tilt_manual_test_common_mode_ = false;
+  tilt_manual_test_angle_deg_ = 0.0f;
   usb_telemetry_.prepareForConsoleOutput();
   imu_fault_injection_active_ = false;
   imu_stale_safe_stop_ = false;
@@ -342,6 +612,7 @@ void HapticPipeline::enterSafeIdle() {
   telemetry_.last_event = {};
   telemetry_.actuators = {};
   telemetry_.tilt = {};
+  telemetry_.tilt_servo = tilt_.status();
   telemetry_.audio = audio_.status();
   telemetry_.safety.imu_stale_safe_stop = imu_stale_safe_stop_;
   telemetry_.safety.imu_fault_injection_active = false;
@@ -577,6 +848,24 @@ ActuatorFrame4 HapticPipeline::summarizeDriveFrame(const DriveFrame4& frame) con
 }
 
 TiltPlaneCommand HapticPipeline::updateTiltCommand(const ImuSample& sample, const MassState& state, float dt_s) {
+  if (tilt_manual_test_active_) {
+    TiltPlaneCommand command{};
+    const float thumb_angle =
+        clampf(tilt_manual_test_angle_deg_, params_.tilt.min_angle_deg,
+               params_.tilt.max_angle_deg);
+    const float index_sign = tilt_manual_test_common_mode_ ? 1.0f : -1.0f;
+    const float index_angle =
+        clampf(index_sign * tilt_manual_test_angle_deg_, params_.tilt.min_angle_deg,
+               params_.tilt.max_angle_deg);
+    command.thumb_angle_deg = thumb_angle;
+    command.index_angle_deg = index_angle;
+    command.thumb_base_deg = thumb_angle;
+    command.index_base_deg = index_angle;
+    command.thumb_current_limit_ma = params_.tilt.max_current_ma;
+    command.index_current_limit_ma = params_.tilt.max_current_ma;
+    command.pseudoforce_enabled = false;
+    return command;
+  }
   return tilt_model_.update(sample, state, dt_s);
 }
 
@@ -770,6 +1059,12 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
   } else if (std::strcmp(path, "features.enable_gravity_separated_mass_activity") == 0 &&
              value.has_bool) {
     params_.features.enable_gravity_separated_mass_activity = value.boolean;
+  } else if (std::strcmp(path, "features.enable_coherent_container_demo") == 0 && value.has_bool) {
+    if (currentRunMode() != RunMode::Idle) {
+      return false;
+    }
+    params_.features.enable_coherent_container_demo = value.boolean;
+    tilt_model_.reset();
   } else if (pathMatches(path, "calibration.low_start_hz", "calibration.low_start") && value.has_number) {
     params_.calibration.low_start_hz = clampf(value.number, 20.0f, 1000.0f);
   } else if (pathMatches(path, "calibration.low_stop_hz", "calibration.low_stop") && value.has_number) {
@@ -998,6 +1293,10 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
     checked_sample = {};
     checked_sample.timestamp_us = sample.timestamp_us;
   }
+  const ImuSample model_sample =
+      params_.features.enable_device_frame_transform
+          ? transformAsBuiltAtomS3ImuSample(checked_sample)
+          : checked_sample;
   const uint32_t now_ms = millis();
   if (checked_sample.valid) {
     last_valid_imu_ms_ = now_ms;
@@ -1058,7 +1357,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   if (gravity_separated_activity) {
     const bool was_motion_initialized = motion_activity_filter_.initialized();
     const MotionInputResult motion_input =
-        motion_activity_filter_.process(checked_sample, raw_dt_s);
+        motion_activity_filter_.process(model_sample, raw_dt_s);
     if (motion_input.action == MotionInputAction::RejectFrame) {
       return;
     }
@@ -1094,7 +1393,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
         for (uint8_t substep = 0; substep < substep_count; ++substep) {
           if (mass_enabled) {
             mass = mass_layer_.updateWithActivity(
-                checked_sample, motion_input.activity, substep_dt_s);
+                model_sample, motion_input.activity, substep_dt_s);
           }
           // The first valid sample establishes gravity and may move the
           // quasi-static mass path, but it must never manufacture an event.
@@ -1111,7 +1410,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
     }
   } else {
     if (mass_enabled) {
-      mass = mass_layer_.update(checked_sample, dt_s);
+      mass = mass_layer_.update(model_sample, dt_s);
     }
     if (event_enabled) {
       events = event_layer_.update(mass, dt_s);
@@ -1133,7 +1432,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   const bool submit_tilt_command =
       tilt_mode_allowed && !hold_tilt_command && !fail_closed_tilt_command;
   if (submit_tilt_command) {
-    tilt_cmd = updateTiltCommand(checked_sample, mass, sensor_dt_s);
+    tilt_cmd = updateTiltCommand(model_sample, mass, sensor_dt_s);
   }
   const HapticEvent last_event = event_enabled ? event_layer_.lastEvent() : HapticEvent{};
 
@@ -1153,7 +1452,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
     // Publish/submit the neutral frame before disabling torque so telemetry
     // and the physical backend agree on the fail-closed transition.
     tilt_.submit(TiltPlaneCommand{});
-    tilt_.setRuntimeEnabled(false);
+    tilt_.latchFault(TiltServoFault::ImuSafety);
   } else if (tilt_mode_allowed && tilt_.isEnabled()) {
     if (submit_tilt_command) {
       tilt_.submit(tilt_cmd);
@@ -1161,6 +1460,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   } else if (tilt_.isEnabled()) {
     tilt_.setRuntimeEnabled(false);
   }
+  tilt_.service(millis(), tilt_mode_allowed && !fail_closed_tilt_command);
 
   telemetry_.timestamp_ms = millis();
   telemetry_.frame_counter = addTelemetryCountSaturating(telemetry_.frame_counter, 1);
@@ -1173,6 +1473,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   telemetry_.last_event = last_event;
   telemetry_.actuators = actuator_summary;
   telemetry_.tilt = tilt_cmd;
+  telemetry_.tilt_servo = tilt_.status();
   telemetry_.audio = audio_.status();
   telemetry_.safety.imu_stale_safe_stop = imu_stale_safe_stop_;
   telemetry_.safety.imu_fault_injection_active =
@@ -1195,6 +1496,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   recorder_.append(telemetry_);
   remote_.publishTelemetry(telemetry_);
   usb_telemetry_.publish(telemetry_);
+  espnow_telemetry_.publish(telemetry_);
 
   if (!usb_telemetry_.isEnabled() && telemetry_.calibration.active &&
       calibration_params_changed) {
@@ -1237,6 +1539,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
 
 void HapticPipeline::tick() {
   usb_telemetry_.update();
+  processEspNowControlRequests();
   ControlMessage message{};
   remote_.update();
   while (remote_.popMessage(message)) {
@@ -1288,25 +1591,6 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
 
   usb_telemetry_.prepareForConsoleOutput();
 
-  const auto setAudioRuntimeEnabled = [this](bool enabled) {
-    if (calibrator_.isActive()) {
-      return false;
-    }
-    if (enabled &&
-        (!audio_.isCompileEnabled() ||
-         !imuSafetyInterlockAllowsPhysicalArm(
-             imu_stale_safe_stop_, imu_fault_injection_active_))) {
-      return false;
-    }
-    const SystemParams previous_params = params_;
-    params_.features.enable_audio_output = enabled;
-    params_.audio.runtime_enable = enabled;
-    if (!enabled) {
-      params_.audio.channel_test_enable = false;
-      params_.audio.channel_test_wall = WallId::None;
-    }
-    return applyAudioConfigOrRollback(previous_params);
-  };
   const auto setAudioTestWall = [this](WallId wall) {
     if (calibrator_.isActive()) {
       return false;
@@ -1351,6 +1635,46 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     char usb_status[256]{};
     usb_telemetry_.describeStatus(usb_status, sizeof(usb_status));
     Serial.println(usb_status);
+    return;
+  }
+
+  if (isCommand(command, "espnow link on") ||
+      isCommand(command, "espnow telemetry on")) {
+    if (currentRunMode() != RunMode::Idle ||
+        !audio_.status().output_silenced || tilt_.isEnabled()) {
+      Serial.println(
+          "espnow_link: enable rejected; Safe Idle required");
+      return;
+    }
+    if (espnow_telemetry_.setRuntimeEnabled(true)) {
+      params_.features.enable_espnow_telemetry = true;
+      Serial.println(
+          "espnow_link: enabled; awaiting paired dongle; physical output state unchanged");
+    } else {
+      Serial.println(
+          "espnow_link: enable failed or backend not compiled");
+    }
+    return;
+  }
+  if (isCommand(command, "espnow link off") ||
+      isCommand(command, "espnow telemetry off")) {
+    if (currentRunMode() != RunMode::Idle ||
+        !audio_.status().output_silenced || tilt_.isEnabled()) {
+      Serial.println(
+          "espnow_link: disable rejected; Safe Idle required");
+      return;
+    }
+    params_.features.enable_espnow_telemetry = false;
+    espnow_telemetry_.setRuntimeEnabled(false);
+    Serial.println(
+        "espnow_link: disabled; radio off; physical output state unchanged");
+    return;
+  }
+  if (isCommand(command, "espnow link status") ||
+      isCommand(command, "espnow telemetry status")) {
+    char espnow_status[512]{};
+    espnow_telemetry_.describeStatus(espnow_status, sizeof(espnow_status));
+    Serial.println(espnow_status);
     return;
   }
 
@@ -1424,6 +1748,11 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
         static_cast<unsigned>(telemetry_.recorder.replaying),
         static_cast<unsigned>(tilt_.isEnabled()));
     Serial.println(remote_status);
+#if HAPTICS_ENABLE_ESPNOW_TELEMETRY
+    char espnow_status[512]{};
+    espnow_telemetry_.describeStatus(espnow_status, sizeof(espnow_status));
+    Serial.println(espnow_status);
+#endif
 #if HAPTICS_ENABLE_USB_TELEMETRY
     char usb_status[256]{};
     usb_telemetry_.describeStatus(usb_status, sizeof(usb_status));
@@ -1576,27 +1905,144 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     }
     params_.features.enable_tilt_plane = true;
     tilt_.configure(params_);
-    tilt_.setRuntimeEnabled(true);
+    if (!tilt_.setRuntimeEnabled(true)) {
+      params_.features.enable_tilt_plane = false;
+      const auto& status = tilt_.status();
+      Serial.printf(
+          "tilt: arm rejected; state=%s fault=%s errors=%lu\n",
+          tiltServoStateToString(status.state),
+          tiltServoFaultToString(status.fault),
+          static_cast<unsigned long>(status.communication_errors));
+      return;
+    }
     tilt_.home();
-    Serial.println("tilt: enabled");
+    Serial.println("tilt: armed; measured present positions are session homes");
     return;
   }
   if (isCommand(command, "tilt off")) {
+    tilt_manual_test_active_ = false;
+    tilt_manual_test_common_mode_ = false;
+    tilt_manual_test_angle_deg_ = 0.0f;
     params_.features.enable_tilt_plane = false;
     tilt_.configure(params_);
     tilt_.setRuntimeEnabled(false);
     Serial.println("tilt: disabled");
     return;
   }
-  if (isCommand(command, "tilt status")) {
+  if (isCommand(command, "tilt test off")) {
+    tilt_manual_test_active_ = false;
+    tilt_manual_test_common_mode_ = false;
+    tilt_manual_test_angle_deg_ = 0.0f;
+    Serial.println("tilt: direct hardware test disabled; model command restored");
+    return;
+  }
+  if (startsWith(command, "tilt test ")) {
+    if (!tilt_.isCompileEnabled() || !tilt_.isEnabled() ||
+        (currentRunMode() != RunMode::Live &&
+         currentRunMode() != RunMode::Record)) {
+      Serial.println("tilt: direct hardware test rejected; arm in live/record first");
+      return;
+    }
+    bool common_mode = false;
+    const char* value_text = command + std::strlen("tilt test ");
+    if (startsWith(command, "tilt test common ")) {
+      common_mode = true;
+      value_text = command + std::strlen("tilt test common ");
+    } else if (startsWith(command, "tilt test differential ")) {
+      value_text = command + std::strlen("tilt test differential ");
+    }
+    char* value_end = nullptr;
+    const float angle_deg = std::strtof(value_text, &value_end);
+    if (value_end == value_text || *value_end != '\0' ||
+        !std::isfinite(angle_deg) ||
+        angle_deg < params_.tilt.min_angle_deg ||
+        angle_deg > params_.tilt.max_angle_deg) {
+      Serial.printf("tilt: direct angle must be %.1f..%.1f deg\n",
+                    params_.tilt.min_angle_deg,
+                    params_.tilt.max_angle_deg);
+      return;
+    }
+    tilt_manual_test_angle_deg_ = angle_deg;
+    tilt_manual_test_common_mode_ = common_mode;
+    tilt_manual_test_active_ = true;
     Serial.printf(
-        "tilt: enabled=%u pseudoforce=%u delta=(%.2f,%.2f) base=(%.2f,%.2f)\n",
+        "tilt: direct hardware test mode=%s thumb=%+.1fdeg index=%+.1fdeg\n",
+        common_mode ? "common" : "differential", angle_deg,
+        common_mode ? angle_deg : -angle_deg);
+    return;
+  }
+  if (isCommand(command, "tilt clear")) {
+    if (currentRunMode() != RunMode::Idle ||
+        !audio_.status().output_silenced || tilt_.isEnabled()) {
+      Serial.println("tilt: fault clear rejected; Safe Idle required");
+      return;
+    }
+    params_.features.enable_tilt_plane = false;
+    const bool cleared = tilt_.clearFault();
+    Serial.printf("tilt: clear=%u state=%s fault=%s\n",
+                  static_cast<unsigned>(cleared),
+                  tiltServoStateToString(tilt_.status().state),
+                  tiltServoFaultToString(tilt_.status().fault));
+    return;
+  }
+  if (isCommand(command, "tilt diagnose")) {
+    if (currentRunMode() != RunMode::Idle ||
+        !audio_.status().output_silenced || tilt_.isEnabled()) {
+      Serial.println("tilt diagnose: rejected; Safe Idle required");
+      return;
+    }
+    std::array<TiltBusPingDiagnostic, 2> results{};
+    if (!tilt_.diagnose(results)) {
+      Serial.println("tilt diagnose: unavailable; disabled or active backend");
+      return;
+    }
+    Serial.printf("tilt diagnose: baud=%lu tx_pin=%d rx_pin=%d one PING per ID; no actuation\n",
+                  static_cast<unsigned long>(params_.tilt.bus_baud),
+                  params_.pins.dynamixel_tx, params_.pins.dynamixel_rx);
+    for (const auto& result : results) {
+      Serial.printf("tilt diagnose: id=%u tx=%u rx=%u echo=%u status=%u status_id=%u error=0x%02X params=%u model=%u ok=%u\n",
+                    static_cast<unsigned>(result.id), static_cast<unsigned>(result.tx_bytes),
+                    static_cast<unsigned>(result.rx_bytes), static_cast<unsigned>(result.echo_packets),
+                    static_cast<unsigned>(result.status_packets), static_cast<unsigned>(result.status_id),
+                    static_cast<unsigned>(result.status_error), static_cast<unsigned>(result.status_param_length),
+                    static_cast<unsigned>(result.model_number), static_cast<unsigned>(result.success));
+    }
+    return;
+  }
+  if (isCommand(command, "tilt status")) {
+    const auto& status = tilt_.status();
+    Serial.printf(
+        "tilt: enabled=%u state=%s fault=%s backend=%s errors=%lu cmd_age=%lu status_age=%lu pseudoforce=%u delta=(%.2f,%.2f) base=(%.2f,%.2f)\n",
         static_cast<unsigned>(tilt_.isEnabled()),
+        tiltServoStateToString(status.state),
+        tiltServoFaultToString(status.fault),
+        status.atoms3_dxl2_backend ? "atoms3_dxl2" : "legacy",
+        static_cast<unsigned long>(status.communication_errors),
+        static_cast<unsigned long>(status.command_age_ms),
+        static_cast<unsigned long>(status.status_age_ms),
         static_cast<unsigned>(params_.tilt.enable_pseudoforce),
         telemetry_.tilt.thumb_delta_deg,
         telemetry_.tilt.index_delta_deg,
         telemetry_.tilt.thumb_base_deg,
         telemetry_.tilt.index_base_deg);
+    for (const auto& device : status.devices) {
+      Serial.printf(
+          "tilt: id=%u valid=%u model=%u mode=%u torque=%u home=%ld pos=%ld cmd=%ld goal=%ld pwm=%d current=%dmA voltage=%.1fV temp=%uC hwerr=0x%02X\n",
+          static_cast<unsigned>(device.id),
+          static_cast<unsigned>(device.status_valid),
+          static_cast<unsigned>(device.model_number),
+          static_cast<unsigned>(device.operating_mode),
+          static_cast<unsigned>(device.torque_enabled),
+          static_cast<long>(device.home_position_raw),
+          static_cast<long>(device.present_position_raw),
+          static_cast<long>(device.commanded_position_raw),
+          static_cast<long>(device.goal_position_raw),
+          static_cast<int>(device.present_pwm_raw),
+          static_cast<int>(device.present_current_ma),
+          device.input_voltage_decivolt * 0.1f,
+          static_cast<unsigned>(device.temperature_c),
+          static_cast<unsigned>(device.hardware_error));
+    }
     return;
   }
   if (isCommand(command, "remote status")) {
@@ -1750,18 +2196,22 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
     return;
   }
 
+#if HAPTICS_ENABLE_ESPNOW_TELEMETRY
+  Serial.println(
+      "ESP-NOW Haptic Link commands (Safe Idle only): espnow link on|off|status");
+#endif
 #if HAPTICS_ENABLE_USB_TELEMETRY && HAPTICS_ENABLE_IMU_FAULT_INJECTION
   Serial.println(
-      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status, usb telemetry on|off|status, imu fault on|off|status");
+      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status|test [common|differential] <-10..10|off>, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status, usb telemetry on|off|status, imu fault on|off|status");
 #elif HAPTICS_ENABLE_USB_TELEMETRY
   Serial.println(
-      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status, usb telemetry on|off|status");
+      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status|test [common|differential] <-10..10|off>, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status, usb telemetry on|off|status");
 #elif HAPTICS_ENABLE_IMU_FAULT_INJECTION
   Serial.println(
-      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status, imu fault on|off|status");
+      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status|test [common|differential] <-10..10|off>, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status, imu fault on|off|status");
 #else
   Serial.println(
-      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status");
+      "commands: status, idle|stop, live, cal start|stop|status, preset list|load <name>, record start|stop|status, replay start <file>|stop|status, tilt on|off|status|test [common|differential] <-10..10|off>, audio diag on|off, audio on|off|status|gain <0..4>|limit <0..1>|test <wall>|test level <0..1>|layout 2ch|layout 4ch, remote status");
 #endif
 }
 

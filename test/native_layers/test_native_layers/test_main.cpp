@@ -4,9 +4,13 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 
 #include "haptics/EventLayer.hpp"
+#include "haptics/DeviceFrameTransform.hpp"
+#include "haptics/EspNowControlProtocol.hpp"
+#include "haptics/EspNowTelemetryProtocol.hpp"
 #include "haptics/HardwareProfiles.hpp"
 #include "haptics/MassMotionLayer.hpp"
 #include "haptics/MotionActivityFilter.hpp"
@@ -417,7 +421,9 @@ void test_default_feature_flags_and_runtime_safety_policy() {
   TEST_ASSERT_FALSE(params.features.enable_attack_preserving_texture);
   TEST_ASSERT_FALSE(params.features.enable_single_shot_spatial_delay);
   TEST_ASSERT_FALSE(params.features.enable_imu_stale_safe_stop);
+  TEST_ASSERT_FALSE(params.features.enable_device_frame_transform);
   TEST_ASSERT_FALSE(params.features.enable_usb_telemetry);
+  TEST_ASSERT_FALSE(params.features.enable_espnow_telemetry);
   TEST_ASSERT_FALSE(params.features.allow_remote_tilt_arm);
   TEST_ASSERT_FALSE(
       haptics::imuStaleSafeStopNextState(false, false, false));
@@ -680,6 +686,9 @@ void test_tilt_reset_restores_fresh_state() {
 void test_motion_filter_defaults_and_atom_profile_opt_in() {
   const auto generic = haptics::makeDefaultLiquidPreset();
   TEST_ASSERT_FALSE(generic.features.enable_gravity_separated_mass_activity);
+  TEST_ASSERT_FALSE(generic.features.enable_device_frame_transform);
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 1.0f, generic.tilt.sign_thumb);
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, 1.0f, generic.tilt.sign_index);
   TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 1.0f, generic.motion_activity.gravity_cutoff_hz);
   TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 10.0f, generic.motion_activity.motion_cutoff_hz);
   TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 0.025f, generic.motion_activity.accel_deadband_g);
@@ -688,6 +697,11 @@ void test_motion_filter_defaults_and_atom_profile_opt_in() {
   auto atom = generic;
   haptics::applyAsBuiltAtomS3Profile(atom);
   TEST_ASSERT_TRUE(atom.features.enable_gravity_separated_mass_activity);
+  TEST_ASSERT_TRUE(atom.features.enable_device_frame_transform);
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, -1.0f, atom.tilt.sign_thumb);
+  TEST_ASSERT_FLOAT_WITHIN(0.0f, -1.0f, atom.tilt.sign_index);
+  TEST_ASSERT_EQUAL_INT8(1, atom.tilt.thumb_raw_direction);
+  TEST_ASSERT_EQUAL_INT8(1, atom.tilt.index_raw_direction);
   TEST_ASSERT_FALSE(haptics::motionInputBoundaryEnabled(false, true, true));
   TEST_ASSERT_TRUE(haptics::motionInputBoundaryEnabled(true, true, false));
   TEST_ASSERT_TRUE(haptics::motionInputBoundaryEnabled(true, false, true));
@@ -1167,6 +1181,170 @@ void test_mass_activity_path_uses_raw_for_position_and_filtered_for_energy() {
   TEST_ASSERT_GREATER_THAN_FLOAT(enhanced.state().energy + 0.05f, legacy.state().energy);
 }
 
+void test_as_built_atoms3_device_frame_transform() {
+  constexpr float tolerance = 1.0e-6f;
+
+  const auto device_x_up =
+      haptics::rotateAsBuiltAtomS3ImuVector({0.0f, -1.0f, 0.0f});
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 1.0f, device_x_up.x);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 0.0f, device_x_up.y);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 0.0f, device_x_up.z);
+
+  const auto device_y_up = haptics::rotateAsBuiltAtomS3ImuVector(
+      {0.7071067811865475f, 0.0f, 0.7071067811865475f});
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 0.0f, device_y_up.x);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 1.0f, device_y_up.y);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 0.0f, device_y_up.z);
+
+  const auto semantic_z_forward_up = haptics::rotateAsBuiltAtomS3ImuVector(
+      {0.7071067811865475f, 0.0f, -0.7071067811865475f});
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 0.0f, semantic_z_forward_up.x);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 0.0f, semantic_z_forward_up.y);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, -1.0f, semantic_z_forward_up.z);
+
+  const haptics::ImuSample raw =
+      validSample({1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}, 1234U);
+  const auto transformed = haptics::transformAsBuiltAtomS3ImuSample(raw);
+  TEST_ASSERT_TRUE(transformed.valid);
+  TEST_ASSERT_EQUAL_UINT32(raw.timestamp_us, transformed.timestamp_us);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, -2.0f, transformed.accel_g.x);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 2.8284271247461903f,
+                           transformed.accel_g.y);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 1.4142135623730951f,
+                           transformed.accel_g.z);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, -5.0f, transformed.gyro_dps.x);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 7.0710678118654755f,
+                           transformed.gyro_dps.y);
+  TEST_ASSERT_FLOAT_WITHIN(tolerance, 1.4142135623730951f,
+                           transformed.gyro_dps.z);
+}
+
+void test_espnow_wire_packet_round_trip_and_integrity() {
+  haptics::TelemetrySnapshot snapshot{};
+  snapshot.timestamp_ms = 123456U;
+  snapshot.frame_counter = 9007199254740000ULL;
+  snapshot.new_evt = 3U;
+  snapshot.evt_total = 42U;
+  std::strncpy(snapshot.active_preset, "liquid_small_box",
+               sizeof(snapshot.active_preset) - 1U);
+  snapshot.run_mode = haptics::RunMode::Live;
+  snapshot.imu.valid = true;
+  snapshot.imu.accel_g = {0.1f, -0.2f, 0.9f};
+  snapshot.imu.gyro_dps = {1.0f, 2.0f, 3.0f};
+  snapshot.mass.pos_norm = {-0.4f, 0.5f};
+  snapshot.mass.vel_norm_s = {0.6f, -0.7f};
+  snapshot.mass.energy = 0.8f;
+  snapshot.mass.fill = 0.55f;
+  snapshot.last_event.type = haptics::EventType::DropletCluster;
+  snapshot.last_event.primary_wall = haptics::WallId::Top;
+  snapshot.last_event.amplitude = 0.75f;
+  snapshot.actuators.ch = {0.1f, 0.2f, 0.3f, 0.4f};
+  snapshot.audio.compile_enabled = true;
+  snapshot.audio.driver_installed = true;
+  snapshot.audio.runtime_enabled = true;
+  snapshot.audio.output_silenced = false;
+  snapshot.audio.transport = haptics::AudioTransport::Tdm8Slot;
+  snapshot.audio.output_layout = haptics::AudioOutputLayout::QuadWall4Ch;
+  snapshot.audio.active_output_channels = 4U;
+  snapshot.audio.test_wall = haptics::WallId::None;
+  snapshot.audio.output_peak_limit = 0.08f;
+  snapshot.audio.underrun_count = 7U;
+  snapshot.safety.audio_zero_asserted = false;
+  snapshot.safety.tilt_disarmed = true;
+
+  const auto packet = haptics::encodeEspNowTelemetryPacketV1(snapshot, 99U);
+  TEST_ASSERT_EQUAL_UINT32(164U, sizeof(packet));
+  TEST_ASSERT_TRUE(haptics::validateEspNowTelemetryPacketV1(&packet, sizeof(packet)));
+  TEST_ASSERT_EQUAL_UINT32(99U, packet.sequence);
+  TEST_ASSERT_EQUAL_UINT32(snapshot.timestamp_ms, packet.timestamp_ms);
+  TEST_ASSERT_EQUAL_UINT64(snapshot.frame_counter, packet.frame_counter);
+  TEST_ASSERT_EQUAL_STRING(snapshot.active_preset, packet.active_preset);
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, snapshot.mass.energy, packet.mass_energy);
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, snapshot.actuators.ch[3], packet.actuators[3]);
+  TEST_ASSERT_EQUAL_UINT8(1U, packet.audio_runtime_enabled);
+  TEST_ASSERT_EQUAL_UINT8(0U, packet.audio_output_silenced);
+
+  auto corrupted = packet;
+  reinterpret_cast<uint8_t*>(&corrupted)[32] ^= 0x40U;
+  TEST_ASSERT_FALSE(
+      haptics::validateEspNowTelemetryPacketV1(&corrupted, sizeof(corrupted)));
+  TEST_ASSERT_FALSE(
+      haptics::validateEspNowTelemetryPacketV1(&packet, sizeof(packet) - 1U));
+
+  snapshot.tilt_servo.state = haptics::TiltServoState::Armed;
+  snapshot.tilt_servo.devices[0].id = 1U;
+  snapshot.tilt_servo.devices[0].status_valid = true;
+  snapshot.tilt_servo.devices[0].torque_enabled = true;
+  snapshot.tilt_servo.devices[0].home_position_raw = 3079;
+  snapshot.tilt_servo.devices[0].present_position_raw = 3085;
+  snapshot.tilt_servo.devices[0].goal_position_raw = 3088;
+  snapshot.tilt_servo.devices[0].present_current_ma = 15;
+  snapshot.tilt_servo.devices[0].input_voltage_decivolt = 52U;
+  snapshot.tilt_servo.devices[0].temperature_c = 31U;
+  snapshot.tilt_servo.devices[0].operating_mode = 3U;
+  snapshot.tilt_servo.devices[1].id = 2U;
+  snapshot.tilt_servo.devices[1].status_valid = true;
+  snapshot.tilt_servo.devices[1].torque_enabled = true;
+  snapshot.tilt_servo.devices[1].home_position_raw = 2132;
+  snapshot.tilt_servo.devices[1].present_position_raw = 2127;
+  snapshot.tilt_servo.devices[1].goal_position_raw = 2124;
+  snapshot.tilt_servo.devices[1].present_current_ma = -13;
+  snapshot.tilt_servo.devices[1].input_voltage_decivolt = 51U;
+  snapshot.tilt_servo.devices[1].temperature_c = 32U;
+  snapshot.tilt_servo.devices[1].operating_mode = 3U;
+  const auto packet_v2 =
+      haptics::encodeEspNowTelemetryPacketV2(snapshot, 100U);
+  TEST_ASSERT_EQUAL_UINT32(200U, sizeof(packet_v2));
+  TEST_ASSERT_TRUE(
+      haptics::validateEspNowTelemetryPacketV2(&packet_v2, sizeof(packet_v2)));
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<uint8_t>(haptics::TiltServoState::Armed),
+      packet_v2.tilt_servo_state);
+  TEST_ASSERT_EQUAL_UINT8(0x0FU, packet_v2.tilt_device_flags);
+  TEST_ASSERT_EQUAL_UINT16(3085U, packet_v2.tilt_present_position_raw[0]);
+  TEST_ASSERT_EQUAL_INT16(-13, packet_v2.tilt_present_current_ma[1]);
+  auto corrupted_v2 = packet_v2;
+  corrupted_v2.tilt_temperature_c[0] ^= 0x01U;
+  TEST_ASSERT_FALSE(haptics::validateEspNowTelemetryPacketV2(
+      &corrupted_v2, sizeof(corrupted_v2)));
+}
+
+void test_espnow_control_and_response_round_trip_and_integrity() {
+  const auto command = haptics::encodeEspNowControlPacketV1(
+      haptics::EspNowControlOperation::SetParam, 17U, 0x12345678U,
+      haptics::EspNowControlValueType::Number, haptics::RunMode::Idle, false,
+      0.65f, "container.fill", nullptr);
+  TEST_ASSERT_EQUAL_UINT32(140U, sizeof(command));
+  TEST_ASSERT_TRUE(
+      haptics::validateEspNowControlPacketV1(&command, sizeof(command)));
+  TEST_ASSERT_EQUAL_UINT32(17U, command.request_id);
+  TEST_ASSERT_EQUAL_UINT32(0x12345678U, command.session_id);
+  TEST_ASSERT_EQUAL_STRING("container.fill", command.path);
+  TEST_ASSERT_FLOAT_WITHIN(1.0e-7f, 0.65f, command.number);
+
+  auto corrupt_command = command;
+  reinterpret_cast<uint8_t*>(&corrupt_command)[25] ^= 0x01U;
+  TEST_ASSERT_FALSE(haptics::validateEspNowControlPacketV1(
+      &corrupt_command, sizeof(corrupt_command)));
+  TEST_ASSERT_FALSE(haptics::validateEspNowControlPacketV1(
+      &command, sizeof(command) - 1U));
+
+  const auto response = haptics::encodeEspNowControlResponseV1(
+      haptics::EspNowControlResult::Applied, command.request_id,
+      command.session_id, 987654321ULL, "parameter_applied");
+  TEST_ASSERT_EQUAL_UINT32(88U, sizeof(response));
+  TEST_ASSERT_TRUE(haptics::validateEspNowControlResponseV1(
+      &response, sizeof(response)));
+  TEST_ASSERT_EQUAL_UINT32(command.request_id, response.request_id);
+  TEST_ASSERT_EQUAL_UINT64(987654321ULL, response.applied_frame_counter);
+  TEST_ASSERT_EQUAL_STRING("parameter_applied", response.detail);
+
+  auto corrupt_response = response;
+  corrupt_response.detail[0] ^= 0x20;
+  TEST_ASSERT_FALSE(haptics::validateEspNowControlResponseV1(
+      &corrupt_response, sizeof(corrupt_response)));
+}
+
 }  // namespace
 
 void setUp() {}
@@ -1182,6 +1360,7 @@ int main(int, char**) {
   RUN_TEST(test_texture_and_spatial_configure_restore_state);
   RUN_TEST(test_tilt_reset_restores_fresh_state);
   RUN_TEST(test_motion_filter_defaults_and_atom_profile_opt_in);
+  RUN_TEST(test_as_built_atoms3_device_frame_transform);
   RUN_TEST(test_motion_filter_raw_time_and_missing_sample_contract);
   RUN_TEST(test_motion_filter_long_gap_boundary_and_reset);
   RUN_TEST(test_motion_integration_substep_policy_bounds_recovery_steps);
@@ -1194,5 +1373,7 @@ int main(int, char**) {
   RUN_TEST(test_all_material_families_remain_event_silent_at_rest);
   RUN_TEST(test_enhanced_event_quiet_gate_reopens_for_deliberate_activity);
   RUN_TEST(test_mass_activity_path_uses_raw_for_position_and_filtered_for_energy);
+  RUN_TEST(test_espnow_wire_packet_round_trip_and_integrity);
+  RUN_TEST(test_espnow_control_and_response_round_trip_and_integrity);
   return UNITY_END();
 }

@@ -1,17 +1,91 @@
-# Container Haptics WebXR Demo
+# Container Haptics Web Client
 
-Standalone visual client for the parametric container haptics project.
+Visual client for the parametric container haptics project, with an optional
+StampC5-connected demo and a separate browser-local preview.
 
-This v1 demo does not communicate with the StickS3 firmware. It reads the repository presets at build time and renders an interactive visual approximation of the same container/content families.
+The connected desktop UI, USB/radio command path and device-driven rendering are
+implemented; desktop handling and visual/felt agreement have been demonstrated.
+The next direction is a PC/shared Web tuning studio and visual refinement, then
+Android AR. A/B comparison, saved applied settings and the planned liquid/sand
+visual improvements are not implemented yet. The Android device and simultaneous
+USB/AR operation are unverified. VR/Quest development is on hold; its retained
+implementation and initial USB/MR-entry evidence are not a completed MR demo.
+See [current status](../docs/16_PROGRESS_STATUS.md) for evidence,
+[active plan](../docs/08_IMPLEMENTATION_PLAN.md) for priorities and
+[demo acceptance](../docs/07_TEST_AND_VALIDATION.md) for validation.
 
 The app is intentionally kept as a nested web project. Its Node dependencies, Vite config, generated assets, and tunnel script are isolated under `webxr/` so the PlatformIO firmware builds stay independent.
 
 ## Modes
 
-- Phone: normal browser mode with touch drag and optional device-orientation tilt.
-- Quest MR: WebXR AR session targeting Meta Quest 3/3S, with hand-tracking near-grab support and an in-scene experiment panel.
-- Desktop: normal browser mode plus IWSDK/IWER emulation during local development.
-- WebUSB probe: standalone `/webusb.html` diagnostics for testing Quest Browser access to Atom S3 / ESP32-S3 USB devices.
+- Connected desktop demo: Web Serial to StampC5; AtomS3 owns motion/content, applied configuration and physical output. A WebUSB transport also exists, with target-host compatibility tracked in 16.
+- Preview: touch drag or optional phone-orientation tilt drives a local approximation, with no hardware output.
+- Retained Quest MR (paused): automatic hand-position following and an in-scene panel. Connected mode mirrors device controls; preview retains experiment controls. This is not an Android AR implementation.
+- Desktop development: normal browser view plus IWSDK/IWER emulation.
+- WebUSB probe: separate `/webusb.html` diagnostics for the actual StampC5 interface on the intended host.
+
+## Connected demo
+
+1. Use the current AtomS3 tilt+ESP-NOW demo image and updated StampC5 bridge.
+   The demo image starts in Idle with both outputs OFF and enables ESP-NOW
+   automatically; let the dongle pair. Other radio builds and older images
+   require local Idle followed by `espnow link on`. Neither path arms outputs.
+2. Select PC Serial or phone/Quest WebUSB, then **StampC5に接続**. Connect only
+   observes status and requests device state. Do not leave another application
+   holding the same USB interface.
+   State discovery briefly retries only the bridge's not-yet-discovered/paired
+   responses (up to 3.5 seconds). A connected **状態を再取得** button permits a
+   read-only retry without reopening USB. A broadcast snapshot alone does not
+   enable Start while the bridge explicitly reports unpaired. Output commands
+   are not automatically retried or replayed by discovery.
+   Successful explicit refresh/reconnection also abandons an old pending preset
+   selection and uses the reported current material, without reapplying it or
+   arming outputs. A failed refresh does not claim that recovery succeeded.
+3. Choose an actual device preset or apply fill. These operations Stop first,
+   await execution ACKs and use reported applied state. Fill also sets
+   complementary headspace. The display uses device dimensions, not guessed
+   JSON values under the same preset name.
+4. Select vibration/tilt and press **実機で開始**. Start sends Live, then explicit
+   output commands. A partly failed Start requests Stop.
+5. Stop when finished. **停止してプレビューへ** requests Stop before disconnecting
+   a live link. Connecting, reconnecting and selecting a preset never auto-arm.
+
+The transport understands mixed NDJSON, diagnostics and request-matched ACKs,
+including fragmented UTF-8 reads. Stop cancels unsent work and prevents an older
+Start sequence from continuing after it. Missing/stale telemetry freezes the
+last connected view and labels physical output as unconfirmed; it does not
+silently resume preview animation. Telemetry silence is not a Stop confirmation.
+
+At rest, the connected THREE XYZ pose rotates body-frame specific force onto
+world +Y; reported content x/y therefore moves toward the displayed downhill wall.
+
+The current connected HUD exposes preset selection, fill and output controls.
+The preview's motion/damping sliders and trial recorder are not device tuning
+controls. Do not confuse a requested setting or local preview value with an
+acknowledged device-applied parameter; see [parameter ownership](../docs/06_PARAMETER_MODEL.md).
+
+Wire formats, bridge compatibility and command ownership are defined in the
+[interface specification](../docs/05_INTERFACE_SPEC.md). For a host-specific
+USB failure use `/webusb.html` and the [USB probe reference](../docs/reference/19_WEBUSB_QUEST_PROBE.md),
+rather than treating a chooser or descriptor listing as successful transfer.
+
+## Retained Quest MR (paused)
+
+Enter MR requests a session directly from the user's click and shows Exit MR
+only after XR setup succeeds; failure remains retryable. Sessions retain
+local-floor space, and ending MR restores the desktop projection and scene
+height. Each tracked hand/controller has its own press state, cleared on tracking
+loss or session exit. The selected tracked hand automatically carries the object,
+with no approach-distance or pinch requirement. Tracking loss holds its last
+position until the same hand returns, without switching to the panel-operating
+hand. Hand tracking supplies position only; connected orientation remains IMU-driven,
+without an added wrist rotation. `setPreferredHand("left" | "right" | "any")`
+selects the grasp side; `any` initially selects the first tracked hand. The
+assembled demo selects the right hand, as requested by the operator.
+This updated following behavior still needs the actual Quest handling check.
+The in-scene connected panel provides the same preset, output selection and
+Start/Stop path as the ordinary HUD. Revisit the actual hand/panel, handling and
+recovery checks only when Quest work resumes; they are not the active PC task.
 
 ## Project layout
 
@@ -24,6 +98,7 @@ webxr/
 |   `-- start-quest-tunnel.ps1
 |-- src/
 |   |-- input/PhoneInput.ts
+|   |-- link/HapticLink.ts
 |   |-- renderer/
 |   |   |-- ContainerScene.ts
 |   |   |-- EnvironmentScene.ts
@@ -32,6 +107,7 @@ webxr/
 |   |   `-- SpatialControlPanel.ts
 |   |-- xr/WebXrBridge.ts
 |   |-- experimentRecorder.ts
+|   |-- deviceDemo.ts
 |   |-- main.ts
 |   |-- presets.ts
 |   |-- simulator.ts
@@ -42,52 +118,51 @@ webxr/
 `-- vite.config.ts
 ```
 
-## Visual model
+## Visual model and state ownership
 
-- Procedural texture assets are generated in-browser for the wooden bench, calibration mat, liquid normals, and sample label.
-- The scene includes a small lab-bench environment so phone demos read as an object in space rather than a floating cube.
-- A lightweight spatial experiment panel is rendered as a Three.js canvas texture in the MR scene. It provides a paged preset list, repeatable stimulus selection, motion/damping sliders, trial controls, and a fixed Reset Object button so ray and fingertip direct-touch behavior can be evaluated before adopting a fuller IWSDK UIKit/UIKitML surface.
-- The phone HUD mirrors the spatial panel's motion-boost and damping-preview sliders. Changes from either surface update the same `SpatialPanelState` used by the visual simulator.
-- The phone HUD includes a browser-local trial strip for condition/repeat entry, start/stop, mark, next, elapsed time, and JSON/CSV export. Trial data stays in memory until exported or the page is refreshed.
-- Optional stimulus scripts can override tilt for repeatable demos: manual, gentle roll, wall tap, swirl, and settle. Manual remains the default, and Reset returns to manual/rest.
-- During near-grab, the app-side hand mesh for the active hand is hidden and replaced by simple contact markers attached to the container. Input still comes from the tracked WebXR hand joints.
-- Box presets are rendered as hand-scale 7 cm cubes in the WebXR demo so Quest hand tracking reads at a plausible physical size. This visual normalization does not rewrite the repository preset files.
-- A WebXR-only `liquid_cylinder_bottle` preset adds a cylindrical bottle body with a neck, cap, circular liquid volume, and circular liquid surface.
-- A WebXR-only `liquid_plastic_tumbler` preset adds a translucent tapered plastic cup with a raised rim, base, and slightly tapered liquid volume.
-- Liquid visuals use a damped slosh state, animated surface mesh, normal ripples, and foam/bubble markers. The bulk liquid volume stays inset and clamped inside the container; only the liquid surface and internal offsets move.
-- Granular and hybrid visuals use instanced particles with simple tilt-driven velocity, wall/floor bounce, damping, and hardness-dependent spread.
+In connected mode, `DeviceDemo` passes device-reported mass position, velocity,
+activity and fill to `ContainerScene`. The box uses resolved dimensions without
+7 cm normalization. Raw accelerometer values plus the reported mounting-frame
+flag provide gravity-referenced roll/pitch, not absolute yaw. No browser servo
+or vibration waveform is sent. This is a lightweight view of the on-device
+reduced model, not a full fluid/particle CFD simulation.
 
-The visual state is local to the browser:
+The connected single-marble/fine-grain/liquid/hybrid scenes use that shared
+state. Preview-only bottle/cup geometry and scripted motion do not override the
+connected box or drive physical output. Improving liquid first, then sand,
+is planned visual work; it must retain this device-state ownership.
 
-- preset fields are imported from `../presets/*.json`,
-- `VisualSimulator` maps virtual tilt into slosh, agitation, impact pulse, waves, and particle spread,
-- `ContainerScene` renders the transparent container, label, liquid, foam, and particles,
-- `GripProxy` renders the thumb/index contact markers used during visual grab substitution,
-- `EnvironmentScene` provides the bench-like spatial context,
-- `SpatialControlPanel` provides the in-scene prototype UI for ray/direct-touch paged preset selection, stimulus cycling, trial start/mark/next, sliders, and reset interaction,
-- `ExperimentRecorder` keeps in-memory trial records and exports JSON or CSV without external dependencies,
-- `stimulusScripts` provides repeatable visual-only tilt paths for experiment setup,
-- `WebXrBridge` prefers the thumb-index midpoint as the grab position when fingertips are separated enough to bracket the object, and falls back to a broader hand-position estimate when needed,
-- no live telemetry, WebSocket, or StickS3 control path is used in v1.
+The retained offline preview includes:
 
-The WebUSB probe is separate from the visual app. It feature-detects WebUSB and
-native Web Serial, lists USB descriptors, claims selected interfaces, and sends
-or receives bytes through selected endpoints. It is meant to validate Quest
-Browser transport options before adding a firmware protocol.
+- Local preset imports from `../presets/*.json`, touch/phone tilt and optional
+  gentle-roll, wall-tap, swirl and settle scripts. Manual is the default.
+- `VisualSimulator` and `ContainerScene` provide approximate liquid slosh and
+  granular motion, with procedural lab-bench assets. Preview boxes are normalized
+  to 7 cm; bottle/tumbler shapes are preview-only.
+- Shared HUD/spatial-panel preview controls for motion and damping.
+- `ExperimentRecorder` keeps browser-local trial records in memory and exports
+  JSON/CSV. It does not save device presets or implement the planned A/B studio.
+- `WebXrBridge` estimates grip position from tracked fingertips/wrist;
+  `GripProxy` replaces the active app-side hand mesh with contact markers.
+
+Preview is explicitly browser-local and has no hardware output. Its detailed
+retained implementation is described in the [visual-client reference](../docs/reference/18_WEBXR_SMARTPHONE_DEMO.md).
 
 ## Development
 
 ```powershell
 cd webxr
-npm.cmd install
+npm.cmd ci
 npm.cmd run dev
 ```
 
-The dev server uses HTTPS because WebXR requires a secure context. Open the `Network` URL on a Quest connected to the same Wi-Fi, or use the app's `Send to Quest` button from a deployed HTTPS URL.
+Open the URL printed by Vite in the desktop browser. The development server uses
+HTTPS and includes IWSDK/IWER support; Android AR is not yet implemented by
+running this server or opening the same URL on a phone.
 
 Use this mode for active desktop/mobile development. It includes Vite HMR and IWSDK/IWER dev support, but HMR is not the most reliable path through public tunnels.
 
-For a Quest demo over the internet, run:
+The retained experimental Quest tunnel helper can be used when that work resumes:
 
 ```powershell
 cd webxr
@@ -110,38 +185,29 @@ npm.cmd run quest -- -Port 8090
 ```powershell
 npm.cmd run typecheck
 npm.cmd run build
+node --test test/haptic-link.test.mjs
+node --test tests/device-demo.test.mjs tests/container-scene.test.mjs tests/spatial-control-panel.test.mjs tests/webxr-bridge.test.mjs
 ```
 
-For Quest tunnel validation:
+These are software checks; mocked browser/USB tests do not establish hardware
+transfer or real hand tracking. The current software evidence is recorded in 16.
 
-1. Run `npm.cmd run quest`.
-2. Open the printed `trycloudflare.com` URL in Quest Browser.
-3. Confirm the phone/desktop view loads before entering MR.
-4. Press `Enter MR` and allow the browser's WebXR permissions.
-5. Bring a tracked hand near the container; it should attach to the estimated grab position without requiring a pinch.
-6. Aim a controller ray or bring an index fingertip near the spatial panel; preset rows, paging, stimulus controls, trial buttons, sliders, and Reset Object should respond without requiring the phone HUD.
-7. Move the DOM motion/damping sliders and confirm the MR panel mirrors those values; move the MR sliders and confirm the DOM values update.
-8. Start a trial from either the HUD or MR panel, select a stimulus script from either surface, mark/next/stop, and export JSON or CSV. Exported rows should include timestamp, preset, input mode, panel state, tilt, phase, and marker.
+For an affected desktop interaction, use the connected-demo steps above: check
+reported configuration, deliberate Start, handled visual/haptic agreement and
+Stop. Reuse the established desktop evidence; repeat only the changed behavior.
+The owning [acceptance document](../docs/07_TEST_AND_VALIDATION.md) defines the
+necessary check, and [16](../docs/16_PROGRESS_STATUS.md) records actual results.
+Desktop success does not establish Android USB+AR or the paused Quest handling
+and recovery flow. A/B persistence and new rendering cannot pass until implemented.
 
-For WebUSB validation:
-
-1. Run `npm.cmd run quest`.
-2. Open the printed URL plus `/webusb.html` in Quest Browser.
-3. Confirm the status strip reports whether WebUSB and native Web Serial are exposed.
-4. Connect an Atom S3 / ESP32-S3 over USB-C and try the default `0x303a` filter.
-5. Claim the interface that exposes bulk IN/OUT endpoints and test echo traffic.
-
-The firmware baseline should still be validated from the repository root:
-
-```powershell
-pio run -e m5stack-sticks3
-```
+For a browser-only edit, no firmware rebuild is required. Protocol or shared
+behavior changes additionally need the affected firmware targets and fixtures
+in [development setup](../docs/reference/19_DEVELOPMENT_SETUP.md).
 
 ## Notes
 
-- The app imports `../presets/*.json` and does not define a second source of truth for material presets.
-- WebXR box geometry is normalized to 7 cm for hand-scale visual inspection; firmware and haptic dimensions remain unchanged.
-- Meta IWSDK packages are included for the Quest development foundation and IWER workflow. The runtime WebXR bridge is isolated so it can be swapped to deeper IWSDK ECS/grab, MultiPointer, UIKit, and UIKitML components as those APIs stabilize.
-- Smartphone support is not a blocker for the MR panel path. The phone HUD stays DOM-based for quick demos, while the MR panel is a separate in-scene surface with its own interaction path.
-- The trial strip is browser-local only. It is not firmware telemetry, and it does not change the deferred live telemetry/control plan.
+- Preview imports `../presets/*.json`; connected mode uses the reported applied material and configuration, including the firmware single-marble preset.
+- Only preview box geometry is normalized to 7 cm. Connected dimensions are the applied device dimensions.
+- Existing Meta IWSDK/IWER support is retained for development and the paused Quest path; no new framework migration is implied by the tuning-studio plan.
+- The phone HUD and connected MR panel share command/state ownership; they are different input surfaces, not independent hardware controllers.
 - Cloudflare Quick Tunnel URLs are temporary and last only while the local command is running.

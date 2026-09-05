@@ -1,0 +1,24 @@
+status: preset=liquid_small_box mode=idle frame=6156 new_evt=0 evt_total=0 evt=None/None energy=0.000 pos=(0.00,0.00) imu_stop=0 imu_fault=0 audio=0 zero=1 driver=1 transport=tdm8_slot diag=0 layout=quad_wall_4ch gain=1.00 limit=0.080 rec=0 replay=0 tilt=0
+remote: compile_enabled=0 runtime_enabled=0
+espnow_link: compile=1 initialized=1 runtime=1 channel=6 period_ms=100 packet_bytes=230 sequence=81 tx=81 dropped=0 errors=0 paired=1 session=37651086 control_rx=1 control_invalid=0 control_queue_drops=0 responses=1 applied=1 rejected=0
+usb_telemetry: compile=1 runtime=0 period_ms=100 pending=0 tx=0 dropped=0 backpressure=0 console_interrupt=0 unterminated=0 errors=0
+preset=liquid_small_box mode=0 frame=6314 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=6502 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=6695 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+espnow_link: compile=1 initialized=1 runtime=1 channel=6 period_ms=100 packet_bytes=230 sequence=88 tx=88 dropped=0 errors=0 paired=1 session=37651086 control_rx=1 control_invalid=0 control_queue_drops=0 responses=1 applied=1 rejected=0
+preset=liquid_small_box mode=0 frame=6880 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=7074 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+audio: enabled=0 zero=1 driver=1 transport=tdm8_slot diag=0 layout=quad_wall_4ch gain=1.00 limit=0.080 active_channels=4 test=0 wall=None level=0.20 errors=0
+preset=liquid_small_box mode=0 frame=7257 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=7453 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=7638 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+tilt: enabled=0 state=ready_torque_off fault=none backend=atoms3_dxl2 errors=0 cmd_age=10750 status_age=10553 pseudoforce=1 delta=(0.00,0.00) base=(0.00,0.00)
+tilt: id=1 valid=1 model=1190 mode=3 torque=0 home=2036 pos=2036 cmd=2036 goal=2036 pwm=0 current=0mA voltage=5.1V temp=38C hwerr=0x00
+tilt: id=2 valid=1 model=1190 mode=3 torque=0 home=3081 pos=3081 cmd=3081 goal=3081 pwm=0 current=0mA voltage=5.1V temp=36C hwerr=0x00
+preset=liquid_small_box mode=0 frame=7830 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=8014 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=8208 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=8393 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=8588 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=8779 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=8965 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0

@@ -180,7 +180,7 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
     return;
   }
 
-  StaticJsonDocument<2560> doc;
+  StaticJsonDocument<3072> doc;
   doc["timestamp_ms"] = snapshot.timestamp_ms;
   doc["frame_counter"] = snapshot.frame_counter;
   doc["new_evt"] = snapshot.new_evt;
@@ -208,6 +208,12 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
   vel.add(snapshot.mass.vel_norm_s.y);
   mass["energy"] = snapshot.mass.energy;
   mass["fill"] = snapshot.mass.fill;
+  JsonArray contacts = mass.createNestedArray("wall_contact");
+  JsonArray impacts = mass.createNestedArray("wall_impact_speed_norm_s");
+  for (std::size_t wall = 0; wall < 4; ++wall) {
+    contacts.add(snapshot.mass.wall_contact[wall]);
+    impacts.add(snapshot.mass.wall_impact_speed_norm_s[wall]);
+  }
   mass["headspace"] = snapshot.mass.headspace;
 
   JsonObject last_event = doc.createNestedObject("last_event");
@@ -235,6 +241,32 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
   tilt["cg_y_m"] = snapshot.tilt.cg_y_m;
   tilt["apparent_mass_kg"] = snapshot.tilt.apparent_mass_kg;
   tilt["pseudoforce_enabled"] = snapshot.tilt.pseudoforce_enabled;
+
+  JsonObject tilt_servo = doc.createNestedObject("tilt_servo");
+  tilt_servo["compile_enabled"] = snapshot.tilt_servo.compile_enabled;
+  tilt_servo["atoms3_dxl2_backend"] = snapshot.tilt_servo.atoms3_dxl2_backend;
+  tilt_servo["runtime_requested"] = snapshot.tilt_servo.runtime_requested;
+  tilt_servo["state"] = static_cast<uint8_t>(snapshot.tilt_servo.state);
+  tilt_servo["fault"] = static_cast<uint8_t>(snapshot.tilt_servo.fault);
+  tilt_servo["communication_errors"] = snapshot.tilt_servo.communication_errors;
+  tilt_servo["command_age_ms"] = snapshot.tilt_servo.command_age_ms;
+  tilt_servo["status_age_ms"] = snapshot.tilt_servo.status_age_ms;
+  JsonArray tilt_devices = tilt_servo.createNestedArray("devices");
+  for (const auto& device : snapshot.tilt_servo.devices) {
+    JsonObject output = tilt_devices.createNestedObject();
+    output["id"] = device.id;
+    output["status_valid"] = device.status_valid;
+    output["torque_enabled"] = device.torque_enabled;
+    output["model_number"] = device.model_number;
+    output["operating_mode"] = device.operating_mode;
+    output["hardware_error"] = device.hardware_error;
+    output["home_position_raw"] = device.home_position_raw;
+    output["present_position_raw"] = device.present_position_raw;
+    output["goal_position_raw"] = device.goal_position_raw;
+    output["present_current_ma"] = device.present_current_ma;
+    output["input_voltage_v"] = device.input_voltage_decivolt * 0.1f;
+    output["temperature_c"] = device.temperature_c;
+  }
 
   JsonObject audio = doc.createNestedObject("audio");
   audio["compile_enabled"] = snapshot.audio.compile_enabled;

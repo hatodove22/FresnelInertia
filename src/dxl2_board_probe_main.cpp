@@ -22,6 +22,7 @@ using haptics::dxl2_probe::kMotionGoalPwmLimit;
 using haptics::dxl2_probe::kMotionMaxVoltageDecivolt;
 using haptics::dxl2_probe::kMotionMinVoltageDecivolt;
 using haptics::dxl2_probe::kMotionPositionTolerancePulses;
+using haptics::dxl2_probe::kMotionPositionPGain;
 using haptics::dxl2_probe::kMotionProfileAcceleration;
 using haptics::dxl2_probe::kMotionProfileVelocity;
 using haptics::dxl2_probe::kMotionTravelPulses;
@@ -36,10 +37,17 @@ constexpr uint8_t kWriteInstruction = 0x03;
 constexpr uint16_t kAddrId = 7;
 constexpr uint16_t kAddrDriveMode = 10;
 constexpr uint16_t kAddrOperatingMode = 11;
+constexpr uint16_t kAddrHomingOffset = 20;
+constexpr uint16_t kAddrPwmLimit = 36;
 constexpr uint16_t kAddrMaxPositionLimit = 48;
 constexpr uint16_t kAddrMinPositionLimit = 52;
 constexpr uint16_t kAddrTorqueEnable = 64;
 constexpr uint16_t kAddrHardwareError = 70;
+constexpr uint16_t kAddrPositionDGain = 80;
+constexpr uint16_t kAddrPositionIGain = 82;
+constexpr uint16_t kAddrPositionPGain = 84;
+constexpr uint16_t kAddrFeedforward2ndGain = 88;
+constexpr uint16_t kAddrFeedforward1stGain = 90;
 constexpr uint16_t kAddrBusWatchdog = 98;
 constexpr uint16_t kAddrGoalPwm = 100;
 constexpr uint16_t kAddrProfileAcceleration = 108;
@@ -76,8 +84,25 @@ struct DeviceInfo {
   bool torque_enabled = false;
   bool torque_off_confirmed = false;
   bool status_valid = false;
+  bool control_config_valid = false;
+  uint8_t drive_mode = 0;
   uint8_t operating_mode = 0;
   uint8_t hardware_error = 0;
+  int32_t homing_offset_raw = 0;
+  uint16_t pwm_limit_raw = 0;
+  uint16_t position_d_gain = 0;
+  uint16_t position_i_gain = 0;
+  uint16_t position_p_gain = 0;
+  uint16_t feedforward_2nd_gain = 0;
+  uint16_t feedforward_1st_gain = 0;
+  uint8_t bus_watchdog = 0;
+  int16_t goal_pwm_raw = 0;
+  uint32_t profile_acceleration = 0;
+  uint32_t profile_velocity = 0;
+  int32_t goal_position_raw = 0;
+  int32_t min_position_limit_raw = 0;
+  int32_t max_position_limit_raw = 0;
+  int16_t present_pwm_raw = 0;
   int16_t present_current_ma = 0;
   int32_t present_position_raw = 0;
   float input_voltage_v = 0.0f;
@@ -155,33 +180,41 @@ void beginDxlBus(uint32_t baud) {
 }
 
 bool sendInstruction(uint8_t id, uint8_t instruction, const uint8_t* params, size_t param_length) {
-  const size_t total_length = 10 + param_length;
-  if (total_length > kMaxPacketBytes) {
+  if ((param_length > 0 && params == nullptr) ||
+      param_length > kMaxPacketBytes - 10) {
     return false;
   }
 
   std::array<uint8_t, kMaxPacketBytes> packet{};
-  const uint16_t protocol_length = static_cast<uint16_t>(param_length + 3);
   packet[0] = 0xFF;
   packet[1] = 0xFF;
   packet[2] = 0xFD;
   packet[3] = 0x00;
   packet[4] = id;
+  packet[7] = instruction;
+
+  size_t used = 8;
+  for (size_t i = 0; i < param_length; ++i) {
+    if (used + 3 > packet.size()) {
+      return false;
+    }
+    packet[used++] = params[i];
+    if (used >= 10 && packet[used - 3] == 0xFF &&
+        packet[used - 2] == 0xFF && packet[used - 1] == 0xFD) {
+      packet[used++] = 0xFD;
+    }
+  }
+  const uint16_t protocol_length = static_cast<uint16_t>(used - 7 + 2);
   packet[5] = static_cast<uint8_t>(protocol_length & 0xFF);
   packet[6] = static_cast<uint8_t>((protocol_length >> 8) & 0xFF);
-  packet[7] = instruction;
-  if (param_length > 0 && params != nullptr) {
-    std::memcpy(&packet[8], params, param_length);
-  }
-
-  const uint16_t crc = updateCrc(0, packet.data(), 8 + param_length);
-  packet[8 + param_length] = static_cast<uint8_t>(crc & 0xFF);
-  packet[9 + param_length] = static_cast<uint8_t>((crc >> 8) & 0xFF);
+  const uint16_t crc = updateCrc(0, packet.data(), used);
+  packet[used++] = static_cast<uint8_t>(crc & 0xFF);
+  packet[used++] = static_cast<uint8_t>((crc >> 8) & 0xFF);
 
   drainDxlInput();
-  const size_t written = g_dxl.write(packet.data(), total_length);
+  const size_t written = g_dxl.write(packet.data(), used);
   g_dxl.flush();
-  return written == total_length;
+  return written == used;
 }
 
 struct RawFrame {
@@ -289,9 +322,18 @@ bool waitForStatus(uint8_t expected_id, StatusPacket& status, uint32_t timeout_m
 
     status.id = frame.bytes[4];
     status.error = frame.bytes[8];
-    status.param_length = std::min(status.params.size(), frame.size - 11);
-    if (status.param_length > 0) {
-      std::memcpy(status.params.data(), &frame.bytes[9], status.param_length);
+    status.param_length = 0;
+    const size_t param_end = frame.size - 2;
+    for (size_t i = 9; i < param_end; ++i) {
+      if (status.param_length >= status.params.size()) {
+        return false;
+      }
+      status.params[status.param_length++] = frame.bytes[i];
+      if (i >= 11 && i + 1 < param_end &&
+          frame.bytes[i - 2] == 0xFF && frame.bytes[i - 1] == 0xFF &&
+          frame.bytes[i] == 0xFD && frame.bytes[i + 1] == 0xFD) {
+        ++i;
+      }
     }
     return true;
   }
@@ -359,18 +401,32 @@ bool writeRegisterVerified(
 
   // Status Return Level may suppress the write response, so verify the RAM
   // register directly instead of depending on that response.
-  StatusPacket ignored{};
-  waitForStatus(id, ignored, 15);
-  std::array<uint8_t, 4> readback{};
-  if (!readRegister(
-          id,
-          address,
-          static_cast<uint16_t>(value_length),
-          readback.data(),
-          readback.size())) {
+  StatusPacket write_status{};
+  const bool received_write_status = waitForStatus(id, write_status, 15);
+  if (received_write_status && write_status.error != 0) {
+    Serial.printf(
+        "DXL WRITE STATUS ERROR ID%u addr=%u error=0x%02X.\n",
+        static_cast<unsigned>(id),
+        static_cast<unsigned>(address),
+        static_cast<unsigned>(write_status.error));
     return false;
   }
-  return std::memcmp(value, readback.data(), value_length) == 0;
+
+  // The half-duplex receiver occasionally misses the first verification reply.
+  // Retry reads only; never repeat the write or accept an unverified value.
+  for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+    std::array<uint8_t, 4> readback{};
+    if (readRegister(
+            id,
+            address,
+            static_cast<uint16_t>(value_length),
+            readback.data(),
+            readback.size())) {
+      return std::memcmp(value, readback.data(), value_length) == 0;
+    }
+    delay(3);
+  }
+  return false;
 }
 
 bool writeRegisterU8(uint8_t id, uint16_t address, uint8_t value) {
@@ -456,15 +512,55 @@ void emergencyTorqueOff() {
 void readDeviceStatus(DeviceInfo& device) {
   beginDxlBus(device.baud);
 
+  std::array<uint8_t, 2> identity_config{};
+  const bool identity_config_valid = readRegister(
+      device.id, kAddrDriveMode, identity_config.size(),
+      identity_config.data(), identity_config.size());
+  if (identity_config_valid) {
+    device.drive_mode = identity_config[0];
+    device.operating_mode = identity_config[1];
+  }
+
+  std::array<uint8_t, 4> encoded32{};
+  const bool homing_offset_valid = readRegister(
+      device.id, kAddrHomingOffset, encoded32.size(), encoded32.data(),
+      encoded32.size());
+  if (homing_offset_valid) {
+    device.homing_offset_raw = readLe32Signed(encoded32.data());
+  }
+
+  std::array<uint8_t, 2> encoded16{};
+  const bool pwm_limit_valid = readRegister(
+      device.id, kAddrPwmLimit, encoded16.size(), encoded16.data(),
+      encoded16.size());
+  if (pwm_limit_valid) {
+    device.pwm_limit_raw = readLe16(encoded16.data());
+  }
+
+  std::array<uint8_t, 8> position_limits{};
+  const bool position_limits_valid = readRegister(
+      device.id, kAddrMaxPositionLimit, position_limits.size(),
+      position_limits.data(), position_limits.size());
+  if (position_limits_valid) {
+    device.max_position_limit_raw = readLe32Signed(&position_limits[0]);
+    device.min_position_limit_raw = readLe32Signed(&position_limits[4]);
+  }
+
   uint8_t torque = 0;
   device.torque_read_valid = readRegister(device.id, kAddrTorqueEnable, 1, &torque, 1);
   device.torque_enabled = device.torque_read_valid && torque != 0;
   device.torque_off_confirmed = device.torque_read_valid && torque == 0;
 
-  uint8_t operating_mode = 0;
-  const bool mode_valid = readRegister(device.id, kAddrOperatingMode, 1, &operating_mode, 1);
-  if (mode_valid) {
-    device.operating_mode = operating_mode;
+  std::array<uint8_t, 12> position_gains{};
+  const bool position_gains_valid = readRegister(
+      device.id, kAddrPositionDGain, position_gains.size(),
+      position_gains.data(), position_gains.size());
+  if (position_gains_valid) {
+    device.position_d_gain = readLe16(&position_gains[0]);
+    device.position_i_gain = readLe16(&position_gains[2]);
+    device.position_p_gain = readLe16(&position_gains[4]);
+    device.feedforward_2nd_gain = readLe16(&position_gains[8]);
+    device.feedforward_1st_gain = readLe16(&position_gains[10]);
   }
 
   uint8_t hardware_error = 0;
@@ -473,20 +569,48 @@ void readDeviceStatus(DeviceInfo& device) {
     device.hardware_error = hardware_error;
   }
 
-  std::array<uint8_t, kPresentStatusLength> present{};
+  std::array<uint8_t, 6> command_limits{};
+  const bool command_limits_valid = readRegister(
+      device.id, kAddrBusWatchdog, command_limits.size(),
+      command_limits.data(), command_limits.size());
+  if (command_limits_valid) {
+    device.bus_watchdog = command_limits[0];
+    device.goal_pwm_raw = static_cast<int16_t>(readLe16(&command_limits[2]));
+  }
+
+  std::array<uint8_t, 12> profile_and_goal{};
+  const bool profile_and_goal_valid = readRegister(
+      device.id, kAddrProfileAcceleration, profile_and_goal.size(),
+      profile_and_goal.data(), profile_and_goal.size());
+  if (profile_and_goal_valid) {
+    device.profile_acceleration =
+        static_cast<uint32_t>(readLe32Signed(&profile_and_goal[0]));
+    device.profile_velocity =
+        static_cast<uint32_t>(readLe32Signed(&profile_and_goal[4]));
+    device.goal_position_raw = readLe32Signed(&profile_and_goal[8]);
+  }
+
+  std::array<uint8_t, kPresentStatusLength + 2> present{};
   const bool present_valid = readRegister(
       device.id,
-      kAddrPresentCurrent,
-      kPresentStatusLength,
+      kAddrPresentPwm,
+      present.size(),
       present.data(),
       present.size());
   if (present_valid) {
-    device.present_current_ma = static_cast<int16_t>(readLe16(&present[0]));
-    device.present_position_raw = readLe32Signed(&present[6]);
-    device.input_voltage_v = readLe16(&present[18]) * 0.1f;
-    device.temperature_c = present[20];
+    device.present_pwm_raw = static_cast<int16_t>(readLe16(&present[0]));
+    device.present_current_ma = static_cast<int16_t>(readLe16(&present[2]));
+    device.present_position_raw = readLe32Signed(&present[8]);
+    device.input_voltage_v = readLe16(&present[20]) * 0.1f;
+    device.temperature_c = present[22];
   }
-  device.status_valid = device.torque_read_valid && mode_valid && error_valid && present_valid;
+  device.control_config_valid =
+      identity_config_valid && homing_offset_valid && pwm_limit_valid &&
+      position_limits_valid && position_gains_valid && command_limits_valid &&
+      profile_and_goal_valid;
+  device.status_valid = device.torque_read_valid && identity_config_valid &&
+                        error_valid && present_valid &&
+                        device.control_config_valid;
 }
 
 #if DXL2_MOTION_TEST_ENABLE
@@ -549,6 +673,8 @@ bool motionSampleIsSafe(uint8_t id, const MotionSample& sample) {
 bool waitForMotionTarget(
     uint8_t id,
     int32_t target,
+    int32_t minimum_safe_position,
+    int32_t maximum_safe_position,
     const char* phase,
     int32_t& maximum_current_ma) {
   const uint32_t start_ms = millis();
@@ -561,6 +687,16 @@ bool waitForMotionTarget(
       return false;
     }
     if (!motionSampleIsSafe(id, sample)) {
+      return false;
+    }
+    if (sample.present_position_raw < minimum_safe_position ||
+        sample.present_position_raw > maximum_safe_position) {
+      Serial.printf(
+          "MOTION ABORT ID%u %s: pos=%ld outside guarded envelope [%ld,%ld].\n",
+          static_cast<unsigned>(id), phase,
+          static_cast<long>(sample.present_position_raw),
+          static_cast<long>(minimum_safe_position),
+          static_cast<long>(maximum_safe_position));
       return false;
     }
 
@@ -607,21 +743,42 @@ bool alreadyRecorded(uint8_t id, uint32_t baud) {
 
 void printDevice(const DeviceInfo& device) {
   Serial.printf(
-      "DXL id=%u baud=%lu model=%u fw=%u torque=%s off_confirmed=%u mode=%u "
-      "vin=%.1fV temp=%uC current=%dmA pos=%ld hwerr=0x%02X status=%u\n",
+      "DXL id=%u baud=%lu model=%u fw=%u torque=%s off_confirmed=%u "
+      "drive=0x%02X mode=%u vin=%.1fV temp=%uC pwm=%d current=%dmA "
+      "pos=%ld goal=%ld hwerr=0x%02X status=%u cfg=%u\n",
       static_cast<unsigned>(device.id),
       static_cast<unsigned long>(device.baud),
       static_cast<unsigned>(device.model_number),
       static_cast<unsigned>(device.firmware_version),
       device.torque_read_valid ? (device.torque_enabled ? "ON" : "OFF") : "?",
       static_cast<unsigned>(device.torque_off_confirmed),
+      static_cast<unsigned>(device.drive_mode),
       static_cast<unsigned>(device.operating_mode),
       device.input_voltage_v,
       static_cast<unsigned>(device.temperature_c),
+      static_cast<int>(device.present_pwm_raw),
       static_cast<int>(device.present_current_ma),
       static_cast<long>(device.present_position_raw),
+      static_cast<long>(device.goal_position_raw),
       static_cast<unsigned>(device.hardware_error),
-      static_cast<unsigned>(device.status_valid));
+      static_cast<unsigned>(device.status_valid),
+      static_cast<unsigned>(device.control_config_valid));
+  Serial.printf(
+      "  control: homing=%ld limits=[%ld,%ld] pwm_limit=%u goal_pwm=%d "
+      "profile=(%lu,%lu) PID=(P%u I%u D%u) FF=(1st%u 2nd%u) watchdog=%u\n",
+      static_cast<long>(device.homing_offset_raw),
+      static_cast<long>(device.min_position_limit_raw),
+      static_cast<long>(device.max_position_limit_raw),
+      static_cast<unsigned>(device.pwm_limit_raw),
+      static_cast<int>(device.goal_pwm_raw),
+      static_cast<unsigned long>(device.profile_acceleration),
+      static_cast<unsigned long>(device.profile_velocity),
+      static_cast<unsigned>(device.position_p_gain),
+      static_cast<unsigned>(device.position_i_gain),
+      static_cast<unsigned>(device.position_d_gain),
+      static_cast<unsigned>(device.feedforward_1st_gain),
+      static_cast<unsigned>(device.feedforward_2nd_gain),
+      static_cast<unsigned>(device.bus_watchdog));
 }
 
 void drawSummary(const char* heading) {
@@ -768,6 +925,13 @@ bool runSingleServoMotion(uint8_t id, DeviceInfo& final_device) {
                   static_cast<unsigned>(id));
     return false;
   }
+  // A servo can retain a watchdog value left by another firmware until its own
+  // power cycle. Normalize that RAM state before writing the pre-arm goal.
+  if (!writeRegisterU8(id, kAddrBusWatchdog, 0)) {
+    Serial.printf("MOTION ABORT ID%u: retained Bus Watchdog could not be cleared.\n",
+                  static_cast<unsigned>(id));
+    return false;
+  }
 
   uint8_t drive_mode = 0xFF;
   uint8_t operating_mode = 0xFF;
@@ -809,15 +973,62 @@ bool runSingleServoMotion(uint8_t id, DeviceInfo& final_device) {
     return false;
   }
 
-  if (!writeRegisterU32(id, kAddrProfileAcceleration, kMotionProfileAcceleration) ||
-      !writeRegisterU32(id, kAddrProfileVelocity, kMotionProfileVelocity) ||
-      !writeRegisterU16(id, kAddrGoalPwm, static_cast<uint16_t>(kMotionGoalPwmLimit)) ||
-      !writeRegisterU8(id, kAddrBusWatchdog, kMotionBusWatchdog20Ms) ||
-      !writeRegisterU32(
-          id,
-          kAddrGoalPosition,
-          static_cast<uint32_t>(initial.present_position_raw))) {
-    Serial.printf("MOTION ABORT ID%u: conservative RAM setup failed.\n",
+  const auto requireSetupWrite = [id](bool succeeded, const char* label, uint16_t address) {
+    if (!succeeded) {
+      Serial.printf(
+          "MOTION SETUP WRITE FAIL ID%u: %s (addr=%u).\n",
+          static_cast<unsigned>(id),
+          label,
+          static_cast<unsigned>(address));
+      if (address == kAddrGoalPosition) {
+        std::array<uint8_t, 4> goal_raw{};
+        uint8_t watchdog_raw = 0xFF;
+        const bool goal_read = readRegister(
+            id, kAddrGoalPosition, goal_raw.size(), goal_raw.data(), goal_raw.size());
+        const bool watchdog_read =
+            readRegister(id, kAddrBusWatchdog, 1, &watchdog_raw, 1);
+        Serial.printf(
+            "MOTION SETUP STATE ID%u: goal=%s%ld watchdog=%s%u.\n",
+            static_cast<unsigned>(id),
+            goal_read ? "" : "read-fail/",
+            static_cast<long>(goal_read ? readLe32Signed(goal_raw.data()) : 0),
+            watchdog_read ? "" : "read-fail/",
+            static_cast<unsigned>(watchdog_read ? watchdog_raw : 0));
+      }
+    }
+    return succeeded;
+  };
+  const bool position_gain_configured =
+      kMotionPositionPGain == 0U ||
+      requireSetupWrite(
+          writeRegisterU16(id, kAddrPositionPGain, kMotionPositionPGain),
+          "Position P Gain",
+          kAddrPositionPGain);
+  if (!position_gain_configured ||
+      !requireSetupWrite(
+          writeRegisterU32(id, kAddrProfileAcceleration, kMotionProfileAcceleration),
+          "Profile Acceleration",
+          kAddrProfileAcceleration) ||
+      !requireSetupWrite(
+          writeRegisterU32(id, kAddrProfileVelocity, kMotionProfileVelocity),
+          "Profile Velocity",
+          kAddrProfileVelocity) ||
+      !requireSetupWrite(
+          writeRegisterU16(id, kAddrGoalPwm, static_cast<uint16_t>(kMotionGoalPwmLimit)),
+          "Goal PWM",
+          kAddrGoalPwm) ||
+      !requireSetupWrite(
+          writeRegisterU32(
+              id,
+              kAddrGoalPosition,
+              static_cast<uint32_t>(initial.present_position_raw)),
+          "Goal Position",
+          kAddrGoalPosition) ||
+      !requireSetupWrite(
+          writeRegisterU8(id, kAddrBusWatchdog, kMotionBusWatchdog20Ms),
+          "Bus Watchdog",
+          kAddrBusWatchdog)) {
+    Serial.printf("MOTION ABORT ID%u: conservative RAM setup failed; exact register logged above.\n",
                   static_cast<unsigned>(id));
     stopMotionTestBus(id);
     return false;
@@ -852,24 +1063,34 @@ bool runSingleServoMotion(uint8_t id, DeviceInfo& final_device) {
   }
 
   Serial.printf(
-      "MOTION START ID%u: home=%ld target=%ld travel=%ld pulses (%.2f deg), profile_velocity=%lu, pwm_limit=%d.\n",
+      "MOTION START ID%u: home=%ld target=%ld travel=%ld pulses (%.2f deg), profile=(%lu,%lu), p_gain=%u, pwm_limit=%d.\n",
       static_cast<unsigned>(id),
       static_cast<long>(home),
       static_cast<long>(target),
       static_cast<long>(target - home),
       static_cast<double>(absDifference(target, home) * 0.088f),
+      static_cast<unsigned long>(kMotionProfileAcceleration),
       static_cast<unsigned long>(kMotionProfileVelocity),
+      static_cast<unsigned>(kMotionPositionPGain),
       static_cast<int>(kMotionGoalPwmLimit));
 
+  const int32_t minimum_safe_position = std::max(
+      static_cast<int32_t>(minimum_position),
+      std::min(home, target) - kMotionPositionTolerancePulses);
+  const int32_t maximum_safe_position = std::min(
+      static_cast<int32_t>(maximum_position),
+      std::max(home, target) + kMotionPositionTolerancePulses);
   int32_t maximum_current_ma = 0;
   if (!writeRegisterU32(id, kAddrGoalPosition, static_cast<uint32_t>(target)) ||
-      !waitForMotionTarget(id, target, "out", maximum_current_ma)) {
+      !waitForMotionTarget(id, target, minimum_safe_position,
+                           maximum_safe_position, "out", maximum_current_ma)) {
     stopMotionTestBus(id);
     return false;
   }
   delay(150);
   if (!writeRegisterU32(id, kAddrGoalPosition, static_cast<uint32_t>(home)) ||
-      !waitForMotionTarget(id, home, "home", maximum_current_ma)) {
+      !waitForMotionTarget(id, home, minimum_safe_position,
+                           maximum_safe_position, "home", maximum_current_ma)) {
     stopMotionTestBus(id);
     return false;
   }

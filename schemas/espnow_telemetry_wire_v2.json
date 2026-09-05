@@ -1,0 +1,37 @@
+{
+  "protocol": "fresnel-haptic-link-telemetry",
+  "version": 2,
+  "endianness": "little",
+  "packet_size_bytes": 200,
+  "maximum_supported_packet_bytes": 200,
+  "compatibility": "Bytes 0..159 are identical to wire v1. Receivers should continue accepting the 164-byte v1 packet.",
+  "crc": {
+    "algorithm": "CRC-32/ISO-HDLC",
+    "polynomial_reflected_hex": "0xEDB88320",
+    "initial_value_hex": "0xFFFFFFFF",
+    "final_xor_hex": "0xFFFFFFFF",
+    "covered_byte_count": 196
+  },
+  "tilt_extension": {
+    "offset": 160,
+    "fields": [
+      {"name": "tilt_servo_state", "offset": 160, "type": "uint8", "enum": {"0": "disabled", "1": "checking", "2": "ready_torque_off", "3": "arming", "4": "armed", "5": "fault_latched"}},
+      {"name": "tilt_servo_fault", "offset": 161, "type": "uint8", "range": [0, 12]},
+      {"name": "tilt_device_flags", "offset": 162, "type": "uint8", "bits": {"0": "device0_status_valid", "1": "device1_status_valid", "2": "device0_torque_enabled", "3": "device1_torque_enabled"}},
+      {"name": "tilt_reserved", "offset": 163, "type": "uint8", "value": 0},
+      {"name": "tilt_communication_errors", "offset": 164, "type": "uint16_saturating"},
+      {"name": "tilt_command_age_ms", "offset": 166, "type": "uint16_saturating"},
+      {"name": "tilt_status_age_ms", "offset": 168, "type": "uint16_saturating"},
+      {"name": "tilt_device_id", "offset": 170, "type": "uint8[2]"},
+      {"name": "tilt_present_position_raw", "offset": 172, "type": "uint16[2]"},
+      {"name": "tilt_goal_position_raw", "offset": 176, "type": "uint16[2]"},
+      {"name": "tilt_home_position_raw", "offset": 180, "type": "uint16[2]"},
+      {"name": "tilt_present_current_ma", "offset": 184, "type": "int16[2]"},
+      {"name": "tilt_input_voltage_decivolt", "offset": 188, "type": "uint8[2]"},
+      {"name": "tilt_temperature_c", "offset": 190, "type": "uint8[2]"},
+      {"name": "tilt_hardware_error", "offset": 192, "type": "uint8[2]"},
+      {"name": "tilt_operating_mode", "offset": 194, "type": "uint8[2]"},
+      {"name": "crc32", "offset": 196, "type": "uint32"}
+    ]
+  }
+}

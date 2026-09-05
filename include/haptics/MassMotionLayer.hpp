@@ -16,6 +16,9 @@ class MassMotionLayer {
   float maxStableStepS() const;
 
  private:
+  MassState updateCoherent(const ImuSample& raw_sample,
+                           const ImuSample& activity_sample,
+                           float dt_s);
   MassState updateImpl(const ImuSample& raw_sample,
                        const ImuSample& activity_sample,
                        float dt_s,
@@ -27,6 +30,7 @@ class MassMotionLayer {
   Vec2f convective_bias_{};
   Vec2f agitation_bias_{};
   float agitation_phase_rad_ = 0.0f;
+  bool coherent_initialized_ = false;
 };
 
 }  // namespace haptics

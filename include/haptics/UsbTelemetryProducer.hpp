@@ -50,7 +50,7 @@ class UsbTelemetryProducer {
   static constexpr uint16_t kMinPeriodMs = 50;
   static constexpr uint16_t kMaxPeriodMs = 5000;
 #if HAPTICS_ENABLE_USB_TELEMETRY
-  static constexpr std::size_t kPayloadCapacity = 2048;
+  static constexpr std::size_t kPayloadCapacity = 3072;
 #else
   static constexpr std::size_t kPayloadCapacity = 1;
 #endif

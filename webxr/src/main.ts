@@ -10,6 +10,7 @@ import { scriptedTilt, stimulusScripts, type StimulusScriptName } from "./stimul
 import type { DemoUiElements, SpatialPanelState, TiltState } from "./types";
 import { WebXrBridge } from "./xr/WebXrBridge";
 import { iwsdkIntegrationNotes } from "./iwsdkNotes";
+import { DeviceDemo } from "./deviceDemo";
 import "./style.css";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#scene");
@@ -132,9 +133,20 @@ const spatialPanel = new SpatialControlPanel({
   }
 });
 worldRoot.add(spatialPanel.group);
-const xrBridge = new WebXrBridge(renderer, scene, worldRoot, container.group, ui.modeBadge, spatialPanel, container.gripProxy);
+const xrBridge = new WebXrBridge(renderer, scene, worldRoot, container.group, ui.modeBadge, spatialPanel, container.gripProxy, camera);
+xrBridge.setPreferredHand("right");
+const desktopViewTarget = new THREE.Vector3();
 let activePreset = findPreset("liquid_small_box");
 let lastTime = performance.now();
+const deviceDemo = new DeviceDemo(container, {
+  onPreset: (preset) => {
+    activePreset = preset;
+    spatialPanel.setSelectedPreset(preset.preset);
+    updateReadout(currentTilt);
+  },
+  onPreview: () => applyPreviewPreset("liquid_small_box"),
+  onPanel: (state, callbacks) => spatialPanel.setDeviceMode(state, callbacks)
+});
 
 console.info("IWSDK integration", iwsdkIntegrationNotes);
 
@@ -231,12 +243,28 @@ renderer.setAnimationLoop((time) => {
   lastTime = time;
   xrBridge.update();
 
+  const deviceFrame = deviceDemo.update(dt);
   const liveTilt = renderer.xr.isPresenting ? xrBridge.tilt : phoneInput.tilt;
-  const tilt =
-    activeStimulus === "manual" ? liveTilt : scriptedTilt(activeStimulus, (performance.now() - stimulusStartedAt) / 1000);
+  const tilt = deviceFrame?.tilt ??
+    (activeStimulus === "manual" ? liveTilt : scriptedTilt(activeStimulus, (performance.now() - stimulusStartedAt) / 1000));
   currentTilt = { ...tilt };
-  const content = simulator.update(activePreset, tilt, dt, panelState);
+  const content = deviceFrame?.content ?? simulator.update(activePreset, tilt, dt, panelState);
   container.update(tilt, content, time * 0.001, dt);
+  // A close view uses the camera, never an invented scale on the physical box.
+  // XR continues to use its own tracked camera and hand-positioned container.
+  if (!renderer.xr.isPresenting) {
+    const target = container.group.getWorldPosition(desktopViewTarget);
+    const extent = Math.max(activePreset.container.span_x_m, activePreset.container.span_y_m, activePreset.container.span_z_m);
+    const distance = Math.max(0.18, extent * 2.8);
+    camera.position.set(target.x, target.y + distance * 0.38, target.z + distance);
+    camera.lookAt(target.x, target.y, target.z);
+    const mobile = window.innerWidth <= 520;
+    camera.setViewOffset(window.innerWidth, window.innerHeight,
+      mobile ? 0 : -Math.min(215, window.innerWidth * 0.17),
+      mobile ? window.innerHeight * 0.23 : 0,
+      window.innerWidth, window.innerHeight);
+  }
+  spatialPanel.group.visible = renderer.xr.isPresenting;
   spatialPanel.update();
   recorder.sample(makeTrialSnapshot());
   updateTrialElapsed();
@@ -245,6 +273,7 @@ renderer.setAnimationLoop((time) => {
 });
 
 function resetContainerToRest() {
+  if (deviceDemo.active) return;
   setActiveStimulus("manual");
   phoneInput.resetTilt();
   xrBridge.resetTilt();
@@ -286,6 +315,14 @@ function setActiveStimulus(stimulus: StimulusScriptName) {
 }
 
 function applyPreset(name: string) {
+  if (deviceDemo.active) {
+    void deviceDemo.selectPreset(name);
+    return;
+  }
+  applyPreviewPreset(name);
+}
+
+function applyPreviewPreset(name: string) {
   activePreset = findPreset(name);
   ui.presetSelect.value = activePreset.preset;
   spatialPanel.setSelectedPreset(activePreset.preset);

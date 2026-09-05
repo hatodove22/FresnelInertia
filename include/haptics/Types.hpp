@@ -111,6 +111,10 @@ struct ImuSample {
 struct MassState {
   Vec2f pos_norm{};      // normalized container coordinates [-1, 1]
   Vec2f vel_norm_s{};    // normalized velocity [1/s]
+  // Front(+x), Back(-x), Top(+y), Bottom(-y). Impacts are positive
+  // pre-bounce approach speeds and cleared at every integration substep.
+  std::array<float, 4> wall_impact_speed_norm_s{};
+  std::array<float, 4> wall_contact{};  // final contact/proximity in [0, 1]
   float energy = 0.0f;   // latent activity state [0, 1]
   float fill = 0.5f;
   float headspace = 0.5f;
@@ -167,6 +171,8 @@ struct ResonanceVoice {
   float high_env = 0.0f;
   float noise_env = 0.0f;
   float apparent_motion_soa_ms = 0.0f;
+  float duration_ms = 0.0f;
+  float density_hz = 0.0f;
   bool distribute_to_neighbors = false;
   bool attack_frame = false;
 };
@@ -207,6 +213,63 @@ struct TiltPlaneCommand {
   float cg_y_m = 0.0f;
   float apparent_mass_kg = 0.0f;
   bool pseudoforce_enabled = false;
+};
+
+enum class TiltServoState : uint8_t {
+  Disabled = 0,
+  Checking = 1,
+  ReadyTorqueOff = 2,
+  Arming = 3,
+  Armed = 4,
+  FaultLatched = 5,
+};
+
+enum class TiltServoFault : uint8_t {
+  None = 0,
+  Configuration = 1,
+  Communication = 2,
+  Identity = 3,
+  OperatingMode = 4,
+  TorqueState = 5,
+  PositionRange = 6,
+  OverCurrent = 7,
+  OverTemperature = 8,
+  SupplyVoltage = 9,
+  HardwareError = 10,
+  CommandTimeout = 11,
+  ImuSafety = 12,
+};
+
+struct TiltServoDeviceStatus {
+  uint8_t id = 0;
+  bool status_valid = false;
+  bool torque_enabled = false;
+  uint16_t model_number = 0;
+  uint8_t operating_mode = 0;
+  uint8_t hardware_error = 0;
+    int32_t home_position_raw = 0;
+    int32_t present_position_raw = 0;
+    // Goal Position read back from the servo control table. Keep the locally
+    // bounded command separate so telemetry cannot mistake intent for device
+    // state.
+    int32_t goal_position_raw = 0;
+    int32_t commanded_position_raw = 0;
+    int16_t present_pwm_raw = 0;
+    int16_t present_current_ma = 0;
+  uint16_t input_voltage_decivolt = 0;
+  uint8_t temperature_c = 0;
+};
+
+struct TiltServoStatus {
+  bool compile_enabled = false;
+  bool atoms3_dxl2_backend = false;
+  bool runtime_requested = false;
+  TiltServoState state = TiltServoState::Disabled;
+  TiltServoFault fault = TiltServoFault::None;
+  uint32_t communication_errors = 0;
+  uint32_t command_age_ms = 0;
+  uint32_t status_age_ms = 0;
+  std::array<TiltServoDeviceStatus, 2> devices{};
 };
 
 struct RecorderStatus {
@@ -310,6 +373,7 @@ struct TelemetrySnapshot {
   HapticEvent last_event{};
   ActuatorFrame4 actuators{};
   TiltPlaneCommand tilt{};
+  TiltServoStatus tilt_servo{};
   AudioBackendStatus audio{};
   SafetyStatus safety{};
   RuntimeCalibrationStatus calibration{};

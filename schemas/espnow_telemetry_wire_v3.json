@@ -1,0 +1,40 @@
+{
+  "protocol": "fresnel-haptic-link-telemetry",
+  "version": 3,
+  "endianness": "little",
+  "packet_size_bytes": 230,
+  "maximum_supported_packet_bytes": 250,
+  "compatibility": "Retains wire-v2 field offsets through byte 195. Header packet_size becomes 230 and version becomes 3. Updated receivers also accept the unchanged 164-byte v1 and 200-byte v2 layouts. Old receivers cannot decode v3; update the bridge before using a v3 sender.",
+  "common_fields": "espnow_telemetry_wire_v1.json through byte 159; espnow_telemetry_wire_v2.json tilt fields at bytes 160..195",
+  "crc": {
+    "algorithm": "CRC-32/ISO-HDLC",
+    "polynomial_reflected_hex": "0xEDB88320",
+    "initial_value_hex": "0xFFFFFFFF",
+    "final_xor_hex": "0xFFFFFFFF",
+    "covered_byte_count": 226
+  },
+  "resolved_extension": {
+    "offset": 196,
+    "source": "Applied SystemParams, refreshed at producer configure; fill is the common mass_fill field at byte 112.",
+    "fields": [
+      {"name": "family", "offset": 196, "type": "uint8", "enum": {"0": "Liquid", "1": "Granular", "2": "Hybrid", "3": "Detented", "4": "Custom"}},
+      {"name": "model_flags", "offset": 197, "type": "uint8", "bits": {"0": "coherent_container_demo", "1": "device_frame_transform"}, "reserved_bits_zero": [2, 3, 4, 5, 6, 7]},
+      {"name": "span_x_m", "offset": 198, "type": "float32", "finite": true, "exclusive_minimum": 0},
+      {"name": "span_y_m", "offset": 202, "type": "float32", "finite": true, "exclusive_minimum": 0},
+      {"name": "span_z_m", "offset": 206, "type": "float32", "finite": true, "exclusive_minimum": 0},
+      {"name": "headspace", "offset": 210, "type": "float32", "finite": true, "range": [0, 1]},
+      {"name": "viscosity", "offset": 214, "type": "float32", "finite": true, "range": [0, 1]},
+      {"name": "particle_count", "offset": 218, "type": "float32", "finite": true, "range": [0, 1]},
+      {"name": "particle_hardness", "offset": 222, "type": "float32", "finite": true, "range": [0, 1]},
+      {"name": "crc32", "offset": 226, "type": "uint32"}
+    ]
+  },
+  "canonical_json": {
+    "resolved.family": "family enum string",
+    "resolved.container": ["span_x_m", "span_y_m", "span_z_m", "fill", "headspace", "viscosity", "particle_count", "particle_hardness"],
+    "resolved.model": ["coherent_container_demo", "device_frame_transform"],
+    "legacy": "v1/v2 omit resolved entirely; clients must not infer agreement from preset name alone."
+  },
+  "frame_semantics": "IMU remains raw sensor coordinates. When device_frame_transform is true, body x=-raw y, body y=(raw x+raw z)/sqrt(2), body z=(raw z-raw x)/sqrt(2). Internal body z points toward wrist; semantic forward is -body z. When false, the transform is identity. No gravity filtering state is transported.",
+  "validation": "v2 semantic checks plus known family/flags, finite positive spans and finite [0,1] fill/headspace/viscosity/particle_count/particle_hardness."
+}

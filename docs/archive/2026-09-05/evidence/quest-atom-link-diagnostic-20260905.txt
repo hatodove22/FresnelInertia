@@ -1,0 +1,24 @@
+status: preset=liquid_small_box mode=live frame=930347 new_evt=0 evt_total=323 evt=RollTrain/Bottom energy=0.001 pos=(0.67,-0.59) imu_stop=0 imu_fault=0 audio=0 zero=1 driver=1 transport=tdm8_slot diag=0 layout=quad_wall_4ch gain=1.00 limit=0.080 rec=0 replay=0 tilt=0
+remote: compile_enabled=0 runtime_enabled=0
+espnow_link: compile=1 initialized=0 runtime=0 channel=6 period_ms=100 packet_bytes=230 sequence=0 tx=0 dropped=0 errors=0 paired=0 session=00000000 control_rx=0 control_invalid=0 control_queue_drops=0 responses=0 applied=0 rejected=0
+usb_telemetry: compile=1 runtime=0 period_ms=100 pending=0 tx=0 dropped=0 backpressure=0 console_interrupt=0 unterminated=0 errors=0
+preset=liquid_small_box mode=1 frame=930392 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(0.01,-0.00) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=930517 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(-0.01,0.00) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=930642 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(-0.00,-0.01) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+espnow_link: compile=1 initialized=0 runtime=0 channel=6 period_ms=100 packet_bytes=230 sequence=0 tx=0 dropped=0 errors=0 paired=0 session=00000000 control_rx=0 control_invalid=0 control_queue_drops=0 responses=0 applied=0 rejected=0
+preset=liquid_small_box mode=1 frame=930768 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(-0.02,-0.00) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=930912 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(0.00,-0.00) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=931037 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(-0.01,0.01) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+audio: enabled=0 zero=1 driver=1 transport=tdm8_slot diag=0 layout=quad_wall_4ch gain=1.00 limit=0.080 active_channels=4 test=0 wall=None level=0.20 errors=0
+preset=liquid_small_box mode=1 frame=931163 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(0.00,-0.02) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=931289 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(0.00,0.00) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=931433 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(-0.00,-0.00) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+tilt: enabled=0 state=ready_torque_off fault=none backend=atoms3_dxl2 errors=0 cmd_age=1802280 status_age=1802083 pseudoforce=1 delta=(0.00,0.00) base=(0.00,0.00)
+tilt: id=1 valid=1 model=1190 mode=3 torque=0 home=1948 pos=1948 cmd=1948 goal=1948 pwm=0 current=0mA voltage=5.2V temp=38C hwerr=0x00
+tilt: id=2 valid=1 model=1190 mode=3 torque=0 home=3002 pos=3002 cmd=3002 goal=3002 pwm=0 current=0mA voltage=5.2V temp=36C hwerr=0x00
+preset=liquid_small_box mode=1 frame=931558 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(0.00,0.01) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=931702 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(-0.01,0.00) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=931828 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(-0.00,-0.00) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=931972 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(-0.00,-0.01) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=932097 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(-0.00,0.01) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=1 frame=932223 new_evt=0 evt_total=323 energy=0.001 pos=(0.67,-0.59) vel=(0.01,-0.00) evt=2 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0

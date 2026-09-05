@@ -19,6 +19,8 @@ class TiltPseudoForceModel {
   Vec2f a_dyn_ms2_{};
   Vec2f content_cg_m_{};
   Vec2f delta_deg_{};
+  Vec2f command_deg_{};
+  TiltPlaneCommand last_command_{};
   bool content_initialized_ = false;
   bool imu_initialized_ = false;
 };

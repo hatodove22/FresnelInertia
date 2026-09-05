@@ -1,177 +1,166 @@
 # 04 Hardware and Pin Specification
 
-This document separates the **primary as-built AtomS3 board** from retained
-StickS3 development wiring. It records the software/hardware contract, but it
-does not replace the EasyEDA Pro design or mechanical drawings.
+The demo uses AtomS3, four TDM channels, two parallel XL330 contact planes,
+and a StampC5 USB dongle. Vibration renders texture and collisions; servos add
+low-frequency weight shift and inertia. Current completion and blockers are in
+[16 Progress](16_PROGRESS_STATUS.md), and demo acceptance in
+[07 Validation](07_TEST_AND_VALIDATION.md).
 
-## 1. Primary as-built platform
+## Assembled board
 
-- M5AtomS3 / ESP32-S3
-- custom `M5AtomS3_MAX98357A_4CH_TDM_DXL2` PCB
-- MAX98357A x4 on one TDM data stream
-- four wall-aligned haptic transducers
-- XL330-M077-T x2 on one DYNAMIXEL Protocol 2.0 bus
-- PlatformIO + Arduino framework
+- Controller: M5AtomS3 / ESP32-S3 on the custom
+  `M5AtomS3_MAX98357A_4CH_TDM_DXL2` PCB.
+- Four MAX98357A amplifiers share one TDM data stream.
+- Two XL330-M077-T servos share the automatic half-duplex DYNAMIXEL bus.
+- StampC5 connects to the host by USB; AtomS3 exchanges commands, execution
+  ACKs, and telemetry with it over ESP-NOW. AtomS3 performs the haptic
+  computation locally and can be handled without its USB cable.
+- Schematic/PCB/BOM assets are described in [hardware](../hardware/README.md).
+  The firmware pin contract does not replace connector markings or drawings.
 
-On `2026-08-22`, the dedicated TDM, DXL2, and combined probes passed with
-unloaded actuators. The production `m5stack-atoms3-pipeline` image also built
-successfully, but it has not yet been uploaded or validated as a live
-four-layer pipeline. These are distinct levels of evidence.
+## Signals and power
 
-## 2. As-built signal and power contract
+| Signal | As-built connection |
+|---|---|
+| TDM BCLK | AtomS3 GPIO5 |
+| TDM frame sync / LRCLK | AtomS3 GPIO6 |
+| TDM data / DIN | AtomS3 GPIO7 |
+| DYNAMIXEL TX | AtomS3 GPIO1 |
+| DYNAMIXEL RX | AtomS3 GPIO2 |
+| DYNAMIXEL direction | Automatic on PCB; no firmware DIR/EN GPIO |
+| DYNAMIXEL connectors J9/J10 | Pin 1 GND, pin 2 5 V, pin 3 DATA |
+| DYNAMIXEL devices | ID1 thumb, ID2 index; model 1190; 57,600 bps |
+| Host USB console | 115200 baud; port number may change |
 
-### 2.1 Four-channel TDM audio
+S1 is the maintained manual amplifier switch: ON pulls `AMP_OE_N` low and
+enables the 74AHCT125 signal path; OFF lets R8 pull it high and mutes that path.
+The final board has no populated TCA9534 amplifier controller. Firmware
+cannot read or change S1.
 
-- BCLK: GPIO 5
-- LRCLK / frame sync: GPIO 6
-- DIN: GPIO 7
-- frame rate: `48 kHz`
-- sample width: `16-bit`
-- framing: `PCM short`
-- slots per frame: `8`
-- BCLK: `6.144 MHz` (`48,000 x 16 x 8`)
-- LRCLK pulse: one BCLK wide
+The board's 12 V input supplies the `+5V_AUDIO`, 74AHCT125, and MAX98357A
+path; AtomS3 USB alone does not power that path. The XL330 connector supply
+is 5 V, not 12 V. Controller and actuator grounds share a common reference.
+Ordinary demo operation and software tests proceed with board power ON;
+there is no per-test power-off approval step. De-energize the affected
+supply when changing electrical wiring.
 
-The eight-slot frame is required even though only four amplifiers are fitted:
+## Four vibration channels
 
-| TDM slot | Logical wall | PCB channel | Payload |
-|---|---|---|---|
-| 0 | Front | CH1 | active |
-| 1 | Back | CH2 | active |
-| 2 | Top | CH3 | active |
-| 3 | Bottom | CH4 | active |
-| 4..7 | none | none | digital zero |
+TDM uses 48 kHz, 16-bit samples, PCM-short framing, and eight slots.
+BCLK is 6.144 MHz; frame sync is one BCLK wide. DMA length/count are 240/12.
 
-The wall names are the canonical software order. The actual enclosure must be
-labelled and mounted to preserve that mapping; mounting-orientation and
-crosstalk calibration have not yet been completed.
+| Slot | Software wall | PCB channel |
+|---|---|---|
+| 0 | Front | CH1 |
+| 1 | Back | CH2 |
+| 2 | Top | CH3 |
+| 3 | Bottom | CH4 |
+| 4–7 | Digital zero | Unused |
 
-### 2.2 DYNAMIXEL bus
+These wall labels define the renderer/backend order; preserve them when
+labelling the enclosure. They are separate from the thumb/index coordinate
+convention below. Channel isolation and distinct spatial output have been
+demonstrated; calibrated per-wall gain, resonance, and crosstalk are refinement
+work, not prerequisites for repeating the functional demo.
 
-- AtomS3 TX: GPIO 1
-- AtomS3 RX: GPIO 2
-- nominal as-built baud: `57,600 bps`
-- expected units: XL330-M077-T, model 1190, IDs 1 and 2
-- the PCB performs automatic half-duplex direction switching
-- there is no firmware DIR/EN GPIO on this board
+The as-built audio profile starts muted with the TDM driver running zeros.
+Its initial peak limit is 0.08; the compiled ceiling is 0.15, applied after
+mixing and gain. These are normalized PCM peaks, not percentages of power or
+perceived intensity. Combined IMU + two-servo + four-channel short bursts
+passed at both 8% and 15%. This evidence establishes simultaneous hardware
+operation, not a continuous-output rating or complete application acceptance.
 
-The dedicated probes have confirmed communication, ID provisioning, and small
-unloaded position-mode moves. The retained StickS3 servo backend instead
-expects a single DATA pin plus a DIR pin and is electrically incompatible with
-this AtomS3 path. Consequently, the production AtomS3 environment currently
-sets `HAPTICS_ENABLE_TILT_SERVO=0` until an RX/TX automatic-half-duplex adapter
-with read-back safety is implemented.
+## Contact-plane geometry and IMU frame
 
-### 2.3 Amplifier power and manual mute
+The user's handling convention is:
 
-- the final routed board does not populate a TCA9534 amplifier controller
-- maintained switch S1 controls `AMP_OE_N` manually
-  - S1 ON pulls `AMP_OE_N` low and enables the 74AHCT125 path (`RUN`)
-  - S1 OFF lets R8 pull `AMP_OE_N` high (`hardware mute`)
-- firmware cannot read or control S1
-- `+5V_AUDIO`, the 74AHCT125, and the MAX98357A path require the board's
-  12 V input; AtomS3 USB power alone does not power this path
-- a digital-zero state is not proof that S1 is OFF, and S1 OFF is not a
-  software-observable state
+- +x: thumb to index; thumb is left and index is right.
+- +y: vertically upward in the nominal hold.
+- Semantic +z: wrist toward fingertips, forward.
+- Both servo rotation axes are parallel to z. The motors are parallel-mounted,
+  not mirror-mounted.
 
-All wiring changes require S1 OFF and 12 V removed. A software mute is useful
-for normal stopping but is not the emergency hardware isolation mechanism.
+For vector calculations the firmware uses a right-handed body frame with
+the same +x and +y, but internal +z pointing toward the wrist. Thus semantic
+forward is internal -z. Three static gravity poses established the following
+rotation for the IMU's 45-degree mounting:
 
-### 2.4 Power-integrity assumptions
+```text
+body.x = -raw.y
+body.y = (raw.x + raw.z) / sqrt(2)
+body.z = (raw.z - raw.x) / sqrt(2)
+```
 
-- logic, haptic, and servo grounds must share a controlled common reference
-- haptic and servo current return paths should remain low impedance
-- budget for four simultaneous haptic bursts and both servo startup peaks
-- final mounted tests must check 5 V rails, 12 V input, reset behavior, and
-  conducted/mechanical coupling under the production workload
+The as-built profile applies this proper rotation to both acceleration and
+gyro at the model boundary. Raw IMU telemetry and recordings remain raw.
+Generic profiles leave the transform disabled.
 
-## 3. Production firmware profile
+The as-built raw direction pair is thumb +1, index +1. A common +10/+10-degree
+test produced same-direction rotation (counterclockwise from the operator's
+view); a differential +8/-8-degree test produced opposite rotations and
+returned to home. Relative common/differential kinematics are verified.
+The subsequent production handling and desktop connected run established
+operator-confirmed visual/felt directional agreement; see [16](16_PROGRESS_STATUS.md).
 
-`m5stack-atoms3-pipeline` selects the as-built profile:
+## Current servo operating settings
 
-- audio backend and eight-slot TDM transport compiled in
-- `48 kHz`, DMA length `240`, DMA count `12`
-- `quad_wall_4ch`
-- TDM driver retained while muted and filled with zeros
-- haptic runtime output disarmed at boot; explicit `audio on` is required
-- 300 ms without a valid finite IMU sample resets the pipeline to neutral and
-  forces TDM zero; generic profiles leave this behavior disabled
-- initial effective peak limit `0.08` (8% normalized PCM full scale)
-- compile-time hard peak ceiling `0.15` (15% normalized PCM full scale)
-- remote backend compiled out
-- servo backend compiled out
+The AtomS3 backend is implemented and uses DYNAMIXEL Position Mode 3.
+Its target is synchronized Goal Position updates every 10 ms; Goal PWM bounds
+internal drive authority and is not an open-loop PWM angle command.
+Both present positions become session homes during preflight.
 
-The 8% value is the initial production-integration limit. The 15% cap follows
-the unloaded short-burst evidence, not a continuous-wave or mounted-system
-rating. Requests above 15% are clamped by the compiled backend.
+| As-built setting | Current value |
+|---|---|
+| Logical command / raw session-home bound | ±10 degrees / ±114 pulses |
+| Position P Gain / Goal PWM | 2000 / 600 |
+| Servo Profile Acceleration / Velocity | 0 / 0; servo-side profile disabled |
+| Pseudo-force gain `k_phi` | 4.0 |
+| Common / differential / combined correction bounds | 5 / 10 / 10 degrees |
+| Model signs / raw directions, thumb and index | -1 / -1; +1 / +1 |
+| Current / temperature abort | 1200 mA / 60 C |
+| Voltage range / bus watchdog | 4.5–5.6 V / 1 second |
 
-See `23_ATOMS3_PRODUCTION_INTEGRATION.md` for the upload and acceptance gate.
+These are gripped-demo software settings, not physical end-stop measurements.
+Mounted ±10-degree motion was clearly perceptible; an application sample near
++5.32/-5.60 degrees tracked within one encoder pulse, with intensity accepted.
+A direct full-range step previously overshot and triggered the position guard.
+The new assembled coherent model filters and slew-limits the complete composed
+command, including the mass-position base, at the existing 80 degrees/s bound.
+The accepted strength and travel settings above are unchanged. The current
+production handling run showed clear improvement, with some smoothness issues
+remaining; the operator's observations are recorded in 16.
 
-## 4. Retained StickS3 development paths
+## Builds and stopping
 
-These remain supported fallbacks; they are not the as-built PCB contract.
+`m5stack-atoms3-pipeline` is the audio baseline, with servos compiled out.
+`m5stack-atoms3-pipeline-tilt-espnow-monitor` is the full assembled-device
+demo build; `m5stack-stampc5-espnow-bridge` is its USB dongle. Outputs boot
+disarmed. Only the full demo build sets `HAPTICS_DEMO_ESPNOW_AUTOSTART=1`:
+after successful initialization it enters Idle with both outputs OFF, then
+enables the radio for dongle pairing. The flag defaults to OFF; other radio
+builds retain local `espnow link on` in Idle. The applied state remains owned
+by AtomS3. Link telemetry defaults to 10 Hz
+and does not clock the nominal 100 Hz servo command stream.
 
-### Dual-I2S four-channel path
+`stop` / `idle` or the AtomS3 button hold silences audio, resets the model,
+and requests servo torque-off. The existing 300 ms stale-IMU stop, servo
+watchdog, and feedback limits remain implemented. Runtime feedback is now an
+incremental two-block receive state machine, with up to three 45 ms attempts.
+Waiting for a reply does not block the haptic pipeline; goal writes wait until
+the outstanding read finishes or times out. Preflight, arm and explicit Stop
+verification remain synchronous. A missing reply cannot verify torque-off;
+failed Stop verification invalidates feedback instead of reporting confirmed OFF.
 
-- compute: M5StickS3
-- amplifiers: legacy MAX98360A / MAX98357A bench wiring
-- I2S bus A: BCK GPIO 7, WS GPIO 5, DOUT GPIO 43
-- I2S bus B: BCK GPIO 4, WS GPIO 44, DOUT GPIO 2
-- bus A left/right = Front/Back
-- bus B left/right = Top/Bottom
-- wire format: Philips I2S through the legacy `driver/i2s.h` API
+Local `tilt diagnose` is available only in Safe Idle. It sends one PING to each
+configured ID on the current UART and reports accepted TX bytes, observed RX
+bytes, echoes and decoded status metadata. It does not restart the UART or
+write torque/position/PWM. Zero RX distinguishes absent data from a rejected
+reply but cannot establish a connector or power fault. `tilt clear` separately
+reinitializes the UART and reruns torque-off preflight.
 
-### Diagnostic and two-channel fallbacks
+On 2026-09-05, cable-free radio telemetry stayed clean while local DXL status
+reads failed during handling. That is evidence of a local DXL fault, not proof
+of its electrical cause or of a telemetry-rate problem. It is a historical
+observation, not a live statement about the connected hardware.
 
-- `front_back_2ch` uses bus A only and collapses Top/Bottom energy into the
-  Front/Back pair without changing the internal four-wall renderer
-- `audio.demo_compat_mode` forces the known bus-A mono `48 kHz` profile with
-  `dma_buf_len=240`
-- `EXT_5V` software control applies only to wiring that actually routes that
-  rail from the StickS3; it is disabled in the AtomS3 profile
-
-## 5. Mechanical placement contract
-
-The software assumes a wall-aligned layout in the order Front, Back, Top,
-Bottom. This is intentional: the latent state and event layer describe wall
-contacts rather than a tetrahedral field. The audio backend synthesizes
-per-wall low/high carriers and noise and can replace the live frame with one
-wall-only test stimulus.
-
-For the tilt branch, one XL330 is reserved for the thumb plane and one for the
-index plane. The final linkage must define home, sign, raw direction, allowed
-travel, and an accessible mechanical stop before the production servo backend
-can be enabled.
-
-## 6. Evidence boundary
-
-Implemented in source:
-
-- dual-I2S and eight-slot TDM audio transports
-- canonical four-wall mapping and two-channel fallback
-- AtomS3 profile with silent boot, 8% initial limit, and 15% hard ceiling
-- legacy StickS3 tilt model/backend behind compile/runtime gates
-
-Passed on hardware on `2026-08-22`:
-
-- raw AtomS3 TDM framing, channel isolation/order, and short unloaded bursts
-- DXL IDs 1/2, model 1190, 57,600 bps, torque-off read-back, and bounded
-  unloaded motion
-- bounded simultaneous IMU + two-servo + equal 4CH burst probes at 8% and 15%
-
-Not yet demonstrated:
-
-- passing powered Live settling: output was demonstrated, but residual
-  vibration decayed without stopping after one movement
-- mounted four-layer spatial localization and material separation
-- continuous-wave or long-duration mounted use at 15%
-- production AtomS3 servo actuation, feedback telemetry, and fault handling
-- quantitative amplitude matching, crosstalk, and resonance calibration
-
-## 7. Hardware details still to publish or calibrate
-
-- authoritative exported schematic/PCB/BOM/fabrication assets in `hardware/`
-- connector and transducer part/footprint documentation
-- final enclosure stack-up and wall labels
-- measured power/current envelope under mounted four-channel + servo load
-- per-wall response, polarity, gain, resonance, and crosstalk calibration
+Legacy StickS3 wiring and finite bring-up settings remain in source for reference.

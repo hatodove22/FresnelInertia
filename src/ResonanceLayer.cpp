@@ -88,6 +88,8 @@ ResonanceFrame<kMaxResonanceVoicesPerFrame> ResonanceLayer::update(
     voice.high_env = clamp01(cmd.high_env * high_weight);
     voice.noise_env = clamp01(cmd.noise_env * noise_weight);
     voice.apparent_motion_soa_ms = cmd.apparent_motion_soa_ms;
+    voice.duration_ms = cmd.duration_ms;
+    voice.density_hz = cmd.density_hz;
     voice.distribute_to_neighbors = cmd.distribute_to_neighbors;
     voice.attack_frame = cmd.attack_frame;
     pushVoice(frame, voice);

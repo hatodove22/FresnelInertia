@@ -18,6 +18,7 @@ class EventLayer {
   const HapticEvent& lastEvent() const { return last_event_; }
 
  private:
+  EventFrame<kMaxEventsPerFrame> updateCoherent(const MassState& state, float dt_s);
   void pushEvent(EventFrame<kMaxEventsPerFrame>& frame, const HapticEvent& event);
   SystemParams params_{};
   HapticEvent last_event_{};
@@ -40,6 +41,8 @@ class EventLayer {
   bool detent_tick_ready_ = true;
   WallId roll_wall_ = WallId::None;
   std::size_t output_limit_ = kMaxEventsPerFrame;
+  float coherent_flow_phase_ = 0.0f;
+  WallId coherent_flow_wall_ = WallId::None;
 };
 
 }  // namespace haptics

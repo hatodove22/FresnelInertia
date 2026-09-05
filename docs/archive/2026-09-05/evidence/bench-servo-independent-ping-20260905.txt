@@ -1,0 +1,35 @@
+pipeline: safe idle; audio muted and tilt disarmed
+preset=liquid_small_box mode=0 frame=1505 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=1692 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+tilt diagnose: baud=57600 tx_pin=1 rx_pin=2 one PING per ID; no actuation
+tilt diagnose: id=1 tx=10 rx=0 echo=0 status=0 status_id=255 error=0xFF params=0 model=0 ok=0
+tilt diagnose: id=2 tx=10 rx=0 echo=0 status=0 status_id=255 error=0xFF params=0 model=0 ok=0
+preset=liquid_small_box mode=0 frame=1861 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2055 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2244 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+tilt: clear=0 state=fault_latched fault=communication
+preset=liquid_small_box mode=0 frame=2380 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+tilt diagnose: baud=57600 tx_pin=1 rx_pin=2 one PING per ID; no actuation
+tilt diagnose: id=1 tx=10 rx=0 echo=0 status=0 status_id=255 error=0xFF params=0 model=0 ok=0
+tilt diagnose: id=2 tx=10 rx=0 echo=0 status=0 status_id=255 error=0xFF params=0 model=0 ok=0
+preset=liquid_small_box mode=0 frame=2496 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2693 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2887 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+tilt: enabled=0 state=fault_latched fault=communication backend=atoms3_dxl2 errors=5 cmd_age=8213 status_age=4294967295 pseudoforce=1 delta=(0.00,0.00) base=(0.00,0.00)
+tilt: id=1 valid=0 model=0 mode=0 torque=0 home=0 pos=0 cmd=0 goal=0 pwm=0 current=0mA voltage=0.0V temp=0C hwerr=0x00
+tilt: id=2 valid=0 model=0 mode=0 torque=0 home=0 pos=0 cmd=0 goal=0 pwm=0 current=0mA voltage=0.0V temp=0C hwerr=0x00
+preset=liquid_small_box mode=0 frame=3076 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=3273 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=3461 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+espnow_link: enabled; awaiting paired dongle; physical output state unchanged
+preset=liquid_small_box mode=0 frame=3614 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=3799 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=3994 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=4180 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=4372 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=4558 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=4748 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=4944 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=5128 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=5322 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=5507 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0

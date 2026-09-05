@@ -1,0 +1,100 @@
+{
+  "protocol": "fresnel-haptic-link-control",
+  "version": 1,
+  "endianness": "little",
+  "direction": "StampC5 command to AtomS3, AtomS3 response to StampC5",
+  "maximum_supported_packet_bytes": 200,
+  "crc": {
+    "algorithm": "CRC-32/ISO-HDLC",
+    "polynomial_reflected_hex": "0xEDB88320",
+    "initial_value_hex": "0xFFFFFFFF",
+    "final_xor_hex": "0xFFFFFFFF"
+  },
+  "command": {
+    "magic_ascii": "FHC1",
+    "magic_hex_little_endian": "0x31434846",
+    "packet_size_bytes": 140,
+    "crc_covered_byte_count": 136,
+    "operations": {
+      "1": "hello",
+      "2": "get_state",
+      "3": "safe_idle",
+      "4": "set_run_mode",
+      "5": "set_audio_enabled",
+      "6": "load_preset",
+      "7": "set_param",
+      "8": "trigger_event_reserved",
+      "9": "set_tilt_enabled",
+      "10": "clear_tilt_fault"
+    },
+    "value_types": {
+      "0": "none",
+      "1": "boolean",
+      "2": "number",
+      "3": "text"
+    },
+    "fields": [
+      { "name": "magic", "offset": 0, "type": "uint32" },
+      { "name": "packet_size", "offset": 4, "type": "uint16", "value": 140 },
+      { "name": "version", "offset": 6, "type": "uint8", "value": 1 },
+      { "name": "operation", "offset": 7, "type": "uint8" },
+      { "name": "request_id", "offset": 8, "type": "uint32", "minimum": 1 },
+      { "name": "session_id", "offset": 12, "type": "uint32", "hello_value": 0 },
+      { "name": "value_type", "offset": 16, "type": "uint8" },
+      { "name": "run_mode", "offset": 17, "type": "uint8" },
+      { "name": "enabled", "offset": 18, "type": "uint8_boolean" },
+      { "name": "reserved", "offset": 19, "type": "uint8", "value": 0 },
+      { "name": "number", "offset": 20, "type": "float32_finite" },
+      { "name": "path", "offset": 24, "type": "char[48]", "encoding": "UTF-8/ASCII, NUL-terminated" },
+      { "name": "text", "offset": 72, "type": "char[64]", "encoding": "UTF-8/ASCII, NUL-terminated" },
+      { "name": "crc32", "offset": 136, "type": "uint32" }
+    ]
+  },
+  "response": {
+    "magic_ascii": "FHA1",
+    "magic_hex_little_endian": "0x31414846",
+    "packet_size_bytes": 88,
+    "crc_covered_byte_count": 84,
+    "results": {
+      "0": "applied",
+      "1": "rejected",
+      "2": "unsupported",
+      "3": "not_paired",
+      "4": "bad_session",
+      "5": "stale_request",
+      "6": "invalid_request",
+      "7": "busy"
+    },
+    "fields": [
+      { "name": "magic", "offset": 0, "type": "uint32" },
+      { "name": "packet_size", "offset": 4, "type": "uint16", "value": 88 },
+      { "name": "version", "offset": 6, "type": "uint8", "value": 1 },
+      { "name": "result", "offset": 7, "type": "uint8" },
+      { "name": "request_id", "offset": 8, "type": "uint32" },
+      { "name": "session_id", "offset": 12, "type": "uint32" },
+      { "name": "applied_frame_counter", "offset": 16, "type": "uint64" },
+      { "name": "detail", "offset": 24, "type": "char[60]", "encoding": "UTF-8/ASCII, NUL-terminated" },
+      { "name": "crc32", "offset": 84, "type": "uint32" }
+    ]
+  },
+  "pairing": {
+    "activation": "AtomS3 link must first be enabled locally in Safe Idle",
+    "discovery": "StampC5 learns the AtomS3 source MAC from valid broadcast telemetry",
+    "hello": "StampC5 sends hello with session_id zero; AtomS3 accepts the first source only while Safe Idle",
+    "session": "AtomS3 returns a per-radio-start nonzero session_id",
+    "replay_rule": "subsequent requests require the paired source, matching session_id, and a strictly increasing request_id",
+    "encryption": "none in bench prototype; no private data"
+  },
+  "implemented_policy": {
+    "hello": "Safe Idle only",
+    "get_state": "paired session",
+    "safe_idle": "paired session",
+    "set_run_mode": "Idle or Live only; Live does not arm audio",
+    "set_audio_enabled": "disable anytime; enable only in Live and subject to existing physical-arm interlocks",
+    "load_preset": "Safe Idle only",
+    "set_param": "Safe Idle, numeric value, fixed demo-property allowlist only",
+    "set_tilt_enabled": "disable anytime; enable only in Live when the dedicated remote-arm build flag and all tilt safety interlocks allow it",
+    "clear_tilt_fault": "Safe Idle only; reruns the complete torque-off preflight",
+    "trigger_event_reserved": "returns unsupported until the external-event pipeline ingress exists"
+  }
+}

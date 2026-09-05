@@ -228,6 +228,8 @@ void EventLayer::configure(const SystemParams& params) {
   detent_scrape_cooldown_s_ = 0.0f;
   detent_tick_ready_ = true;
   roll_wall_ = WallId::None;
+  coherent_flow_phase_ = 0.0f;
+  coherent_flow_wall_ = WallId::None;
 }
 
 void EventLayer::pushEvent(EventFrame<kMaxEventsPerFrame>& frame, const HapticEvent& event) {
@@ -244,6 +246,9 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(
     std::size_t max_output_events) {
   EventFrame<kMaxEventsPerFrame> frame{};
   output_limit_ = std::min(max_output_events, frame.items.size());
+  if (params_.features.enable_coherent_container_demo) {
+    return updateCoherent(state, dt_s);
+  }
   const auto remainingOutputSlots = [this, &frame]() {
     const std::size_t limit = std::min(output_limit_, frame.items.size());
     return frame.count < limit ? limit - frame.count : 0U;
@@ -707,6 +712,124 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(
       break;
   }
 
+  return frame;
+}
+
+EventFrame<kMaxEventsPerFrame> EventLayer::updateCoherent(const MassState& state,
+                                                        float dt_s) {
+  EventFrame<kMaxEventsPerFrame> frame{};
+  if (!std::isfinite(dt_s) || dt_s <= 0.0f) {
+    return frame;
+  }
+  if (state.family != MaterialFamily::Detented &&
+      (state.fill <= 0.0f || params_.container.fill <= 0.0f ||
+       params_.container.content_mass_full_kg <= 0.0f)) {
+    coherent_flow_phase_ = 0.0f;
+    coherent_flow_wall_ = WallId::None;
+    return frame;
+  }
+  const bool liquid = state.family == MaterialFamily::Liquid;
+  const bool hybrid = state.family == MaterialFamily::Hybrid;
+  const bool sparse = sparseHardParticleMode(params_);
+  const float particles = clampf(params_.container.particle_count, 0.0f, 1.0f);
+  const float hardness = clampf(params_.container.particle_hardness, 0.0f, 1.0f);
+  const float viscosity = clampf(params_.container.viscosity, 0.0f, 1.0f);
+  const float amount_gain = state.family == MaterialFamily::Detented
+                                ? 1.0f
+                                : std::sqrt(clampf(state.fill / (sparse ? 0.04f : 0.35f), 0.0f, 1.4f));
+
+  // Impact velocity is captured by Mass before restitution. No positional
+  // threshold or recurring energy clock may manufacture a second rigid tap.
+  for (std::size_t wall = 0; wall < 4U; ++wall) {
+    const float incoming_norm_s = state.wall_impact_speed_norm_s[wall];
+    const float half_span = 0.5f * spanForWall(state, kWalls[wall]);
+    const float incoming_m_s = incoming_norm_s * half_span;
+    if (!std::isfinite(incoming_m_s) || incoming_m_s < 0.035f) {
+      continue;
+    }
+    HapticEvent contact{};
+    contact.type = liquid ? EventType::DropletCluster
+                         : ((sparse || state.family == MaterialFamily::Detented)
+                                ? EventType::WallHit
+                                : EventType::ImpactCluster);
+    contact.primary_wall = kWalls[wall];
+    contact.amplitude = clampf(std::sqrt(incoming_m_s / 0.45f) *
+                                   (liquid ? 0.78f : 0.55f + 0.35f * hardness) * amount_gain,
+                               0.0f, 1.0f);
+    contact.duration_ms = liquid ? 35.0f + 30.0f * viscosity
+                                 : (sparse ? 10.0f : 16.0f + 10.0f * particles);
+    contact.density_hz = liquid ? 9.0f : 18.0f + 20.0f * particles;
+    contact.clustered = !sparse;
+    contact.direction = state.vel_norm_s;
+    if (wall < 2U) {
+      contact.direction.x = wall == 0U ? incoming_norm_s : -incoming_norm_s;
+    } else {
+      contact.direction.y = wall == 2U ? incoming_norm_s : -incoming_norm_s;
+    }
+    pushEvent(frame, contact);
+    if (hybrid) {
+      // The same contact drives the wet body and its rigid inclusions.
+      contact.type = EventType::DropletCluster;
+      contact.amplitude *= 0.55f;
+      contact.duration_ms = 38.0f + 22.0f * viscosity;
+      contact.density_hz = 9.0f;
+      pushEvent(frame, contact);
+    }
+  }
+
+  WallId flow_wall = WallId::None;
+  float flow_speed_m_s = 0.0f;
+  float flow_contact = 0.0f;
+  for (std::size_t wall = 0; wall < 4U; ++wall) {
+    const float contact = clampf(state.wall_contact[wall], 0.0f, 1.0f);
+    const float tangent_half_span = wall < 2U
+                                        ? 0.5f * std::max(0.020f, state.container_y_m)
+                                        : 0.5f * std::max(0.020f, state.container_x_m);
+    const float speed = tangentialSpeedNorm(state, kWalls[wall]) * tangent_half_span;
+    const float drive = speed * contact;
+    if (drive > flow_speed_m_s) {
+      flow_speed_m_s = drive;
+      flow_wall = kWalls[wall];
+      flow_contact = contact;
+    }
+  }
+  if (flow_wall == WallId::None || flow_speed_m_s < 0.006f) {
+    coherent_flow_phase_ = 0.0f;
+    coherent_flow_wall_ = WallId::None;
+    return frame;
+  }
+  if (flow_wall != coherent_flow_wall_) {
+    coherent_flow_phase_ = 0.0f;
+    coherent_flow_wall_ = flow_wall;
+  }
+
+  // Flow grains count actual traveled contact distance, not elapsed energetic
+  // time. A single marble gets a quiet rolling body, liquid a slower slosh,
+  // and a dense granular fill a finer moving-contact texture.
+  const bool detented = state.family == MaterialFamily::Detented;
+  const float spacing_m = liquid || hybrid ? 0.014f + 0.010f * viscosity
+                                           : (detented ? 0.012f
+                                                       : (sparse ? 0.018f : 0.006f - 0.0035f * particles));
+  const float rate_hz = std::min(45.0f, flow_speed_m_s / spacing_m);
+  coherent_flow_phase_ += dt_s * rate_hz;
+  const std::size_t remaining = frame.count < output_limit_
+                                    ? output_limit_ - frame.count
+                                    : 0U;
+  const std::size_t count = consumeScheduledPhase(coherent_flow_phase_, remaining);
+  for (std::size_t index = 0; index < count; ++index) {
+    HapticEvent flow{};
+    flow.type = detented ? EventType::WallHit : EventType::RollTrain;
+    flow.primary_wall = flow_wall;
+    flow.direction = state.vel_norm_s;
+    const float strength = sparse ? 0.10f : (liquid || hybrid ? 0.40f
+                                                            : (detented ? 0.50f : 0.25f + 0.22f * particles));
+    flow.amplitude = clampf(strength * std::sqrt(flow_speed_m_s / 0.25f) * flow_contact * amount_gain,
+                            0.0f, 0.70f);
+    flow.duration_ms = liquid || hybrid ? 55.0f + 40.0f * viscosity
+                                        : (detented ? 12.0f : (sparse ? 20.0f : 28.0f));
+    flow.density_hz = liquid || hybrid ? 7.0f : std::max(8.0f, rate_hz);
+    pushEvent(frame, flow);
+  }
   return frame;
 }
 

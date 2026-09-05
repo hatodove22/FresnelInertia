@@ -72,6 +72,24 @@ const tumblerHeightM = 0.07;
 const tableTopY = 0.824;
 export const containerRestY = tableTopY + boxVisualSizeM * 0.5;
 
+/** Aggregate firmware state, not measured positions of individual visible grains. */
+export interface DeviceContentState {
+  massX: number;
+  massY: number;
+  velocityX: number;
+  velocityY: number;
+  energy: number;
+  fill: number;
+  slosh?: number;
+}
+
+export interface DeviceOrientation {
+  /** atan2(bodyGravity.z, hypot(bodyGravity.x, bodyGravity.y)) */
+  pitchRad: number;
+  /** -atan2(bodyGravity.x, bodyGravity.y) */
+  rollRad: number;
+}
+
 interface ParticleState {
   pos: THREE.Vector3;
   vel: THREE.Vector3;
@@ -103,6 +121,11 @@ export class ContainerScene {
   private lastElapsed = 0;
   private liquidInset = 0.78;
   private shape: VisualContainerShape = "box";
+  private resolvedDimensions = false;
+  private deviceState?: DeviceContentState;
+  private deviceOrientation?: DeviceOrientation;
+  private liquidGeometryHeight = 1;
+  private liquidRestPositions?: Float32Array;
 
   constructor() {
     this.group.name = "haptics-container";
@@ -112,10 +135,16 @@ export class ContainerScene {
     liquidSurfaceMaterial.normalScale = new THREE.Vector2(0.18, 0.18);
   }
 
-  setPreset(preset: ContainerPreset) {
+  setPreset(preset: ContainerPreset, useResolvedDimensions = false) {
     this.preset = preset;
-    this.shape = preset.visual_shape ?? "box";
-    if (this.shape === "cylinder_bottle") {
+    this.resolvedDimensions = useResolvedDimensions;
+    // Firmware currently resolves a box; preview-only bottle/cup geometry must
+    // not override the dimensions of the connected physical model.
+    this.shape = useResolvedDimensions ? "box" : preset.visual_shape ?? "box";
+    if (useResolvedDimensions) {
+      const dimension = (value: number) => Number.isFinite(value) && value > 0 ? value : 0.06;
+      this.dimensions.set(dimension(preset.container.span_x_m), dimension(preset.container.span_y_m), dimension(preset.container.span_z_m));
+    } else if (this.shape === "cylinder_bottle") {
       this.dimensions.set(bottleBodyDiameterM, bottleBodyHeightM + bottleNeckHeightM, bottleBodyDiameterM);
     } else if (this.shape === "tumbler_cup") {
       this.dimensions.set(tumblerTopDiameterM, tumblerHeightM, tumblerTopDiameterM);
@@ -126,6 +155,33 @@ export class ContainerScene {
     this.rebuild();
   }
 
+  /** null restores the independent, explicitly offline preview. Retain the last
+   * state on stale telemetry to freeze contents without predicting their motion. */
+  setDeviceState(state: DeviceContentState | null) {
+    const wasConnected = this.deviceState !== undefined;
+    const finite = (value: number, fallback = 0) => Number.isFinite(value) ? value : fallback;
+    this.deviceState = state ? {
+      massX: THREE.MathUtils.clamp(finite(state.massX), -1, 1),
+      massY: THREE.MathUtils.clamp(finite(state.massY), -1, 1),
+      velocityX: finite(state.velocityX),
+      velocityY: finite(state.velocityY),
+      energy: THREE.MathUtils.clamp(finite(state.energy), 0, 1),
+      fill: THREE.MathUtils.clamp(finite(state.fill), 0, 1),
+      slosh: state.slosh === undefined ? undefined : THREE.MathUtils.clamp(finite(state.slosh), 0, 1)
+    } : undefined;
+    if (!state) this.deviceOrientation = undefined;
+    if (wasConnected !== (this.deviceState !== undefined) && this.preset) this.rebuild();
+  }
+
+  /** Connected angles in radians, without preview scaling or time prediction. */
+  setDeviceOrientation(orientation: DeviceOrientation | null) {
+    if (!orientation) {
+      this.deviceOrientation = undefined;
+    } else if (Number.isFinite(orientation.pitchRad) && Number.isFinite(orientation.rollRad)) {
+      this.deviceOrientation = { ...orientation };
+    }
+  }
+
   restY() {
     return tableTopY + this.dimensions.y * 0.5;
   }
@@ -133,6 +189,13 @@ export class ContainerScene {
   update(tilt: TiltState, content: LocalContentState, elapsed: number, dt: number) {
     this.lastElapsed = elapsed;
     this.gripProxy.pulse(elapsed);
+    if (this.deviceState) {
+      if (this.deviceOrientation) {
+        this.group.rotation.set(this.deviceOrientation.pitchRad, 0, this.deviceOrientation.rollRad);
+      }
+      this.updateDeviceContent(this.deviceState);
+      return;
+    }
     this.group.rotation.x = THREE.MathUtils.lerp(this.group.rotation.x, tilt.y * 0.62, 0.16);
     this.group.rotation.z = THREE.MathUtils.lerp(this.group.rotation.z, -tilt.x * 0.62, 0.16);
 
@@ -193,6 +256,8 @@ export class ContainerScene {
     const labelWidth = this.isRoundContainer() ? this.dimensions.x * 0.54 : this.dimensions.x * 0.6;
     const labelHeight = this.shape === "cylinder_bottle" ? bottleBodyHeightM * 0.34 : this.dimensions.y * 0.34;
     this.label = new THREE.Mesh(new THREE.PlaneGeometry(labelWidth, labelHeight), label);
+    this.label.name = "container-preview-label";
+    this.label.visible = this.deviceState === undefined;
     this.label.renderOrder = 6;
     this.label.position.set(
       0,
@@ -203,12 +268,15 @@ export class ContainerScene {
 
     if (this.preset.family === "Liquid" || this.preset.family === "Hybrid") {
       const fillHeight = Math.max(0.006, this.liquidHeight() * this.preset.container.fill);
+      this.liquidGeometryHeight = fillHeight;
       const liquidGeometry = this.makeLiquidGeometry(fillHeight);
+      this.liquidRestPositions = Float32Array.from(liquidGeometry.attributes.position.array);
       this.liquid = new THREE.Mesh(
         liquidGeometry,
         liquidMaterial
       );
       this.liquid.renderOrder = 1;
+      this.liquid.name = "content-liquid";
       this.liquid.position.y = this.liquidBottomY() + fillHeight * 0.5;
       this.group.add(this.liquid);
 
@@ -221,6 +289,7 @@ export class ContainerScene {
         liquidSurfaceMaterial
       );
       this.liquidSurface.renderOrder = 2;
+      this.liquidSurface.name = "content-liquid-surface";
       this.liquidSurface.rotation.x = -Math.PI * 0.5;
       this.liquidSurface.position.y = this.liquidBottomY() + fillHeight + 0.0008;
       this.group.add(this.liquidSurface);
@@ -231,13 +300,16 @@ export class ContainerScene {
       this.group.add(this.foam);
     } else {
       this.liquid = undefined;
+      this.liquidRestPositions = undefined;
       this.liquidSurface = undefined;
       this.foam = undefined;
       this.foamCount = 0;
     }
 
     if (this.preset.family === "Granular" || this.preset.family === "Hybrid") {
-      this.particleCount = this.preset.family === "Hybrid" ? 26 : 62;
+      this.particleCount = this.resolvedDimensions
+        ? this.isSingleMarble() ? 1 : Math.round(16 + THREE.MathUtils.clamp(this.preset.container.particle_count ?? 0.6, 0, 1) * 96)
+        : this.preset.family === "Hybrid" ? 26 : 62;
       const particleGeometry =
         this.preset.family === "Hybrid" ? new THREE.IcosahedronGeometry(1, 0) : new THREE.SphereGeometry(1, 10, 8);
       this.particles = new THREE.InstancedMesh(
@@ -246,6 +318,7 @@ export class ContainerScene {
         this.particleCount
       );
       this.particles.renderOrder = 3;
+      this.particles.name = "content-particles";
       this.particles.castShadow = true;
       this.particles.receiveShadow = true;
       this.particleStates = this.createParticleStates();
@@ -572,5 +645,93 @@ export class ContainerScene {
   private hash01(value: number) {
     const s = Math.sin(value * 127.1) * 43758.5453;
     return s - Math.floor(s);
+  }
+
+  private isSingleMarble() {
+    return this.resolvedDimensions && this.preset !== undefined &&
+      (/marble/i.test(this.preset.preset) ||
+        ((this.preset.container.particle_count ?? 1) <= 0.1 &&
+         (this.preset.container.particle_hardness ?? 0) >= 0.8));
+  }
+
+  private updateDeviceContent(state: DeviceContentState) {
+    const visible = state.fill > 0;
+    if (this.particles) {
+      this.particles.visible = visible;
+      const single = this.isSingleMarble();
+      const smallestSpan = Math.min(this.dimensions.x, this.dimensions.y, this.dimensions.z);
+      const radius = smallestSpan * (single ? 0.085 : this.preset?.family === "Hybrid" ? 0.047 : 0.025);
+      // Firmware x/y map to THREE x/y (not the preview's x/z floor plane).
+      // +/-1 is rendered at the visible particle's wall-contact position.
+      const cx = state.massX * Math.max(0, this.dimensions.x * 0.5 - radius);
+      const cy = state.massY * Math.max(0, this.dimensions.y * 0.5 - radius);
+      const spread = single ? 0 : 0.12 + state.fill * 0.22 + state.energy * 0.06;
+      const sx = Math.max(0, Math.min(this.dimensions.x * spread, this.dimensions.x * 0.5 - radius - Math.abs(cx)));
+      const sy = Math.max(0, Math.min(this.dimensions.y * spread, this.dimensions.y * 0.5 - radius - Math.abs(cy)));
+      const sz = Math.max(0, Math.min(this.dimensions.z * spread, this.dimensions.z * 0.5 - radius));
+      for (let i = 0; i < this.particleCount; i += 1) {
+        // Symmetric pairs keep the illustrative cloud centroid exactly on the
+        // reported mass. No grain integration, clock, random walk or prediction.
+        const unpaired = this.particleCount % 2 === 1 && i === this.particleCount - 1;
+        const seed = Math.floor(i / 2) * 9.173 + 0.31;
+        const sign = unpaired ? 0 : i % 2 === 0 ? 1 : -1;
+        this.dummy.position.set(
+          cx + sign * Math.sin(seed * 1.7) * sx,
+          cy + sign * Math.cos(seed * 2.3) * sy,
+          sign * Math.sin(seed * 1.3) * sz
+        );
+        this.dummy.scale.setScalar(radius);
+        this.dummy.rotation.set(0, seed, Math.atan2(state.velocityY, state.velocityX));
+        this.dummy.updateMatrix();
+        this.particles.setMatrixAt(i, this.dummy.matrix);
+      }
+      this.particles.instanceMatrix.needsUpdate = true;
+    }
+    if (this.foam) this.foam.visible = false;
+    if (!this.liquid || !this.liquidSurface) return;
+    this.liquid.visible = visible;
+    this.liquidSurface.visible = visible;
+    const height = this.dimensions.y * Math.max(0.001, state.fill);
+    const freeX = this.dimensions.x * (1 - this.liquidInset) * 0.5;
+    const freeY = Math.max(0, (this.dimensions.y - height) * 0.5);
+    const cx = state.massX * freeX;
+    const cy = state.massY * freeY;
+    const topY = cy + height * 0.5;
+    const headroom = Math.max(0, this.dimensions.y * 0.5 - topY);
+    const deformation = Math.min(height * 0.18, headroom * 0.8);
+    const halfX = this.dimensions.x * this.liquidInset * 0.5;
+    const slope = THREE.MathUtils.clamp(state.massX * 0.22 + state.velocityX * 0.025, -1, 1) * deformation * 0.5;
+    const activity = state.slosh ?? state.energy;
+    const ripple = deformation * 0.5 * activity;
+    const displacement = (x: number, z: number) =>
+      slope * x / Math.max(halfX, 0.001) + ripple * 0.5 *
+        (Math.sin(x / this.dimensions.x * 18 + state.massX * 3) +
+         Math.cos(z / this.dimensions.z * 16 + state.massY * 3 + state.velocityY * 0.1));
+
+    this.liquid.position.set(cx, cy, 0);
+    this.liquid.rotation.set(0, 0, 0);
+    this.liquid.scale.set(1, height / this.liquidGeometryHeight, 1);
+    if (this.liquidRestPositions) {
+      const position = this.liquid.geometry.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < position.count; i += 1) {
+        const x = this.liquidRestPositions[i * 3];
+        const y = this.liquidRestPositions[i * 3 + 1];
+        const z = this.liquidRestPositions[i * 3 + 2];
+        const topWeight = THREE.MathUtils.clamp(y / this.liquidGeometryHeight + 0.5, 0, 1);
+        position.setXYZ(i, x, y + displacement(x, z) * topWeight / this.liquid.scale.y, z);
+      }
+      position.needsUpdate = true;
+      this.liquid.geometry.computeVertexNormals();
+    }
+    this.liquidSurface.position.set(cx, topY, 0);
+    this.liquidSurface.rotation.set(-Math.PI * 0.5, 0, 0);
+    const surface = this.liquidSurface.geometry.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < surface.count; i += 1) {
+      surface.setZ(i, displacement(surface.getX(i), -surface.getY(i)));
+    }
+    surface.needsUpdate = true;
+    this.liquidSurface.geometry.computeVertexNormals();
+    // Texture phase is also state-derived, so stale telemetry freezes the view.
+    this.liquidSurface.material.normalMap?.offset.set(state.massX * 0.05, state.massY * 0.05);
   }
 }

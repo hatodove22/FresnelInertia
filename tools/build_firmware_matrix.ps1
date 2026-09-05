@@ -31,9 +31,15 @@ $standardEnvironments = @(
   "m5stack-atoms3-dxl2-motion-probe",
   "m5stack-atoms3-max98357a-tdm-probe",
   "m5stack-atoms3-combined-probe",
-  "m5stack-atoms3-pipeline"
+  "m5stack-atoms3-pipeline",
+  "m5stack-atoms3-pipeline-espnow-monitor",
+  "m5stack-atoms3-pipeline-tilt",
+  "m5stack-atoms3-pipeline-tilt-espnow-monitor"
 )
-$pioArduinoEnvironment = "m5stack-sticks3-audio-smoke-pioarduino"
+$pioArduinoEnvironments = @(
+  "m5stack-sticks3-audio-smoke-pioarduino",
+  "m5stack-stampc5-espnow-bridge"
+)
 $completedEnvironments = [System.Collections.Generic.List[string]]::new()
 
 function Invoke-FirmwareBuild {
@@ -56,11 +62,13 @@ try {
   }
 
   # Official espressif32 and pioarduino intentionally publish packages with
-  # identical names but incompatible versions. Keep the pioarduino smoke
-  # environment in a separate, short cache so a sequential Windows matrix is
-  # deterministic and does not hit MAX_PATH during first-time extraction.
+  # identical names but incompatible versions. Keep the pioarduino targets in
+  # a separate, short cache so a sequential Windows matrix is deterministic
+  # and does not hit MAX_PATH during first-time extraction.
   $env:PLATFORMIO_CORE_DIR = $PioArduinoCoreDir
-  Invoke-FirmwareBuild -EnvironmentName $pioArduinoEnvironment
+  foreach ($environmentName in $pioArduinoEnvironments) {
+    Invoke-FirmwareBuild -EnvironmentName $environmentName
+  }
 } finally {
   if ($null -eq $previousCoreDir) {
     Remove-Item Env:PLATFORMIO_CORE_DIR -ErrorAction SilentlyContinue

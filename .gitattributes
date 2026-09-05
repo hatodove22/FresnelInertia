@@ -1,0 +1,3 @@
+# Preserve original bench capture bytes, including diagnostic whitespace.
+# Source code and documentation retain the normal whitespace checks.
+docs/archive/**/evidence/*.txt -text -whitespace

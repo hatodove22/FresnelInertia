@@ -5,6 +5,11 @@ bench run into a reproducible evidence directory. It never opens a serial or
 network connection and never sends a device command. A serial monitor,
 WebSocket client, or other producer must provide newline-delimited input.
 
+This is an optional strict experiment tool. Its retained Gate 1 templates and
+hash/metadata rules are not the current demo acceptance contract. Ordinary
+handling checks follow [demo acceptance](../../docs/07_TEST_AND_VALIDATION.md);
+do not repeat the historical campaign merely to run the demonstration.
+
 ## Commands
 
 ```text
@@ -143,9 +148,10 @@ attempt rather than accepting an unbound transport-log explanation.
 Each snapshot must also satisfy
 `dropped_frames = backpressure_dropped_frames + console_interrupted_frames`.
 
-The committed thresholds are starting criteria for Gate 1, not authorization
-to energize hardware. Physical output still requires the operator-controlled
-power/switch sequence in `docs/24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md`.
+The committed thresholds describe the historical Gate 1 analysis contract.
+They neither command output nor require its old power/switch sequence.
+Current hardware operation is described in
+[the hardware contract](../../docs/04_HARDWARE_AND_PIN_SPEC.md).
 
 ## Evidence directory
 

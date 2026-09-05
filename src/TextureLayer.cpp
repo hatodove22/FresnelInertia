@@ -159,6 +159,18 @@ void TextureLayer::spawnVoice(const HapticEvent& event) {
                     0.48f);
       break;
     case EventType::DropletCluster:
+      if (params_.features.enable_coherent_container_demo) {
+        // A liquid contact has a wet attack followed by a broad moving body.
+        // The former unconditional hard ping made every slosh sound granular.
+        activateVoice(*acquireVoice(), event, TextureAtomKind::WetBurst,
+                      std::max(0.030f, event.duration_ms * 1.0e-3f),
+                      8.0f, 0.0f, true, 0.88f);
+        activateVoice(*acquireVoice(), event, TextureAtomKind::FlowRipple,
+                      std::max(0.070f, event.duration_ms * 1.7e-3f),
+                      5.0f, params_.texture.flow_ripple_soa_ms * 1.0e-3f,
+                      true, 0.68f);
+        break;
+      }
       activateVoice(*acquireVoice(),
                     event,
                     TextureAtomKind::WetBurst,

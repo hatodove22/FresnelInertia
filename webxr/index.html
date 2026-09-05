@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -13,10 +13,48 @@
         <div class="title-row">
           <div>
             <p class="eyebrow">Parametric Container Haptics</p>
-            <h1>Visual Demo</h1>
+            <h1>Feel the contents.</h1>
           </div>
           <span id="mode-badge" class="badge">Phone</span>
         </div>
+        <section class="device-panel" aria-label="実機デモ">
+          <p id="device-status" role="status">プレビュー — 実機出力なし</p>
+          <p id="device-detail" class="device-detail"></p>
+          <div class="device-connect-row">
+            <select id="device-transport" aria-label="接続方法">
+              <option value="auto">自動 / USB</option>
+              <option value="serial">PC · Serial</option>
+              <option value="usb">Phone / Quest · WebUSB</option>
+            </select>
+            <button id="device-connect" type="button">StampC5に接続</button>
+          </div>
+          <label class="control"><span>実機の材質</span><select id="device-preset"></select></label>
+          <div class="device-outputs">
+            <label><input id="device-audio" type="checkbox" checked /> 4ch振動</label>
+            <label><input id="device-tilt" type="checkbox" checked /> 接平面の傾き</label>
+          </div>
+          <div class="actions">
+            <button id="device-start" class="primary" type="button">実機で開始</button>
+            <button id="device-stop" class="stop" type="button">停止</button>
+          </div>
+          <details class="device-settings"><summary>内容量・接続の操作</summary>
+          <div class="device-fill-row">
+            <label for="device-fill">内容量 %</label>
+            <input id="device-fill" type="number" min="0" max="100" step="1" value="55" />
+            <button id="device-apply-fill" type="button">停止して適用</button>
+          </div>
+          <div class="actions secondary-actions">
+            <button id="device-clear" type="button">サーボ再確認</button>
+            <button id="device-preview" type="button">停止してプレビューへ</button>
+          </div>
+          </details>
+        </section>
+        <div class="actions xr-actions">
+          <button id="xr-button" type="button">Enter MR</button>
+          <button id="quest-button" type="button">Send to Quest</button>
+        </div>
+        <details class="preview-controls">
+          <summary>画面だけで試す / プレビュー</summary>
         <label class="control">
           <span>Preset</span>
           <select id="preset-select"></select>
@@ -27,8 +65,6 @@
         </label>
         <div class="actions">
           <button id="orientation-button" type="button">Use Tilt</button>
-          <button id="xr-button" type="button">Enter MR</button>
-          <button id="quest-button" type="button">Send to Quest</button>
         </div>
         <section class="operation-panel" aria-label="Operation methods">
           <div class="panel-header">
@@ -62,6 +98,7 @@
             <output id="damping-preview-value" for="damping-preview-slider">0.50</output>
           </label>
         </section>
+        </details>
         <dl class="readout">
           <div>
             <dt>Family</dt>
@@ -76,6 +113,7 @@
             <dd id="tilt-readout">0 / 0</dd>
           </div>
         </dl>
+        <details class="trial-details"><summary>試行ログ（任意）</summary>
         <section class="trial-strip" aria-label="Experiment trial logger">
           <div class="panel-header">
             <h2>Trial</h2>
@@ -102,6 +140,7 @@
             <button id="export-button" type="button">Export</button>
           </div>
         </section>
+        </details>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

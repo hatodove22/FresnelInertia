@@ -1,7 +1,26 @@
 import * as THREE from "three";
 import type { SpatialPanelState } from "../types";
 
-type PanelHitKind = "preset" | "slider" | "reset" | "page" | "stimulus" | "trial";
+type PanelHitKind = "preset" | "slider" | "reset" | "page" | "stimulus" | "trial" | "device";
+
+export interface DevicePanelState {
+  presetNames: string[];
+  appliedPreset: string;
+  status: string;
+  detail?: string;
+  available: boolean;
+  canStart: boolean;
+  canStop: boolean;
+  audioDesired: boolean;
+  tiltDesired: boolean;
+}
+
+export interface DevicePanelCallbacks {
+  onPresetSelected(name: string): void;
+  onStart(): void;
+  onStop(): void;
+  onOutputsChanged(outputs: { audio: boolean; tilt: boolean }): void;
+}
 
 interface PanelHit {
   kind: PanelHitKind;
@@ -55,8 +74,10 @@ export class SpatialControlPanel {
     repeat: 1
   };
   private presetPage = 0;
-  private activeHitKey = "";
+  private readonly activeHitKeys = new Map<string, string>();
   private needsPaint = true;
+  private deviceMode?: DevicePanelState;
+  private deviceControls?: DevicePanelCallbacks;
 
   constructor(private readonly options: SpatialControlPanelOptions) {
     this.selectedPreset = options.selectedPreset;
@@ -90,6 +111,22 @@ export class SpatialControlPanel {
       }
       this.needsPaint = true;
     }
+  }
+
+  /** Root owns applied state and command availability; this panel only requests. */
+  setDeviceMode(state: DevicePanelState | null, callbacks?: DevicePanelCallbacks) {
+    if (callbacks) this.deviceControls = callbacks;
+    if (JSON.stringify(this.deviceMode ?? null) === JSON.stringify(state)) return;
+    const wasDeviceMode = this.deviceMode !== undefined;
+    const previousApplied = this.deviceMode?.appliedPreset;
+    this.deviceMode = state ? { ...state, presetNames: [...state.presetNames] } : undefined;
+    if (previousApplied !== this.deviceMode?.appliedPreset) {
+      const selected = state?.appliedPreset ?? this.selectedPreset;
+      this.presetPage = Math.max(0, Math.floor(this.presetNames().indexOf(selected) / presetPageSize));
+    }
+    this.presetPage = Math.min(this.presetPage, this.maxPresetPage());
+    if (wasDeviceMode !== (this.deviceMode !== undefined)) this.resetInteractions();
+    this.needsPaint = true;
   }
 
   setState(state: SpatialPanelState) {
@@ -128,52 +165,76 @@ export class SpatialControlPanel {
     }
   }
 
-  interactRay(origin: THREE.Vector3, direction: THREE.Vector3, pressed: boolean) {
+  releaseInteraction(sourceId = "default") {
+    this.activeHitKeys.delete(sourceId);
+  }
+
+  resetInteractions() {
+    this.activeHitKeys.clear();
+  }
+
+  interactRay(origin: THREE.Vector3, direction: THREE.Vector3, pressed: boolean, sourceId = "default") {
     this.raycaster.set(origin, direction);
     const hit = this.raycaster.intersectObject(this.panelMesh, false)[0];
     if (!hit) {
-      if (!pressed) {
-        this.activeHitKey = "";
-      }
+      this.releaseInteraction(sourceId);
       return false;
     }
     this.panelMesh.worldToLocal(this.localPoint.copy(hit.point));
-    return this.handleLocalPoint(this.localPoint.x, this.localPoint.y, pressed);
+    return this.handleLocalPoint(this.localPoint.x, this.localPoint.y, pressed, sourceId);
   }
 
-  interactPoint(worldPoint: THREE.Vector3, pressed = true) {
+  interactPoint(worldPoint: THREE.Vector3, pressed = true, sourceId = "default") {
     this.panelMesh.worldToLocal(this.localPoint.copy(worldPoint));
     const inside =
       Math.abs(this.localPoint.x) <= panelWidth * 0.5 + 0.018 &&
       Math.abs(this.localPoint.y) <= panelHeight * 0.5 + 0.018 &&
       Math.abs(this.localPoint.z) <= 0.035;
     if (!inside) {
-      this.activeHitKey = "";
+      this.releaseInteraction(sourceId);
       return false;
     }
-    return this.handleLocalPoint(this.localPoint.x, this.localPoint.y, pressed);
+    return this.handleLocalPoint(this.localPoint.x, this.localPoint.y, pressed, sourceId);
   }
 
-  private handleLocalPoint(x: number, y: number, pressed: boolean) {
+  private handleLocalPoint(x: number, y: number, pressed: boolean, sourceId: string) {
     const u = (x / panelWidth + 0.5) * canvasWidth;
     const v = (0.5 - y / panelHeight) * canvasHeight;
     const hit = this.pick(u, v);
     if (!hit) {
+      if (!pressed) this.releaseInteraction(sourceId);
       return false;
     }
 
     const hitKey = `${hit.kind}:${hit.index}`;
-    if (pressed && (hit.kind === "slider" || this.activeHitKey !== hitKey)) {
-      this.activeHitKey = hitKey;
+    if (pressed && (hit.kind === "slider" || this.activeHitKeys.get(sourceId) !== hitKey)) {
+      this.activeHitKeys.set(sourceId, hitKey);
       this.applyHit(hit);
     }
     if (!pressed) {
-      this.activeHitKey = "";
+      this.releaseInteraction(sourceId);
     }
     return true;
   }
 
   private pick(x: number, y: number): PanelHit | undefined {
+    if (this.deviceMode) {
+      if (x >= 320 && x <= 410 && y >= 124 && y <= 166) return { kind: "page", index: -1 };
+      if (x >= 422 && x <= 512 && y >= 124 && y <= 166) return { kind: "page", index: 1 };
+      if (this.deviceMode.available) {
+        for (let i = 0; i < Math.min(this.visiblePresetCount(), presetPageSize); i += 1) {
+          if (x >= 44 && x <= 512 && y >= 178 + i * 54 && y <= 220 + i * 54) {
+            return { kind: "preset", index: this.presetPage * presetPageSize + i };
+          }
+        }
+        if (x >= 574 && x <= 940 && y >= 310 && y <= 364) return { kind: "device", index: 2 };
+        if (x >= 574 && x <= 940 && y >= 386 && y <= 440) return { kind: "device", index: 3 };
+        if (this.deviceMode.canStart && x >= 574 && x <= 940 && y >= 480 && y <= 534) return { kind: "device", index: 0 };
+      }
+      // Stop is independent of busy/start availability, including a pending command.
+      if (this.deviceMode.canStop && x >= 574 && x <= 940 && y >= 562 && y <= 616) return { kind: "device", index: 1 };
+      return undefined;
+    }
     const presetStartY = 136;
     const presetRowH = 54;
     if (x >= 320 && x <= 410 && y >= 124 && y <= 166) {
@@ -225,6 +286,24 @@ export class SpatialControlPanel {
   }
 
   private applyHit(hit: PanelHit) {
+    if (this.deviceMode) {
+      const state = this.deviceMode;
+      if (hit.kind === "page") {
+        this.presetPage = THREE.MathUtils.clamp(this.presetPage + hit.index, 0, this.maxPresetPage());
+      } else if (hit.kind === "preset" && state.available) {
+        const name = state.presetNames[hit.index];
+        if (name) this.deviceControls?.onPresetSelected(name);
+      } else if (hit.kind === "device") {
+        if (hit.index === 1 && state.canStop) this.deviceControls?.onStop();
+        else if (hit.index === 0 && state.available && state.canStart) this.deviceControls?.onStart();
+        else if (hit.index >= 2 && state.available) this.deviceControls?.onOutputsChanged({
+          audio: hit.index === 2 ? !state.audioDesired : state.audioDesired,
+          tilt: hit.index === 3 ? !state.tiltDesired : state.tiltDesired
+        });
+      }
+      this.needsPaint = true;
+      return;
+    }
     if (hit.kind === "preset") {
       const name = this.options.presetNames[hit.index];
       if (name) {
@@ -271,10 +350,10 @@ export class SpatialControlPanel {
 
     ctx.fillStyle = "#eaf3f4";
     ctx.font = "700 44px system-ui, sans-serif";
-    ctx.fillText("Experiment Panel", 44, 72);
+    ctx.fillText(this.deviceMode ? "Device Panel" : "Experiment Panel", 44, 72);
     ctx.fillStyle = "#95c7c4";
     ctx.font = "600 25px system-ui, sans-serif";
-    ctx.fillText("Ray select / direct touch", 44, 112);
+    ctx.fillText(this.deviceMode ? "Device state / explicit output" : "Ray select / direct touch", 44, 112);
 
     ctx.fillStyle = "#bfd1d5";
     ctx.font = "700 25px system-ui, sans-serif";
@@ -284,11 +363,18 @@ export class SpatialControlPanel {
     ctx.fillStyle = "#9eb2b8";
     ctx.font = "600 18px system-ui, sans-serif";
     ctx.fillText(`${this.presetPage + 1}/${this.maxPresetPage() + 1}`, 373, 152);
-    const visiblePresets = this.options.presetNames.slice(
+    const visiblePresets = this.presetNames().slice(
       this.presetPage * presetPageSize,
       this.presetPage * presetPageSize + presetPageSize
     );
     visiblePresets.forEach((name, index) => this.paintPresetRow(ctx, name, index));
+
+    if (this.deviceMode) {
+      this.paintDeviceControls(ctx);
+      this.texture.needsUpdate = true;
+      this.needsPaint = false;
+      return;
+    }
 
     ctx.fillStyle = "#bfd1d5";
     ctx.font = "700 25px system-ui, sans-serif";
@@ -309,11 +395,15 @@ export class SpatialControlPanel {
   }
 
   private visiblePresetCount() {
-    return Math.max(0, this.options.presetNames.length - this.presetPage * presetPageSize);
+    return Math.max(0, this.presetNames().length - this.presetPage * presetPageSize);
   }
 
   private maxPresetPage() {
-    return Math.max(0, Math.ceil(this.options.presetNames.length / presetPageSize) - 1);
+    return Math.max(0, Math.ceil(this.presetNames().length / presetPageSize) - 1);
+  }
+
+  private presetNames() {
+    return this.deviceMode?.presetNames ?? this.options.presetNames;
   }
 
   private selectedStimulusIndex() {
@@ -338,7 +428,7 @@ export class SpatialControlPanel {
 
   private paintPresetRow(ctx: CanvasRenderingContext2D, name: string, index: number) {
     const y = 178 + index * 54;
-    const selected = name === this.selectedPreset;
+    const selected = name === (this.deviceMode?.appliedPreset ?? this.selectedPreset);
     ctx.fillStyle = selected ? "rgba(71, 164, 158, 0.54)" : "rgba(255, 255, 255, 0.075)";
     this.roundRect(ctx, 44, y, 468, 42, 16);
     ctx.fill();
@@ -347,7 +437,33 @@ export class SpatialControlPanel {
     ctx.stroke();
     ctx.fillStyle = "#eef7f8";
     ctx.font = "650 23px system-ui, sans-serif";
-    ctx.fillText(name.replaceAll("_", " "), 64, y + 28);
+    const label = name.replaceAll("_", " ");
+    ctx.fillText(this.deviceMode ? this.fitLabel(label, 30) : label, 64, y + 28);
+  }
+
+  private paintDeviceControls(ctx: CanvasRenderingContext2D) {
+    const state = this.deviceMode!;
+    ctx.fillStyle = "#bfd1d5";
+    ctx.font = "700 25px system-ui, sans-serif";
+    ctx.fillText("Device status", 574, 156);
+    ctx.font = "600 22px system-ui, sans-serif";
+    (state.status.match(/.{1,16}/gu) ?? []).slice(0, 4).forEach((line, i) => ctx.fillText(line, 574, 195 + i * 27));
+    ctx.fillStyle = "#9eb2b8";
+    ctx.font = "600 21px system-ui, sans-serif";
+    (state.detail?.match(/.{1,22}/gu) ?? []).slice(0, 4).forEach((line, i) => ctx.fillText(line, 44, 494 + i * 29));
+    ctx.fillText("Applied state owns selection", 44, 640);
+    ctx.fillText("No auto-start on preset / reconnect", 44, 672);
+    ctx.fillText("Desired outputs on Start", 574, 462);
+    const button = (label: string, y: number, active: boolean, enabled: boolean) => {
+      ctx.save();
+      ctx.globalAlpha = enabled ? 1 : 0.35;
+      this.paintActionButton(ctx, label, 574, y, 366, active);
+      ctx.restore();
+    };
+    button(`${state.audioDesired ? "[x]" : "[ ]"} Vibration`, 310, state.audioDesired, state.available);
+    button(`${state.tiltDesired ? "[x]" : "[ ]"} Tilt planes`, 386, state.tiltDesired, state.available);
+    button("Start", 480, false, state.available && state.canStart);
+    button("STOP", 562, true, state.canStop);
   }
 
   private paintSlider(ctx: CanvasRenderingContext2D, label: string, value: number, y: number) {

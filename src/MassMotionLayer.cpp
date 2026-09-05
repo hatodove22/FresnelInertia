@@ -74,6 +74,7 @@ void MassMotionLayer::configure(const SystemParams& params) {
   convective_bias_ = {};
   agitation_bias_ = {};
   agitation_phase_rad_ = 0.0f;
+  coherent_initialized_ = false;
   state_.container_x_m = params.container.span_x_m;
   state_.container_y_m = params.container.span_y_m;
   state_.container_z_m = params.container.span_z_m;
@@ -83,6 +84,9 @@ void MassMotionLayer::configure(const SystemParams& params) {
 }
 
 float MassMotionLayer::maxStableStepS() const {
+  if (params_.features.enable_coherent_container_demo) {
+    return 0.002f;
+  }
   const float span_gain_x =
       clampf(kReferenceSpanM / safeSpan(params_.container.span_x_m), 0.60f, 2.40f);
   const float span_gain_y =
@@ -113,6 +117,9 @@ MassState MassMotionLayer::updateImpl(const ImuSample& raw_sample,
                                       const ImuSample& activity_sample,
                                       float dt_s,
                                       bool gravity_separated_activity) {
+  if (params_.features.enable_coherent_container_demo) {
+    return updateCoherent(raw_sample, activity_sample, dt_s);
+  }
   const float span_x_m = safeSpan(params_.container.span_x_m);
   const float span_y_m = safeSpan(params_.container.span_y_m);
   const float span_gain_x = clampf(kReferenceSpanM / span_x_m, 0.60f, 2.40f);
@@ -305,6 +312,162 @@ MassState MassMotionLayer::updateImpl(const ImuSample& raw_sample,
   state_.container_y_m = span_y_m;
   state_.container_z_m = safeSpan(params_.container.span_z_m);
   state_.family = params_.container.family;
+  return state_;
+}
+
+MassState MassMotionLayer::updateCoherent(const ImuSample& raw_sample,
+                                         const ImuSample& activity_sample,
+                                         float dt_s) {
+  (void)activity_sample;
+  constexpr float gravity_ms2 = 9.80665f;
+  constexpr float rest_speed_m_s = 0.035f;
+  constexpr float contact_epsilon = 1.0e-5f;
+  state_.wall_impact_speed_norm_s.fill(0.0f);
+  if (!raw_sample.valid || !std::isfinite(raw_sample.accel_g.x) ||
+      !std::isfinite(raw_sample.accel_g.y) || !std::isfinite(dt_s) ||
+      dt_s <= 0.0f) {
+    return state_;
+  }
+
+  const float half_x = 0.5f * safeSpan(params_.container.span_x_m);
+  const float half_y = 0.5f * safeSpan(params_.container.span_y_m);
+  const float viscosity = clampf(params_.container.viscosity, 0.0f, 1.0f);
+  const float particles = clampf(params_.container.particle_count, 0.0f, 1.0f);
+  const float hardness = clampf(params_.container.particle_hardness, 0.0f, 1.0f);
+  const bool liquid = params_.container.family == MaterialFamily::Liquid;
+  const bool hybrid = params_.container.family == MaterialFamily::Hybrid;
+  const bool sparse = params_.container.family == MaterialFamily::Granular &&
+                      particles <= 0.10f && hardness >= 0.80f;
+  const bool detented = params_.container.family == MaterialFamily::Detented;
+  const float fill = clampf(params_.container.fill, 0.0f, 1.0f);
+  const float headspace = clampf(params_.container.headspace, 0.0f, 1.0f);
+  if (!detented && (fill <= 0.0f || params_.container.content_mass_full_kg <= 0.0f)) {
+    state_.pos_norm = {};
+    state_.vel_norm_s = {};
+    state_.energy = 0.0f;
+    state_.fill = fill;
+    state_.headspace = headspace;
+    state_.wall_contact.fill(0.0f);
+    coherent_initialized_ = false;
+    return state_;
+  }
+
+  // Specific force is in g; this converts it to normalized container distance
+  // per second squared. The old O(1) forcing against an O(200) spring could
+  // never take ordinary handling to a wall.
+  const float force_x = -raw_sample.accel_g.x * gravity_ms2 / half_x;
+  const float force_y = -raw_sample.accel_g.y * gravity_ms2 / half_y;
+  const float omega_x = 2.0f * kPi * std::max(0.1f, params_.mass.natural_freq_x_hz);
+  const float omega_y = 2.0f * kPi * std::max(0.1f, params_.mass.natural_freq_y_hz);
+  // A liquid is represented by a damped slosh mode. Rigid inclusions have no
+  // artificial tether to the center and settle against their supporting wall.
+  // A fuller container has a stiffer, less freely traveling slosh mode.
+  // Bounds remain physical wall locations; fill must not move an invisible wall.
+  const float fill_stiffness = clampf((0.55f + 0.75f * fill) /
+                                         (0.65f + 0.70f * headspace),
+                                     0.45f, 2.0f);
+  const float restoring = (liquid ? 1.0f : (hybrid ? 0.40f : 0.0f)) * fill_stiffness;
+  const float spring_x = restoring * omega_x * omega_x;
+  const float spring_y = restoring * omega_y * omega_y;
+  const float drag = liquid ? (3.0f + 18.0f * viscosity) * (0.75f + 0.50f * fill)
+                           : (hybrid ? (4.0f + 10.0f * viscosity) * (0.75f + 0.50f * fill)
+                                     : (sparse ? 1.4f : 3.0f + 6.0f * particles));
+  const float drag_x = drag * std::max(0.0f, params_.mass.damping_ratio_x) / 0.35f;
+  const float drag_y = drag * std::max(0.0f, params_.mass.damping_ratio_y) / 0.35f;
+  const float restitution = liquid ? 0.035f
+                                  : (hybrid ? 0.12f
+                                            : clampf(params_.mass.rebound *
+                                                         (0.35f + 0.45f * hardness),
+                                                     0.03f, 0.42f));
+  const auto updateContacts = [&]() {
+    const float zone_x = clampf(0.0025f / half_x, 0.025f, 0.15f);
+    const float zone_y = clampf(0.0025f / half_y, 0.025f, 0.15f);
+    state_.wall_contact[0] = clampf(1.0f - (1.0f - state_.pos_norm.x) / zone_x, 0.0f, 1.0f);
+    state_.wall_contact[1] = clampf(1.0f - (1.0f + state_.pos_norm.x) / zone_x, 0.0f, 1.0f);
+    state_.wall_contact[2] = clampf(1.0f - (1.0f - state_.pos_norm.y) / zone_y, 0.0f, 1.0f);
+    state_.wall_contact[3] = clampf(1.0f - (1.0f + state_.pos_norm.y) / zone_y, 0.0f, 1.0f);
+  };
+
+  state_.fill = fill;
+  state_.headspace = headspace;
+  state_.container_x_m = 2.0f * half_x;
+  state_.container_y_m = 2.0f * half_y;
+  state_.container_z_m = safeSpan(params_.container.span_z_m);
+  state_.family = params_.container.family;
+
+  if (!coherent_initialized_) {
+    const auto initialPosition = [](float force, float spring, float accel_g) {
+      if (spring > 0.0f) {
+        return clampf(force / spring, -1.0f, 1.0f);
+      }
+      return std::fabs(accel_g) < 0.10f ? 0.0f : (force >= 0.0f ? 1.0f : -1.0f);
+    };
+    state_.pos_norm.x = initialPosition(force_x, spring_x, raw_sample.accel_g.x);
+    state_.pos_norm.y = initialPosition(force_y, spring_y, raw_sample.accel_g.y);
+    state_.vel_norm_s = {};
+    state_.energy = 0.0f;
+    coherent_initialized_ = true;
+    updateContacts();
+    return state_;
+  }
+
+  // Small internal steps keep direct callers and the outer pipeline equivalent.
+  // Impacts are accumulated for this call only, before restitution changes sign.
+  const unsigned steps = std::max(1U, static_cast<unsigned>(std::ceil(dt_s / 0.002f)));
+  const float step_s = dt_s / static_cast<float>(steps);
+  const auto integrateAxis = [&](float& pos, float& velocity, float force,
+                                 float spring, float half_span, float axis_drag,
+                                 std::size_t positive_wall,
+                                 std::size_t negative_wall) {
+    float acceleration = force - spring * pos;
+    if (detented) {
+      // Shallow periodic detents share the same traveling state and contacts.
+      acceleration -= 32.0f * std::sin(4.0f * kPi * pos);
+    }
+    if ((pos >= 1.0f - contact_epsilon && velocity >= 0.0f && acceleration >= 0.0f) ||
+        (pos <= -1.0f + contact_epsilon && velocity <= 0.0f && acceleration <= 0.0f)) {
+      velocity = 0.0f;  // Support force; gravity must not manufacture repeated taps.
+      return;
+    }
+    velocity = (velocity + acceleration * step_s) * std::exp(-axis_drag * step_s);
+    pos += velocity * step_s;
+    if (pos > 1.0f || pos < -1.0f) {
+      const bool positive = pos > 1.0f;
+      const std::size_t wall = positive ? positive_wall : negative_wall;
+      const float incoming = std::fabs(velocity);
+      if (incoming * half_span >= rest_speed_m_s) {
+        state_.wall_impact_speed_norm_s[wall] =
+            std::max(state_.wall_impact_speed_norm_s[wall], incoming);
+      }
+      pos = positive ? 1.0f : -1.0f;
+      velocity = incoming * half_span * restitution < rest_speed_m_s
+                     ? 0.0f
+                     : -velocity * restitution;
+    }
+  };
+  for (unsigned step = 0; step < steps; ++step) {
+    integrateAxis(state_.pos_norm.x, state_.vel_norm_s.x,
+                  force_x, spring_x, half_x, drag_x, 0U, 1U);
+    integrateAxis(state_.pos_norm.y, state_.vel_norm_s.y,
+                  force_y, spring_y, half_y, drag_y, 2U, 3U);
+  }
+  updateContacts();
+
+  const float speed_m_s = length2(state_.vel_norm_s.x * half_x,
+                                  state_.vel_norm_s.y * half_y);
+  // Energy describes the actual content motion. A raw accelerometer reading
+  // at gravitational rest must not hold activity above zero.
+  const float energy_target = clampf(0.75f * speed_m_s / 0.30f, 0.0f, 1.0f);
+  const float energy_tau = energy_target > state_.energy
+                               ? 0.035f
+                               : std::max(0.04f, params_.mass.energy_decay_s);
+  state_.energy += (energy_target - state_.energy) *
+                   (1.0f - std::exp(-dt_s / energy_tau));
+  for (std::size_t wall = 0; wall < 4U; ++wall) {
+    const float impact_m_s = state_.wall_impact_speed_norm_s[wall] *
+                             (wall < 2U ? half_x : half_y);
+    state_.energy = std::max(state_.energy, clampf(impact_m_s / 0.60f, 0.0f, 1.0f));
+  }
   return state_;
 }
 

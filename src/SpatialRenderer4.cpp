@@ -85,11 +85,14 @@ void SpatialRenderer4::configure(const SystemParams& params) {
   pending_.fill({});
 }
 
-void SpatialRenderer4::enqueueDelayed(const DriveFrame4& drive, float delay_s) {
+void SpatialRenderer4::enqueueDelayed(const DriveFrame4& drive, float delay_s,
+                                     float duration_s, float density_hz) {
   for (auto& pending : pending_) {
     if (!pending.active) {
       pending.active = true;
       pending.delay_s = delay_s;
+      pending.duration_s = duration_s;
+      pending.density_hz = density_hz;
       pending.drive = drive;
       return;
     }
@@ -106,7 +109,10 @@ void SpatialRenderer4::accumulateImmediate(DriveFrame4& drive, const ResonanceVo
   const float local_weight = 1.0f + std::max(0.0f, params_.spatial.wall_softmax_delta);
   const float neighbor_weight = voice.distribute_to_neighbors ? params_.spatial.neighbor_bleed : 0.0f;
   const float opposite_weight = voice.distribute_to_neighbors ? params_.spatial.opposite_bleed : 0.0f;
-  const float total = std::max(1.0e-4f, local_weight + 2.0f * neighbor_weight + opposite_weight);
+  // lead/trail split ONE neighbor budget, not two independent budgets.
+  const float neighbor_budget = params_.features.enable_coherent_container_demo
+                                    ? neighbor_weight : 2.0f * neighbor_weight;
+  const float total = std::max(1.0e-4f, local_weight + neighbor_budget + opposite_weight);
   const float lead_share = 0.50f + 0.35f * directionalMotionBias(routing);
   const float trail_share = 1.0f - lead_share;
 
@@ -117,26 +123,33 @@ void SpatialRenderer4::accumulateImmediate(DriveFrame4& drive, const ResonanceVo
     addDrive(drive, scaledDrive(voice, weights));
 
     const bool enqueue_delays =
-        !params_.features.enable_single_shot_spatial_delay || voice.attack_frame;
+        (!params_.features.enable_coherent_container_demo &&
+         !params_.features.enable_single_shot_spatial_delay) || voice.attack_frame;
+    const float duration_s = params_.features.enable_coherent_container_demo
+                                 ? std::max(0.001f, voice.duration_ms * 1.0e-3f)
+                                 : 0.0f;
     if (neighbor_weight > 0.0f && enqueue_delays) {
       const float lead_weight = neighbor_weight * lead_share / total;
       const float trail_weight = neighbor_weight * trail_share / total;
       if (routing.lead >= 0 && lead_weight > 0.0f) {
         std::array<float, 4> lead_drive_weights{};
         lead_drive_weights[routing.lead] = lead_weight;
-        enqueueDelayed(scaledDrive(voice, lead_drive_weights), voice.apparent_motion_soa_ms * 1.0e-3f);
+        enqueueDelayed(scaledDrive(voice, lead_drive_weights), voice.apparent_motion_soa_ms * 1.0e-3f,
+                       duration_s, voice.density_hz);
       }
       if (routing.trail >= 0 && trail_weight > 0.0f) {
         std::array<float, 4> trail_drive_weights{};
         trail_drive_weights[routing.trail] = trail_weight;
-        enqueueDelayed(scaledDrive(voice, trail_drive_weights), voice.apparent_motion_soa_ms * 1.7e-3f);
+        enqueueDelayed(scaledDrive(voice, trail_drive_weights), voice.apparent_motion_soa_ms * 1.7e-3f,
+                       duration_s, voice.density_hz);
       }
     }
 
     if (opposite_weight > 0.0f && routing.opposite >= 0 && enqueue_delays) {
       std::array<float, 4> opposite_drive_weights{};
       opposite_drive_weights[routing.opposite] = opposite_weight / total;
-      enqueueDelayed(scaledDrive(voice, opposite_drive_weights), 2.4f * voice.apparent_motion_soa_ms * 1.0e-3f);
+      enqueueDelayed(scaledDrive(voice, opposite_drive_weights), 2.4f * voice.apparent_motion_soa_ms * 1.0e-3f,
+                     duration_s, voice.density_hz);
     }
     return;
   }
@@ -155,6 +168,11 @@ void SpatialRenderer4::accumulateImmediate(DriveFrame4& drive, const ResonanceVo
 
 SpatialFrame4 SpatialRenderer4::update(const ResonanceFrame<kMaxResonanceVoicesPerFrame>& resonances, float dt_s) {
   SpatialFrame4 frame{};
+  if (params_.features.enable_coherent_container_demo &&
+      (!std::isfinite(dt_s) || dt_s < 0.0f)) {
+    // Ignore invalid elapsed time without poisoning or rewinding queued tails.
+    return frame;
+  }
 
   for (auto& pending : pending_) {
     if (!pending.active) {
@@ -164,8 +182,28 @@ SpatialFrame4 SpatialRenderer4::update(const ResonanceFrame<kMaxResonanceVoicesP
     if (pending.delay_s > 0.0f) {
       continue;
     }
-    addDrive(frame.drive, pending.drive);
-    pending = {};
+    if (pending.duration_s > 0.0f) {
+      const float age_s = -pending.delay_s;
+      if (age_s >= pending.duration_s) {
+        pending = {};
+        continue;
+      }
+      // Reconstruct the delayed FlowRipple envelope, not a one-tick copy.
+      // The stored attack contains ripple(0)=0.65 and zero-age decay already.
+      const float ripple = 0.65f + 0.35f * std::sin(
+          6.28318530718f * pending.density_hz * age_s);
+      const float envelope = (ripple / 0.65f) * std::exp(-2.0f * age_s / pending.duration_s);
+      DriveFrame4 tail = pending.drive;
+      for (int i = 0; i < 4; ++i) {
+        tail.low[i] *= envelope;
+        tail.high[i] *= envelope;
+        tail.noise[i] *= envelope;
+      }
+      addDrive(frame.drive, tail);
+    } else {
+      addDrive(frame.drive, pending.drive);
+      pending = {};
+    }
   }
 
   for (std::size_t i = 0; i < resonances.count; ++i) {

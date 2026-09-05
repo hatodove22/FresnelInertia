@@ -1,0 +1,15 @@
+status: preset=liquid_small_box mode=idle frame=2433584 new_evt=0 evt_total=0 evt=None/None energy=0.000 pos=(0.00,0.00) imu_stop=0 imu_fault=0 audio=0 zero=1 driver=1 transport=tdm8_slot diag=0 layout=quad_wall_4ch gain=1.00 limit=0.080 rec=0 replay=0 tilt=0
+remote: compile_enabled=0 runtime_enabled=0
+espnow_link: compile=1 initialized=1 runtime=1 channel=6 period_ms=100 packet_bytes=230 sequence=32158 tx=32158 dropped=0 errors=0 paired=1 session=37651086 control_rx=3 control_invalid=0 control_queue_drops=0 responses=3 applied=3 rejected=0
+usb_telemetry: compile=1 runtime=0 period_ms=100 pending=0 tx=0 dropped=0 backpressure=0 console_interrupt=0 unterminated=0 errors=0
+preset=liquid_small_box mode=0 frame=2433683 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2433868 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2434063 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+espnow_link: compile=1 initialized=1 runtime=1 channel=6 period_ms=100 packet_bytes=230 sequence=32166 tx=32166 dropped=0 errors=0 paired=1 session=37651086 control_rx=3 control_invalid=0 control_queue_drops=0 responses=3 applied=3 rejected=0
+preset=liquid_small_box mode=0 frame=2434253 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2434440 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2434633 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2434818 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2435012 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2435198 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0
+preset=liquid_small_box mode=0 frame=2435390 new_evt=0 evt_total=0 energy=0.000 pos=(0.00,0.00) vel=(0.00,0.00) evt=0 ch=[0.00 0.00 0.00 0.00] rec=0 replay=0 remote=0

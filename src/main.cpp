@@ -17,6 +17,18 @@
 #define HAPTICS_ATOMS3_CUSTOM_BOARD_PROFILE 0
 #endif
 
+#ifndef HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND
+#define HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND 0
+#endif
+
+#ifndef HAPTICS_ALLOW_REMOTE_TILT_ARM
+#define HAPTICS_ALLOW_REMOTE_TILT_ARM 0
+#endif
+
+#ifndef HAPTICS_USB_TELEMETRY_TX_BUFFER_BYTES
+#define HAPTICS_USB_TELEMETRY_TX_BUFFER_BYTES 4096
+#endif
+
 using haptics::HapticPipeline;
 using haptics::makeDefaultLiquidPreset;
 
@@ -65,8 +77,21 @@ void setup() {
   cfg.output_power = false;
   M5.begin(cfg);
 
+#if HAPTICS_ENABLE_USB_TELEMETRY
+  // ESP32-S3 HWCDC otherwise defaults to a 256-byte TX ring, exactly the
+  // producer's maximum chunk size. Reserve enough room for a complete bounded
+  // JSON frame plus headroom before the console starts using Serial.
+  const size_t usb_telemetry_tx_buffer_bytes =
+      Serial.setTxBufferSize(HAPTICS_USB_TELEMETRY_TX_BUFFER_BYTES);
+#endif
   Serial.begin(115200);
   delay(100);
+
+#if HAPTICS_ENABLE_USB_TELEMETRY
+  Serial.printf("usb_telemetry: tx_buffer=%u requested=%u\n",
+                static_cast<unsigned>(usb_telemetry_tx_buffer_bytes),
+                static_cast<unsigned>(HAPTICS_USB_TELEMETRY_TX_BUFFER_BYTES));
+#endif
 
   const bool imu_ready = M5.Imu.begin(&M5.In_I2C, M5.getBoard());
   Serial.printf("imu: init=%u\n", static_cast<unsigned>(imu_ready));
@@ -76,6 +101,10 @@ void setup() {
 
 #if HAPTICS_ATOMS3_CUSTOM_BOARD_PROFILE
   haptics::applyAsBuiltAtomS3Profile(params);
+#endif
+
+#if HAPTICS_ALLOW_REMOTE_TILT_ARM
+  params.features.allow_remote_tilt_arm = true;
 #endif
 
 #if HAPTICS_SINGLE_AMP_BENCH_DEFAULTS
@@ -99,10 +128,23 @@ void setup() {
 
   g_pipeline_ready = g_pipeline.begin(params);
 
+#if HAPTICS_DEMO_ESPNOW_AUTOSTART
+  if (g_pipeline_ready) {
+    // A dedicated demo must be discoverable after reboot without a USB console.
+    // Reuse the local enable path only after both physical outputs are OFF.
+    g_pipeline.enterSafeIdle();
+    g_pipeline.handleConsoleCommand("espnow link on");
+  }
+#endif
+
   Serial.println();
   Serial.println("Parametric Container Haptics firmware started.");
 #if HAPTICS_ATOMS3_CUSTOM_BOARD_PROFILE
+#if HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND
+  Serial.println("profile: AtomS3 as-built 4CH TDM + guarded DXL2 tilt; both outputs gated at boot");
+#else
   Serial.println("profile: AtomS3 as-built 4CH TDM; digital output muted; legacy tilt backend blocked");
+#endif
 #endif
   Serial.printf("pipeline: init=%u\n", static_cast<unsigned>(g_pipeline_ready));
 #if HAPTICS_ATOMS3_CUSTOM_BOARD_PROFILE

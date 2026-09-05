@@ -33,13 +33,48 @@
       },
       "additionalProperties": false
     },
+    "resolved": {
+      "description": "Applied device configuration from ESP-NOW wire v3. Absent on v1/v2; absence means geometry/model are unknown, not preset defaults.",
+      "type": "object",
+      "required": ["family", "container", "model"],
+      "properties": {
+        "family": {"type": "string", "enum": ["Liquid", "Granular", "Hybrid", "Detented", "Custom"]},
+        "container": {
+          "type": "object",
+          "required": ["span_x_m", "span_y_m", "span_z_m", "fill", "headspace", "viscosity", "particle_count", "particle_hardness"],
+          "properties": {
+            "span_x_m": {"type": "number", "minimum": 0, "exclusiveMinimum": 0},
+            "span_y_m": {"type": "number", "minimum": 0, "exclusiveMinimum": 0},
+            "span_z_m": {"type": "number", "minimum": 0, "exclusiveMinimum": 0},
+            "fill": {"type": "number", "minimum": 0, "maximum": 1},
+            "headspace": {"type": "number", "minimum": 0, "maximum": 1},
+            "viscosity": {"type": "number", "minimum": 0, "maximum": 1},
+            "particle_count": {"type": "number", "minimum": 0, "maximum": 1},
+            "particle_hardness": {"type": "number", "minimum": 0, "maximum": 1}
+          },
+          "additionalProperties": false
+        },
+        "model": {
+          "type": "object",
+          "required": ["coherent_container_demo", "device_frame_transform"],
+          "properties": {
+            "coherent_container_demo": {"type": "boolean"},
+            "device_frame_transform": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "mass": {
       "type": "object",
       "properties": {
         "pos_norm": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
         "vel_norm_s": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
         "energy": {"type": "number"},
-        "fill": {"type": "number"}
+        "fill": {"type": "number"},
+        "wall_contact": {"type": "array", "items": {"type": "number", "minimum": 0, "maximum": 1}, "minItems": 4, "maxItems": 4},
+        "wall_impact_speed_norm_s": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 4, "maxItems": 4}
       },
       "required": ["pos_norm", "vel_norm_s", "energy", "fill"],
       "additionalProperties": true
@@ -78,6 +113,43 @@
         "pseudoforce_enabled": {"type": "boolean"}
       },
       "additionalProperties": true
+    },
+    "tilt_servo": {
+      "type": "object",
+      "properties": {
+        "compile_enabled": {"type": "boolean"},
+        "atoms3_dxl2_backend": {"type": "boolean"},
+        "runtime_requested": {"type": "boolean"},
+        "state": {"type": "integer", "minimum": 0, "maximum": 5},
+        "fault": {"type": "integer", "minimum": 0, "maximum": 12},
+        "communication_errors": {"type": "integer", "minimum": 0},
+        "command_age_ms": {"type": "integer", "minimum": 0},
+        "status_age_ms": {"type": "integer", "minimum": 0},
+        "devices": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "integer", "minimum": 0, "maximum": 252},
+              "status_valid": {"type": "boolean"},
+              "torque_enabled": {"type": "boolean"},
+              "model_number": {"type": "integer", "minimum": 0},
+              "operating_mode": {"type": "integer", "minimum": 0},
+              "hardware_error": {"type": "integer", "minimum": 0},
+              "home_position_raw": {"type": "integer"},
+              "present_position_raw": {"type": "integer"},
+              "goal_position_raw": {"type": "integer"},
+              "present_current_ma": {"type": "integer"},
+              "input_voltage_v": {"type": "number"},
+              "temperature_c": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "audio": {
       "type": "object",

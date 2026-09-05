@@ -9,12 +9,13 @@ infer fabrication readiness from the current placeholder.
 
 ## Current evidence
 
-- `docs/04_HARDWARE_AND_PIN_SPEC.md` — software/hardware contract and pin map
-- `docs/20_DXL2_BOARD_BRINGUP.md` — completed DXL2 evidence
-- `docs/21_MAX98357A_TDM_BRINGUP.md` — completed raw TDM evidence
-- `docs/22_ATOMS3_COMBINED_BRINGUP.md` — completed bounded combined evidence
-- `docs/23_ATOMS3_PRODUCTION_INTEGRATION.md` — production acceptance contract
-- `docs/24_ATOMS3_LIVE_PIPELINE_FOLLOWUP.md` — current powered-Live blocker
+- [Hardware contract](../docs/04_HARDWARE_AND_PIN_SPEC.md) — current pins and settings
+- [DYNAMIXEL history](../docs/archive/2026-09-05/20_DXL2_BOARD_BRINGUP.md)
+- [TDM history](../docs/archive/2026-09-05/21_MAX98357A_TDM_BRINGUP.md)
+- [Combined probe](../docs/archive/2026-09-05/22_ATOMS3_COMBINED_BRINGUP.md)
+- [Production history](../docs/archive/2026-09-05/23_ATOMS3_PRODUCTION_INTEGRATION.md)
+- [Haptic Link](../docs/reference/28_ESPNOW_STAMPC5_TELEMETRY.md)
+- [Active demo acceptance](../docs/07_TEST_AND_VALIDATION.md)
 
 These documents record test evidence, not editable PCB source.
 
@@ -32,6 +33,8 @@ hardware/
 
 ## Publication checklist
 
+Deferred publication work, not a prerequisite for the assembled-device demo:
+
 - board name and revision match silkscreen and documentation
 - exported schematic PDF and net/pin tables are included
 - BOM records exact fitted parts and approved alternates
@@ -47,6 +50,6 @@ hardware/
 
 The current software assumes TDM slots 0–3 map to Front/Back/Top/Bottom, slots
 4–7 are zero, AtomS3 GPIO5/6/7 carry BCLK/frame-sync/data, and the production
-servo path will use GPIO1 TX / GPIO2 RX with board-side automatic half-duplex.
+servo path uses GPIO1 TX / GPIO2 RX with board-side automatic half-duplex.
 Any hardware revision that changes this contract must update the profile,
 pin/design docs, probes, and acceptance tests together.

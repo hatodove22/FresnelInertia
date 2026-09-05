@@ -23,6 +23,7 @@ struct FeatureFlags {
   bool enable_debug_display = false;
   bool enable_pipeline_debug_telemetry = false;
   bool enable_usb_telemetry = false;
+  bool enable_espnow_telemetry = false;
   // Compatibility-safe pipeline improvements. Generic presets leave these
   // disabled; verified hardware profiles may opt in explicitly.
   bool enable_physical_master_gain = false;
@@ -30,6 +31,10 @@ struct FeatureFlags {
   bool enable_single_shot_spatial_delay = false;
   bool enable_imu_stale_safe_stop = false;
   bool enable_gravity_separated_mass_activity = false;
+  bool enable_device_frame_transform = false;
+  // Coherent content motion/contact + complete contact-plane trajectories.
+  // Opted into by the assembled demo; generic presets retain the legacy path.
+  bool enable_coherent_container_demo = false;
   bool allow_remote_tilt_arm = false;
 };
 
@@ -45,6 +50,8 @@ struct PlatformPins {
 
   int dynamixel_halfduplex_data = 1;
   int dynamixel_direction = 8;
+  int dynamixel_tx = 1;
+  int dynamixel_rx = 2;
   bool use_ext_5v_output = true;
 };
 
@@ -186,6 +193,24 @@ struct TiltPlaneParams {
   float max_velocity_deg_s = 120.0f;
   float max_current_ma = 500.0f;
   bool current_based_position_mode = true;
+  uint16_t expected_model_number = 1190;
+  int8_t thumb_raw_direction = 1;
+  int8_t index_raw_direction = -1;
+  int32_t max_travel_pulses = 40;
+  uint32_t profile_acceleration = 1;
+  uint32_t profile_velocity = 5;
+  // Zero preserves the actuator's existing/factory control gain. A nonzero
+  // value is written to volatile RAM and verified during arming.
+  uint16_t position_p_gain = 0;
+  int16_t goal_pwm_limit = 150;
+  uint8_t bus_watchdog_20ms = 50;
+  int16_t abort_current_ma = 350;
+  uint8_t abort_temperature_c = 45;
+  uint16_t min_voltage_decivolt = 45;
+  uint16_t max_voltage_decivolt = 56;
+  uint16_t command_period_ms = 10;
+  uint16_t health_poll_period_ms = 100;
+  uint16_t command_timeout_ms = 350;
 };
 
 struct InterfaceParams {

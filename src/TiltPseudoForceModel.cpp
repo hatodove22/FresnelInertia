@@ -53,6 +53,8 @@ void TiltPseudoForceModel::reset() {
   a_dyn_ms2_ = {};
   content_cg_m_ = {};
   delta_deg_ = {};
+  command_deg_ = {};
+  last_command_ = {};
   content_initialized_ = false;
   imu_initialized_ = false;
 }
@@ -75,11 +77,21 @@ float TiltPseudoForceModel::contentCgScale(MaterialFamily family) const {
 
 TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const MassState& mass, float dt_s) {
   constexpr float eps = 1.0e-6f;
+  const bool coherent_demo = params_.features.enable_coherent_container_demo;
+  if (coherent_demo && (!std::isfinite(dt_s) || dt_s <= 0.0f)) {
+    return last_command_;
+  }
   dt_s = clampf(dt_s, 0.0f, 0.050f);
 
   TiltPlaneCommand cmd{};
-  const float base_thumb_deg = clampf(mass.pos_norm.x, -1.0f, 1.0f) * params_.tilt.max_tilt_deg;
-  const float base_index_deg = -clampf(mass.pos_norm.x, -1.0f, 1.0f) * params_.tilt.max_tilt_deg;
+  const float content_gain = coherent_demo
+      ? clamp01(std::max(0.0f, params_.container.content_mass_full_kg) * clamp01(mass.fill) / 0.005f)
+      : 1.0f;
+  const float base_thumb_deg = content_gain * clampf(mass.pos_norm.x, -1.0f, 1.0f) * params_.tilt.max_tilt_deg;
+  // In the integrated demo, position is the common contact-plane cue;
+  // eccentric load/inertia remains differential. Do not count position twice
+  // as an independent differential command before summing the force model.
+  const float base_index_deg = coherent_demo ? base_thumb_deg : -base_thumb_deg;
   cmd.thumb_base_deg = base_thumb_deg;
   cmd.index_base_deg = base_index_deg;
   cmd.pseudoforce_enabled = params_.tilt.enable_pseudoforce;
@@ -171,25 +183,55 @@ TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const Mas
   }
 
   const Vec2f previous_delta_deg = delta_deg_;
-  delta_deg_.x = lowPassStep(previous_delta_deg.x, target_delta_deg.x, params_.tilt.command_cutoff_hz, dt_s);
-  delta_deg_.y = lowPassStep(previous_delta_deg.y, target_delta_deg.y, params_.tilt.command_cutoff_hz, dt_s);
-  delta_deg_.x = rateLimit(delta_deg_.x, previous_delta_deg.x, params_.tilt.pseudoforce_slew_deg_s, dt_s);
-  delta_deg_.y = rateLimit(delta_deg_.y, previous_delta_deg.y, params_.tilt.pseudoforce_slew_deg_s, dt_s);
-  if (std::fabs(delta_deg_.x) < params_.tilt.command_deadband_deg) {
-    delta_deg_.x = 0.0f;
-  }
-  if (std::fabs(delta_deg_.y) < params_.tilt.command_deadband_deg) {
-    delta_deg_.y = 0.0f;
+  if (coherent_demo) {
+    // Smooth once, AFTER composing the full command below. Filtering only
+    // the correction leaves changes in content position as actuator steps.
+    delta_deg_ = target_delta_deg;
+  } else {
+    delta_deg_.x = lowPassStep(previous_delta_deg.x, target_delta_deg.x, params_.tilt.command_cutoff_hz, dt_s);
+    delta_deg_.y = lowPassStep(previous_delta_deg.y, target_delta_deg.y, params_.tilt.command_cutoff_hz, dt_s);
+    delta_deg_.x = rateLimit(delta_deg_.x, previous_delta_deg.x, params_.tilt.pseudoforce_slew_deg_s, dt_s);
+    delta_deg_.y = rateLimit(delta_deg_.y, previous_delta_deg.y, params_.tilt.pseudoforce_slew_deg_s, dt_s);
+    if (std::fabs(delta_deg_.x) < params_.tilt.command_deadband_deg) {
+      delta_deg_.x = 0.0f;
+    }
+    if (std::fabs(delta_deg_.y) < params_.tilt.command_deadband_deg) {
+      delta_deg_.y = 0.0f;
+    }
   }
 
-  const float thumb_rel_deg = clampf(
+  float thumb_rel_deg = clampf(
       base_thumb_deg + params_.tilt.sign_thumb * delta_deg_.x,
       -params_.tilt.max_total_cmd_deg,
       params_.tilt.max_total_cmd_deg);
-  const float index_rel_deg = clampf(
+  float index_rel_deg = clampf(
       base_index_deg + params_.tilt.sign_index * delta_deg_.y,
       -params_.tilt.max_total_cmd_deg,
       params_.tilt.max_total_cmd_deg);
+
+  if (coherent_demo) {
+    // Both signs calibrate the complete command into the parallel-mounted
+    // planes, including the newly meaningful content-position contribution.
+    Vec2f target{};
+    target.x = params_.tilt.sign_thumb * (base_thumb_deg + delta_deg_.x);
+    target.y = params_.tilt.sign_index * (base_index_deg + delta_deg_.y);
+    // Preserve the common/differential ratio when the two cues share the
+    // available travel, rather than independently flattening one fingertip.
+    const float peak = std::max(std::fabs(target.x), std::fabs(target.y));
+    const float scale = std::min(1.0f, params_.tilt.max_total_cmd_deg / std::max(eps, peak));
+    target.x *= scale;
+    target.y *= scale;
+    const float slew = std::min(params_.tilt.max_velocity_deg_s,
+                                params_.tilt.pseudoforce_slew_deg_s);
+    command_deg_.x = rateLimit(
+        lowPassStep(command_deg_.x, target.x, params_.tilt.command_cutoff_hz, dt_s),
+        command_deg_.x, slew, dt_s);
+    command_deg_.y = rateLimit(
+        lowPassStep(command_deg_.y, target.y, params_.tilt.command_cutoff_hz, dt_s),
+        command_deg_.y, slew, dt_s);
+    thumb_rel_deg = command_deg_.x;
+    index_rel_deg = command_deg_.y;
+  }
 
   const float delta_norm_thumb = clamp01(std::fabs(delta_deg_.x) / max_delta_total_deg);
   const float delta_norm_index = clamp01(std::fabs(delta_deg_.y) / max_delta_total_deg);
@@ -212,6 +254,7 @@ TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const Mas
   cmd.cg_x_m = r_cg_x;
   cmd.cg_y_m = r_cg_y;
   cmd.apparent_mass_kg = m_app;
+  last_command_ = cmd;
   return cmd;
 }
 

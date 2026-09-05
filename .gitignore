@@ -17,3 +17,7 @@ webxr/*.tsbuildinfo
 
 # Local hardware-lab evidence bundles can be large and are run-specific.
 artifacts/lab/
+
+# Local screenshots, paper renderings and scratch captures are not source.
+# Selected bench evidence is retained explicitly under docs/archive/.
+/tmp/

@@ -8,6 +8,25 @@
   -webkit-font-smoothing: antialiased;
 }
 
+.device-panel { margin: 0 0 14px; padding: 12px; border: 1px solid #488e89; border-radius: 10px; background: rgba(34, 81, 76, .20); }
+#device-status { margin: 0 0 6px; font-weight: 700; font-size: 14px; }
+#device-status[data-level="live"] { color: #88ede0; }
+#device-status[data-level="warning"] { color: #ffd596; }
+.device-detail { color: #aec8c8; font-size: 12px; line-height: 1.5; margin: 0 0 12px; }
+.device-connect-row, .device-fill-row, .device-outputs { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.device-connect-row select { flex: 1; min-width: 0; }
+.device-fill-row input { width: 64px; flex: 0 0 64px; }
+.device-fill-row label { white-space: nowrap; }
+.device-fill-row { font-size: 12px; }
+.device-outputs { flex-wrap: wrap; font-size: 13px; }
+.device-outputs label { display: flex; align-items: center; gap: 6px; }
+.device-outputs input { min-height: 20px; accent-color: #75e2d1; }
+button.primary { color: #102b28; background: #85e0d1; }
+button.stop { border-color: #d18b77; color: #ffd7c8; }
+.secondary-actions button { font-size: 11px; min-height: 32px; }
+details > summary { padding: 9px 0; color: #afc3ca; font-size: 12px; cursor: pointer; }
+.device-connected .preview-controls { display: none; }
+
 * {
   box-sizing: border-box;
 }
@@ -147,6 +166,10 @@ button:disabled {
 .actions button {
   flex: 1 1 0;
 }
+
+.xr-actions { flex-wrap: wrap; }
+#xr-session-status { order: 1; flex: 0 0 100%; color: #ffd596; overflow-wrap: anywhere; }
+#xr-session-status:empty { display: none; }
 
 .operation-panel {
   margin-bottom: 12px;
@@ -338,6 +361,7 @@ dd {
   .hud {
     width: auto;
     padding: 12px;
+    max-height: 46vh;
   }
 
   h1 {
