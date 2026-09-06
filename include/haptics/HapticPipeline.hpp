@@ -4,21 +4,15 @@
 
 #include "haptics/AudioOutput4Ch.hpp"
 #include "haptics/DeviceFrameTransform.hpp"
-#include "haptics/EventLayer.hpp"
 #include "haptics/EspNowTelemetryProducer.hpp"
+#include "haptics/HapticSynthesisCore.hpp"
 #include "haptics/ImuSampler.hpp"
-#include "haptics/MassMotionLayer.hpp"
-#include "haptics/MotionActivityFilter.hpp"
 #include "haptics/Parameters.hpp"
 #include "haptics/PresetStore.hpp"
 #include "haptics/Recorder.hpp"
 #include "haptics/RemoteInterface.hpp"
-#include "haptics/ResonanceLayer.hpp"
 #include "haptics/RuntimeSafetyPolicy.hpp"
 #include "haptics/RuntimeCalibrator.hpp"
-#include "haptics/SpatialRenderer4.hpp"
-#include "haptics/TextureLayer.hpp"
-#include "haptics/TiltPseudoForceModel.hpp"
 #include "haptics/TiltPlaneServoInterface.hpp"
 #include "haptics/UsbTelemetryProducer.hpp"
 
@@ -62,8 +56,7 @@ class HapticPipeline {
   RuntimeConfigSnapshot captureRuntimeConfig() const;
   void restoreRuntimeConfig(SystemParams& params, const RuntimeConfigSnapshot& snapshot) const;
   void commitPresetParams(SystemParams next_params, const RuntimeConfigSnapshot& snapshot);
-  TiltPlaneCommand updateTiltCommand(const ImuSample& sample, const MassState& state, float dt_s);
-  MassState makeDefaultMassState() const;
+  TiltPlaneCommand manualTiltCommand() const;
   bool reconfigurePipeline();
   void refreshOutputConfig();
   void resetDynamicPipelineState();
@@ -77,15 +70,9 @@ class HapticPipeline {
 
   SystemParams params_{};
   ImuSampler imu_{};
-  MotionActivityFilter motion_activity_filter_{};
-  MassMotionLayer mass_layer_{};
-  EventLayer event_layer_{};
-  TextureLayer texture_layer_{};
-  ResonanceLayer resonance_layer_{};
+  HapticSynthesisCore synthesis_{};
   RuntimeCalibrator calibrator_{};
-  SpatialRenderer4 spatial_renderer_{};
   AudioOutput4Ch audio_{};
-  TiltPseudoForceModel tilt_model_{};
   TiltPlaneServoInterface tilt_{};
   RemoteInterface remote_{};
   UsbTelemetryProducer usb_telemetry_{};

@@ -54,14 +54,16 @@ test("connected dimensions use all resolved spans and box, preview keeps its sha
   const descriptor = preset({ visual_shape: "cylinder_bottle" });
   scene.setPreset(descriptor, true);
   const geometry = scene.group.children[0].geometry;
-  assert.equal(geometry.type, "BoxGeometry");
-  assert.equal(geometry.parameters.width, 0.08);
-  assert.equal(geometry.parameters.height, 0.12);
-  assert.equal(geometry.parameters.depth, 0.05);
+  geometry.computeBoundingBox();
+  close(geometry.boundingBox.max.x - geometry.boundingBox.min.x, 0.08);
+  close(geometry.boundingBox.max.y - geometry.boundingBox.min.y, 0.12);
+  close(geometry.boundingBox.max.z - geometry.boundingBox.min.z, 0.05);
   scene.setPreset(descriptor);
   assert.equal(scene.group.children[0].geometry.type, "CylinderGeometry");
   scene.setPreset(preset());
-  assert.equal(scene.group.children[0].geometry.parameters.width, 0.07);
+  const preview = scene.group.children[0].geometry;
+  preview.computeBoundingBox();
+  close(preview.boundingBox.max.x - preview.boundingBox.min.x, 0.07);
 });
 
 test("single marble follows reported x/y immediately and freezes without new state", () => {
@@ -125,9 +127,8 @@ test("liquid uses reported mass, activity and fill, without a visual clock", () 
   scene.setDeviceState({ ...state, fill: 0.25 });
   tick(scene);
   const before = liquidSnapshot(scene);
-  close(before.bodyPosition[0], state.massX * 0.08 * (1 - 0.78) / 2);
-  close(before.bodyPosition[1], state.massY * (0.12 - 0.12 * 0.25) / 2);
-  close(before.surfacePosition[1] - before.bodyPosition[1], 0.12 * 0.25 / 2);
+  assert.deepEqual(before.bodyPosition, [0, 0, 0], 'liquid stays attached to its cavity');
+  assert.ok(Math.abs(scene.group.getObjectByName('content-liquid').parent.userData.volumeFraction - 0.25) < 0.00001);
   tick(scene, 200, 5);
   assert.deepEqual(liquidSnapshot(scene), before);
   scene.setDeviceState({ ...state, fill: 0.25, velocityX: -0.9, energy: 0.9 });
@@ -135,7 +136,7 @@ test("liquid uses reported mass, activity and fill, without a visual clock", () 
   assert.notDeepEqual(liquidSnapshot(scene).surfaceVertices, before.surfaceVertices);
   scene.setDeviceState({ ...state, fill: 0.75 });
   tick(scene);
-  close(liquidSnapshot(scene).surfacePosition[1] - liquidSnapshot(scene).bodyPosition[1], 0.12 * 0.75 / 2);
+  assert.ok(Math.abs(scene.group.getObjectByName('content-liquid').parent.userData.volumeFraction - 0.75) < 0.00001);
 });
 
 test("empty state hides contents; clearing device state restores animated preview", () => {
@@ -183,17 +184,204 @@ test("connected orientation directly maps pitch to x and roll to z; stale pose f
   close(scene.group.rotation.z, -0.6 * 0.62 * 0.16);
 });
 
-test("front label stays in preview but never occludes connected contents", () => {
+test("large preview labels never obscure the contents in either source mode", () => {
   const scene = new ContainerScene();
   scene.setPreset(preset());
-  const label = () => scene.group.getObjectByName("container-preview-label");
-  assert.equal(label().visible, true);
+  assert.equal(scene.group.getObjectByName('container-preview-label'), undefined);
   scene.setDeviceState(state);
-  assert.equal(label().visible, false);
-  scene.setPreset(preset({ preset: "granular_single_marble_box" }), true);
+  assert.equal(scene.group.getObjectByName('container-preview-label'), undefined);
+  scene.dispose();
+});
+
+test("material switches compose liquid and grains without leaving the previous ingredient", () => {
+  const scene = new ContainerScene();
+  scene.setDeviceState(state);
+  for (const family of ["Liquid", "Granular", "Hybrid", "Custom", "Granular"]) {
+    scene.setPreset(preset({ family }), true);
+    tick(scene);
+    assert.equal(!!particles(scene), family === "Granular" || family === "Hybrid");
+    assert.equal(!!scene.group.getObjectByName("content-liquid"), family === "Liquid" || family === "Hybrid");
+    if (particles(scene)) {
+      const before = particlePositions(scene);
+      tick(scene, 100, 10);
+      assert.deepEqual(particlePositions(scene), before);
+    }
+    assert.equal(scene.group.getObjectByName("container-preview-label"), undefined);
+  }
+  scene.dispose();
+});
+
+function ownedResources(root, excluded) {
+  const resources = new Set();
+  const visit = object => {
+    if (object === excluded) return;
+    if (object.isInstancedMesh) resources.add(object);
+    if (object.geometry) resources.add(object.geometry);
+    for (const material of object.material ? [object.material].flat() : []) {
+      resources.add(material);
+      for (const value of Object.values(material)) if (value?.isTexture) resources.add(value);
+    }
+    for (const child of object.children) visit(child);
+  };
+  visit(root);
+  return resources;
+}
+
+function watchDisposal(resources) {
+  const calls = new Map([...resources].map(resource => [resource, 0]));
+  for (const resource of resources) resource.addEventListener("dispose", () => calls.set(resource, calls.get(resource) + 1));
+  return calls;
+}
+
+test("preset and source rebuilds dispose replaced resources exactly once and preserve grip pads", () => {
+  const scene = new ContainerScene();
+  scene.setPreset(preset({ family: "Hybrid", visual_shape: "cylinder_bottle" }));
+  const pad = scene.gripProxy.group.children[0];
+  const gripCalls = watchDisposal([pad.geometry, pad.material]);
+  const old = watchDisposal(ownedResources(scene.group, scene.gripProxy.group));
+  assert.ok(old.size > 12, "includes vessel, liquid normal texture and instance buffers");
+  scene.setPreset(preset({ family: "Liquid", visual_shape: "tumbler_cup" }));
+  assert.ok([...old.values()].every(count => count === 1));
+  assert.deepEqual([...gripCalls.values()], [0, 0]);
+  const preview = watchDisposal(ownedResources(scene.group, scene.gripProxy.group));
+  scene.setDeviceState(state);
+  assert.ok([...preview.values()].every(count => count === 1));
+  const connected = watchDisposal(ownedResources(scene.group, scene.gripProxy.group));
+  scene.setDeviceState({ ...state, massX: -0.5 });
   tick(scene);
-  assert.equal(label().visible, false);
-  scene.setDeviceState(null);
-  scene.setPreset(preset());
-  assert.equal(label().visible, true);
+  assert.ok([...connected.values()].every(count => count === 0), "new samples update existing resources");
+  scene.dispose();
+  scene.dispose();
+  tick(scene);
+  assert.equal(scene.group.children.length, 0);
+  assert.ok([...connected.values()].every(count => count === 1));
+  assert.ok([...old.values()].every(count => count === 1));
+  assert.deepEqual([...gripCalls.values()], [1, 1], "two grip pads share one geometry/material within the owner");
+  assert.throws(() => scene.setPreset(preset()), /disposed/);
+});
+
+test("independent preview and device scenes cannot mutate or dispose each other's materials", () => {
+  const preview = new ContainerScene();
+  const device = new ContainerScene();
+  const liquid = preset({ family: "Liquid" });
+  preview.setPreset(liquid);
+  device.setPreset(liquid, true);
+  device.setDeviceState(state);
+  tick(device);
+  const map = scene => scene.group.getObjectByName("content-liquid-surface").material.normalMap;
+  assert.notEqual(map(preview), map(device));
+  const resources = watchDisposal(ownedResources(device.group));
+  const phase = map(device).offset.toArray();
+  const shape = liquidSnapshot(device);
+  tick(preview, 500, 0.03);
+  assert.deepEqual(map(device).offset.toArray(), phase);
+  preview.dispose();
+  assert.ok([...resources.values()].every(count => count === 0));
+  tick(device, 1000, 5);
+  assert.deepEqual(liquidSnapshot(device), shape);
+  device.dispose();
+  assert.ok([...resources.values()].every(count => count === 1));
+});
+
+test("accepted single-marble mesh and material stay unchanged", () => {
+  const scene = new ContainerScene();
+  scene.setPreset(preset({ preset: "granular_single_marble_box" }), true);
+  scene.setDeviceState(state);
+  tick(scene);
+  const mesh = particles(scene);
+  assert.equal(mesh.count, 1);
+  assert.equal(mesh.geometry.type, "SphereGeometry");
+  assert.equal(mesh.geometry.parameters.widthSegments, 10);
+  assert.equal(mesh.geometry.parameters.heightSegments, 8);
+  assert.equal(mesh.material.color.getHexString(), "d8c071");
+  assert.equal(mesh.material.roughness, 0.76);
+  scene.dispose();
+});
+
+
+test('rotated vessels keep every shell/rim/cap vertex above the desktop; XR translation is retained', () => {
+  for (const shape of ['box', 'cylinder_bottle', 'tumbler_cup']) {
+    const scene = new ContainerScene();
+    scene.setPreset(preset({ visual_shape: shape }));
+    scene.setDeviceState(state);
+    for (const [pitchRad, rollRad] of [[0,0], [0.7,-0.5], [Math.PI / 2,0], [0,Math.PI], [2.8,-2.2]]) {
+      scene.setDeviceOrientation({pitchRad,rollRad}); tick(scene);
+      scene.group.updateMatrixWorld(true);
+      const heights = [];
+      for (const child of scene.group.children) {
+        if (!child.geometry) continue; // Direct children are vessel meshes/edges only.
+        const positions = child.geometry.getAttribute('position');
+        for (let i=0;i<positions.count;i++) heights.push(child.localToWorld(child.position.clone().fromBufferAttribute(positions,i)).y);
+      }
+      close(Math.min(...heights), 0.8248);
+    }
+    scene.setDesktopPresentation(false);
+    scene.group.position.set(0.4,1.1,-0.3); tick(scene);
+    assert.deepEqual(scene.group.position.toArray(), [0.4,1.1,-0.3]);
+    scene.dispose();
+  }
+});
+
+test('acceleration cue is bounded, cannot drift, freezes without samples and returns to rest', () => {
+  const scene = new ContainerScene();
+  scene.setPreset(preset(),true); scene.setDeviceState(state);
+  scene.setDeviceOrientation({pitchRad:0,rollRad:0});
+  tick(scene);
+  const anchor = scene.getDesktopTarget(scene.group.position.clone()).toArray();
+  for(let i=0;i<100;i++) { scene.setDeviceAcceleration([10,0,-10]); tick(scene); }
+  const offset = scene.group.position.toArray();
+  assert.ok(Math.hypot(offset[0],offset[2]+0.72) <= 0.05*0.18+1e-10);
+  assert.ok(Math.hypot(offset[0],offset[2]+0.72) > 0.008);
+  tick(scene,999,5);
+  assert.deepEqual(scene.group.position.toArray(),offset);
+  scene.setDeviceAcceleration([NaN,Infinity,0]); tick(scene);
+  assert.deepEqual(scene.group.position.toArray(),offset);
+  assert.deepEqual(scene.getDesktopTarget(scene.group.position.clone()).toArray(),anchor,'camera anchor must not cancel translation');
+  for(let i=0;i<100;i++) {scene.setDeviceAcceleration([0,0,0]);tick(scene);}
+  close(scene.group.position.x,0); close(scene.group.position.z,-0.72);
+  scene.setDeviceAcceleration([1,0,0]);tick(scene);
+  scene.setDeviceAcceleration(null);tick(scene);
+  close(scene.group.position.x,0);
+  scene.dispose();
+});
+
+test('round preview vessels constrain complete particles to their changing inner radius', () => {
+  const scene = new ContainerScene();
+  scene.setPreset(preset({family:'Hybrid',visual_shape:'tumbler_cup'}));
+  for(let frame=0;frame<120;frame++) {
+    scene.update({x:0.9,y:-0.8},content,frame/60,1/60);
+    const mesh = particles(scene);
+    for(let i=0;i<mesh.count;i++) {
+      const m = mesh.instanceMatrix.array.slice(i*16,(i+1)*16);
+      const radius = Math.hypot(m[0],m[1],m[2]);
+      const inner = (0.052+(0.07-0.052)*Math.min(1,Math.max(0,(m[13]+0.035)/0.07)))*0.48;
+      assert.ok(Math.hypot(m[12],m[14])+radius <= inner+1e-7);
+    }
+  }
+  scene.dispose();
+});
+
+test('quiet positional cue recenters gently over seconds at different sample rates without levelling a held tilt', () => {
+  const recovered = [];
+  for (const rate of [5, 10, 20]) {
+    const scene = new ContainerScene();
+    scene.setPreset(preset(), true); scene.setDeviceState(state);
+    scene.setDeviceOrientation({pitchRad:0.3,rollRad:-0.4});
+    scene.setDeviceAcceleration([5,0,0],0.1); tick(scene);
+    const start = scene.group.position.x;
+    const anchor = scene.getDesktopTarget(scene.group.position.clone()).toArray();
+    for (let i=0;i<rate*0.8;i++) { scene.setDeviceAcceleration([0,0,0],1/rate); tick(scene); }
+    const fraction = scene.group.position.x/start;
+    assert.ok(fraction>0.32 && fraction<0.42, 'still returns gently, not an immediate snap');
+    recovered.push(scene.group.position.x);
+    close(scene.group.rotation.x,0.3); close(scene.group.rotation.z,-0.4);
+    assert.deepEqual(scene.getDesktopTarget(scene.group.position.clone()).toArray(),anchor);
+    const held = scene.group.position.toArray();
+    for(let i=0;i<60;i++) tick(scene,20+i,1/60);
+    assert.deepEqual(scene.group.position.toArray(),held,'no fresh samples means no recovery animation');
+    for(let i=0;i<rate*1.6;i++) { scene.setDeviceAcceleration([0,0,0],1/rate); tick(scene); }
+    assert.ok(Math.abs(scene.group.position.x/start)<0.06,'at least 94% returned after 2.4 s');
+    scene.dispose();
+  }
+  recovered.forEach(value=>close(value,recovered[0]));
 });

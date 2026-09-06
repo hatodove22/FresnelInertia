@@ -1,7 +1,7 @@
 import { HapticLink, HapticLinkError, type DeviceSnapshot } from "./link/HapticLink";
-import type { ContainerScene } from "./renderer/ContainerScene";
 import type { DevicePanelState, DevicePanelCallbacks } from "./renderer/SpatialControlPanel";
-import type { ContainerPreset, LocalContentState, MaterialFamily, TiltState } from "./types";
+import type { ContainerPreset, LocalContentState, TiltState } from "./types";
+import { contentFromSnapshot, orientationFromSnapshot, resolvedPresetFromSnapshot, visualSampleInterval, type DeviceVisualSink } from "./visualState";
 
 const devicePresets = [
   ["granular_single_marble_box", "ひと粒のビー玉"],
@@ -13,7 +13,6 @@ const devicePresets = [
   ["liquid_dense_jar", "粘性のある液体"],
   ["liquid_half_tube", "細長い容器の液体"]
 ];
-const families = new Set(["Liquid", "Granular", "Hybrid", "Detented", "Custom"]);
 const quietContent: LocalContentState = {
   surfaceOffsetX: 0, surfaceOffsetY: 0, surfaceVelocityX: 0, surfaceVelocityY: 0,
   agitation: 0, particleSpread: 0, impactPulse: 0, wavePrimary: 0, waveSecondary: 0
@@ -38,7 +37,9 @@ export class DeviceDemo {
   private selectedPresetPending = "";
   private tilt: TiltState = { x: 0, y: 0 };
   private gravity: number[] | null = null;
+  private visualTimestampMs: number | null = null;
   private processedSnapshot: DeviceSnapshot | null = null;
+  private hasDeviceState = false;
   private readonly status = element<HTMLElement>("device-status");
   private readonly detail = element<HTMLElement>("device-detail");
   private readonly connectButton = element<HTMLButtonElement>("device-connect");
@@ -52,7 +53,7 @@ export class DeviceDemo {
   private readonly fillInput = element<HTMLInputElement>("device-fill");
   private readonly fillButton = element<HTMLButtonElement>("device-apply-fill");
 
-  constructor(private readonly container: ContainerScene, private readonly hooks: {
+  constructor(private readonly container: DeviceVisualSink, private readonly hooks: {
     onPreset(preset: ContainerPreset): void;
     onPreview(): void;
     onPanel?(state: DevicePanelState | null, callbacks: DevicePanelCallbacks): void;
@@ -66,6 +67,8 @@ export class DeviceDemo {
         await this.link.connect(transport);
         this.active = true;
         this.gravity = null;
+        this.visualTimestampMs = null;
+        this.container.setDeviceAcceleration?.(null);
         this.processedSnapshot = null;
       }
       await this.link.getState();
@@ -81,6 +84,8 @@ export class DeviceDemo {
       this.latest = null;
       this.applied = null;
       this.signature = "";
+      this.hasDeviceState = false;
+      this.visualTimestampMs = null;
       this.container.setDeviceState(null);
       this.hooks.onPreview();
     });
@@ -140,24 +145,12 @@ export class DeviceDemo {
     if (connected) this.active = true;
     if (this.active && state.telemetry) this.latest = state.telemetry;
     const snapshot = this.latest;
-    const resolved = snapshot?.resolved;
-    const config = resolved?.container;
-    const validResolved = snapshot && resolved && config && families.has(String(resolved.family)) &&
-        [config.span_x_m, config.span_y_m, config.span_z_m, config.fill].every(Number.isFinite) &&
-        Number(config.span_x_m) > 0 && Number(config.span_y_m) > 0 && Number(config.span_z_m) > 0;
-    if (connected && !state.stale && !validResolved) {
+    const preset = resolvedPresetFromSnapshot(snapshot);
+    if (connected && !state.stale && !preset) {
       this.applied = null;
       this.signature = "";
     }
-    if (validResolved && snapshot && resolved && config) {
-      const preset: ContainerPreset = {
-        preset: snapshot.preset, family: resolved.family as MaterialFamily, visual_shape: "box",
-        container: {
-          span_x_m: Number(config.span_x_m), span_y_m: Number(config.span_y_m), span_z_m: Number(config.span_z_m),
-          fill: Number(config.fill), headspace: config.headspace, viscosity: config.viscosity,
-          particle_count: config.particle_count, particle_hardness: config.particle_hardness
-        }
-      };
+    if (preset && snapshot) {
       const signature = JSON.stringify(preset);
       if (signature !== this.signature) {
         this.signature = signature;
@@ -225,31 +218,27 @@ export class DeviceDemo {
     const snapshot = this.latest;
     if (snapshot && this.applied && !this.link.state.stale && snapshot !== this.processedSnapshot) {
       this.processedSnapshot = snapshot;
-      const mass = snapshot.mass;
-      if (mass?.pos_norm && mass.vel_norm_s) {
-        this.container.setDeviceState({
-          massX: mass.pos_norm[0], massY: mass.pos_norm[1],
-          velocityX: mass.vel_norm_s[0], velocityY: mass.vel_norm_s[1],
-          energy: mass.energy ?? 0, fill: mass.fill ?? this.applied.container.fill
-        });
+      const content = contentFromSnapshot(snapshot, this.applied.container.fill);
+      if (content) {
+        this.container.setDeviceState(content);
+        this.hasDeviceState = true;
       }
-      const raw = snapshot.imu?.valid && snapshot.imu.accel_g;
-      if (raw && raw.length === 3 && raw.every(Number.isFinite)) {
-        const transformed = snapshot.resolved?.model?.device_frame_transform;
-        const body = transformed ? [-raw[1], (raw[0] + raw[2]) * Math.SQRT1_2, (raw[2] - raw[0]) * Math.SQRT1_2] : [...raw];
-        if (!this.gravity) this.gravity = body;
-        else this.gravity = body.map((value, i) => this.gravity![i] + 0.3 * (value - this.gravity![i]));
-        // At rest, body specific force is R^T * world +Y. For THREE XYZ
-        // with yaw=0, these signs make R * body force point world-up, so
-        // the reported contents move downhill, not uphill. No absolute yaw.
-        this.tilt = {
-          x: -Math.atan2(this.gravity[2], Math.hypot(this.gravity[0], this.gravity[1])),
-          y: Math.atan2(this.gravity[0], this.gravity[1])
-        };
-        this.container.setDeviceOrientation({ pitchRad: this.tilt.x, rollRad: this.tilt.y });
+      const pose = orientationFromSnapshot(snapshot, this.gravity);
+      if (pose) {
+        this.gravity = pose.gravity;
+        this.tilt = { x: pose.orientation.pitchRad, y: pose.orientation.rollRad };
+        this.container.setDeviceOrientation(pose.orientation);
+        this.container.setDeviceAcceleration?.(pose.acceleration,
+          visualSampleInterval(this.visualTimestampMs, snapshot.timestamp_ms));
+        this.visualTimestampMs = snapshot.timestamp_ms;
       }
     }
-    if (!this.applied) this.container.setDeviceState({ massX: 0, massY: 0, velocityX: 0, velocityY: 0, energy: 0, fill: 0 });
+    // Configuration can arrive before the first mass sample. Claim the device
+    // source even then, so the renderer cannot advance its local preview.
+    if (!this.applied || !this.hasDeviceState) {
+      this.container.setDeviceState({ massX: 0, massY: 0, velocityX: 0, velocityY: 0, energy: 0, fill: 0 });
+      this.hasDeviceState = true;
+    }
     void dt;
     return { tilt: this.tilt, content: quietContent };
   }

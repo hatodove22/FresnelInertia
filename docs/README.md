@@ -35,6 +35,12 @@ Record a fact in its owner and link to it.
 - [USB telemetry](reference/26_ATOMS3_USB_TELEMETRY.md)
 - [ESP-NOW wire/bridge detail](reference/28_ESPNOW_STAMPC5_TELEMETRY.md)
 - [Sources](reference/10_REFERENCES.md)
+- [Explanatory website and film](reference/29_EXPLAINER_SITE_AND_FILM.md)
+- [Reusable firmware core](reference/30_REUSABLE_FIRMWARE_CORE.md)
+- [Reusable visual architecture](reference/31_REUSABLE_VISUAL_ARCHITECTURE.md)
+- [Interaction space and 12 proposed demos](reference/32_INTERACTION_DESIGN_SPACE.md)
+- [Primary-source audit and transfer limits](reference/33_INTERACTION_RESEARCH_SOURCES.md)
+- [FW physical-model research, algorithm comparisons and tuning (Japanese)](reference/34_FW_MODEL_RESEARCH.md)
 
 Technical references explain implementations or explicitly future designs.
 Their historical status notes do not override 16, and they add no demo gate.

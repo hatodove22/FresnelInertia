@@ -1,7 +1,7 @@
 # 08 Active Demo Plan
 
-Updated: 2026-09-05, after the planning discussion and the user's selection of
-Android. This is the only active plan. [00](00_DESIGN_SPECIFICATION.md) owns the
+Updated: 2026-09-06, after the requested firmware/visual refactor and interaction
+research and the user-requested desktop visual pass. This is the only active plan. [00](00_DESIGN_SPECIFICATION.md) owns the
 concept, [16](16_PROGRESS_STATUS.md) the evidence, and
 [07](07_TEST_AND_VALIDATION.md) the acceptance criteria.
 
@@ -18,10 +18,47 @@ its unfinished physical checks are deferred, not passed and not prerequisites
 for this iteration. Do not introduce a separate engine or app stack merely to
 add a presentation mode.
 
-The work below is **planned, not implemented**. The current client already has
+The reuse refactor is implemented: hardware-free synthesis composition, pure
+accepted-state projections, independently owned material renderers, regression
+tests and the explanatory interaction atlas. It preserves the content laws and
+actuator defaults. [16](16_PROGRESS_STATUS.md) records verification.
+
+The tuning studio and Android work below remain **planned, not implemented**.
+The initial material/placement pass in section 2 is implemented; the user requested
+that visible defects be addressed before continuing the studio. The current client already has
 connection, applied material/fill/dimensions, explicit Start/Stop, device-driven
 visuals and an MR path. It does not yet have the new tuning studio or tracked
-Android AR. Planning did not change firmware or actuator behavior.
+Android AR. These planned experiences were not enabled by the reuse refactor.
+
+## Reuse the new boundaries for the next experiment
+
+Use the [firmware core](reference/30_REUSABLE_FIRMWARE_CORE.md) for deterministic
+offline traces and the [visual ingredients](reference/31_REUSABLE_VISUAL_ARCHITECTURE.md)
+for new presentations. Extend the appropriate owner instead of copying the
+pipeline or adding preview physics to the connected view.
+
+The [interaction atlas](reference/32_INTERACTION_DESIGN_SPACE.md) proposes 12
+experiences with source links, additions and first comparisons. Treat them as
+a candidate pool, not twelve new mandatory milestones. The practical choices are:
+
+- First combine the existing comparison work with **C01 hidden/revealed
+  contents**, initially rigid versus granular, and **C02 virtual travel length**.
+  These can test a meaningful story without new haptic laws. Preserve explicit
+  applied-state confirmation and stopped configuration changes.
+- For the first new stateful content experiment, prefer **C05 attachment and
+  release**: its held position, release transient and subsequent travel have
+  clear observable transitions. Add state/model/telemetry together behind a
+  default-off experiment and compare with high damping using the same gesture.
+- **C04 outflow/remaining mass** and **C06 living capsule** are subsequent
+  options. Do not simulate these by streaming resetting parameter writes or
+  adding an unrelated vibration clock in the browser.
+- Defer **C10/C11 world-contact interactions** to a verified tracking input and
+  **C12 squeeze/compliance** to the required sensing/mechanics. The existing
+  Android direction stays intact; current hardware is not assumed to supply
+  tracked position, measured grip force or rigid resistance.
+
+The atlas's three interactive sketches are deliverables for explanation and
+design review; they do not count as these future physical demos being built.
 
 ## 1. Make the existing experience comparable and reproducible
 
@@ -29,6 +66,11 @@ First deliver a tuning view that preserves the accepted marble condition,
 compares A/B settings, restores the baseline and saves/reloads a configuration.
 Keep geometry and fill fixed when comparing a material-response parameter.
 Separate physical parameters from presentation gains.
+
+Use the [FW model research](reference/34_FW_MODEL_RESEARCH.md) as a lookup for
+the current coherent-path parameter applicability, mass/fill semantics and
+bounded comparisons of contact timing, excitation and material state. These
+are research candidates; they do not add prerequisites or change this order.
 
 - Display actual applied values; a sent slider value is not confirmation.
 - Expose only parameters used by the selected model. The current remote
@@ -54,14 +96,20 @@ reloaded without losing the baseline or implicitly arming outputs.
 
 ## 2. Improve material visuals from the same device state
 
-Preserve the marble appearance. Prioritize liquid, then sand, then mixtures.
+The first desktop pass is implemented: contained constant-volume liquid,
+rotation-aware stage clearance, bounded acceleration translation, quieter
+surroundings, bevels/rims/bottle shoulder, and distinct grain/coin/ice materials.
+The marble geometry, color, roughness and reported-position mapping are retained.
+See [16](16_PROGRESS_STATUS.md) for software evidence and
+[31](reference/31_REUSABLE_VISUAL_ARCHITECTURE.md) for display semantics.
 
-- Liquid: replace the floating-volume impression with a container-constrained
-  volume and plausible free surface/wall contact, then improve transparency,
-  reflections and small-scale motion. Full fluid simulation is not required.
+- Liquid: review the new contained surface during actual handling, then tune
+  transparency, slosh/detail and state-to-surface bias. Overflow and full fluid
+  simulation are not implemented.
 - Sand: communicate accumulation and avalanching flow, with local grains as
   detail rather than an unrelated particle cloud.
-- Mixtures: combine improved solid and liquid ingredients after each reads well.
+- Mixtures: the improved ingredients are composed; coherent individual floating,
+  contact and packing still need richer shared state and a perceptual comparison.
 - Keep the object prominent in the tuning view. Reuse the material renderer in AR.
 
 AtomS3 remains the source of content motion/events. Display interpolation may
@@ -127,8 +175,8 @@ tilt and simultaneous haptics agree through a short handling/Stop/reconnect run.
 
 ## Scope and verification
 
-Order: tuning/A-B baseline -> liquid/sand visuals -> controller comparison ->
-Android integration; phone feasibility runs early in parallel. Checkpoint each
+After the requested initial visual pass: tuning/A-B baseline -> further
+material refinement -> controller comparison -> Android integration; phone feasibility runs early in parallel. Checkpoint each
 usable increment instead of waiting for perfect material realism.
 
 Keep existing Stop/recovery and bounds. Use change-specific software checks in
@@ -137,5 +185,7 @@ long-soak or broad safety campaigns without a new observed reason.
 
 Deferred: Quest/VR finishing, formal psychophysics, FSR feedback, resonance
 calibration campaigns, recorder/replay recovery, OTA, generalized event
-protocols, accounts/cloud storage, multi-client support and publication assets.
+protocols, accounts/cloud storage and multi-client support. The explanatory
+website, film and concept atlas are delivered; additional publication assets
+are not a prerequisite for the next handling comparison.
 Technical/historical references are not additional active requirements.

@@ -1,0 +1,825 @@
+{
+  "file": "fresnel-series-explainer-en.mp4",
+  "bytes": 23718388,
+  "duration_s": 217.033333,
+  "video": {
+    "codec_name": "h264",
+    "width": 1920,
+    "height": 1080,
+    "avg_frame_rate": "30/1",
+    "pix_fmt": "yuv420p",
+    "color_range": "tv",
+    "color_space": "bt709",
+    "side_data_list": [
+      {
+        "side_data_type": "ICC Profile"
+      }
+    ],
+    "duration": "217.033333",
+    "nb_frames": "6511"
+  },
+  "audio": {
+    "codec_name": "aac",
+    "sample_rate": "48000",
+    "channels": 1,
+    "duration": "217.033000"
+  },
+  "full_decode": "pass",
+  "faststart": true,
+  "mean_volume_db": -19.6,
+  "peak_volume_db": -1.4,
+  "subtitle_cues": 35,
+  "subtitle_timing": "pass",
+  "shortest_caption_s": 3.653217391304345,
+  "encoded_color_comparison": [
+    {
+      "scene": "principle",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.834
+    },
+    {
+      "scene": "mechanism",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.819
+    },
+    {
+      "scene": "shape",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.826
+    },
+    {
+      "scene": "stiffness",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.803
+    },
+    {
+      "scene": "center-of-gravity",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 3.045
+    },
+    {
+      "scene": "inertia",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 3.313
+    },
+    {
+      "scene": "series",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.74
+    },
+    {
+      "scene": "sources",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.74
+    }
+  ],
+  "synthetic_voice": true,
+  "new_hardware_verification": false,
+  "sha256": "4e3427db15bd4ec9d73723c39e2668a0e3abac1fddf0dbb197e90f80bebcace6",
+  "layout-verification": {
+    "checkedCaptions": 35,
+    "allInsideSubtitleBand": true,
+    "maxLines": 2,
+    "captions": [
+      {
+        "text": "When you touch an object, each fingertip meets a small part of its surface.",
+        "x": 201.265625,
+        "y": 966.828125,
+        "width": 1517.46875,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "That local surface has a direction. A small contact plate can turn to match it.",
+        "x": 187.03125,
+        "y": 966.828125,
+        "width": 1545.9375,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The Fresnel series explores how this simple contact-plane",
+        "x": 376.65625,
+        "y": 966.828125,
+        "width": 1166.6875,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "tilt can suggest shape, stiffness, weight distribution, and inertia.",
+        "x": 309.484375,
+        "y": 966.828125,
+        "width": 1301.03125,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "Here is the original CAD geometry from the World Haptics twenty twenty-five demo design.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "Three moving surfaces meet the thumb, index finger, and middle finger. Grip force provides an input.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "Watch the contact surfaces turn around their own pivots.",
+        "x": 379.84375,
+        "y": 966.828125,
+        "width": 1160.3125,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The virtual object beside them shows what that changing touch is meant to represent.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "First, shape. Imagine grasping different parts of a bottle.",
+        "x": 384.765625,
+        "y": 966.828125,
+        "width": 1150.46875,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The side is almost straight. Near the shoulder, the local surface leans.",
+        "x": 257.609375,
+        "y": 966.828125,
+        "width": 1404.765625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The contact plates change orientation to follow those local directions.",
+        "x": 248.609375,
+        "y": 966.828125,
+        "width": 1422.78125,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The fingertip cues can agree with the object you see.",
+        "x": 422.1875,
+        "y": 966.828125,
+        "width": 1075.609375,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The mechanism does not build the whole bottle. It presents a few carefully chosen contact surfaces.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "Next, squeeze. Grip force drives indentation of the virtual surface.",
+        "x": 289.859375,
+        "y": 966.828125,
+        "width": 1340.28125,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "A softer region deforms more for the same input. As its shape changes, the local contact directions change too.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "In the twenty twenty-five deformation study, the index and",
+        "x": 357.53125,
+        "y": 966.828125,
+        "width": 1204.9375,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "middle contact planes moved while the thumb plane stayed fixed.",
+        "x": 288.734375,
+        "y": 966.828125,
+        "width": 1342.515625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The study found better agreement between what people saw and felt.",
+        "x": 247.375,
+        "y": 966.828125,
+        "width": 1425.234375,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The change in softness ratings was a trend, not a statistically clear result.",
+        "x": 220.609375,
+        "y": 966.828125,
+        "width": 1478.765625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "Now tilt the bottle. The red dot marks its virtual center of gravity.",
+        "x": 294.40625,
+        "y": 966.828125,
+        "width": 1331.171875,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "When the mass is offset from the grasp, gravity creates a turning effect that changes with the bottle's angle.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "The proposed rendering model changes the fingertip-plane cue accordingly.",
+        "x": 182.625,
+        "y": 966.828125,
+        "width": 1554.734375,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "This suggests a different weight distribution, without moving real ballast inside the mechanism.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "Finally, move the bottle back and forth. Then move it up and down.",
+        "x": 273.921875,
+        "y": 966.828125,
+        "width": 1372.140625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The cue changes with acceleration: how the motion speeds up, slows down, or reverses.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "The published model treats horizontal and vertical motion separately,",
+        "x": 251.671875,
+        "y": 966.828125,
+        "width": 1416.65625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "using coordinated fingertip-plane tilt to suggest inertial effects.",
+        "x": 309.78125,
+        "y": 966.828125,
+        "width": 1300.421875,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The arrows and moving surfaces here explain that relationship.",
+        "x": 319.96875,
+        "y": 966.828125,
+        "width": 1280.0625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "They are illustrative commands, not a recording of measured forces or motion.",
+        "x": 159.546875,
+        "y": 966.828125,
+        "width": 1600.90625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "Across the Fresnel series, the contact principle stays the same. The input and the rendering rule change.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "Grasp for shape. Squeeze for stiffness. Tilt for weight distribution. Shake for inertia.",
+        "x": 111.265625,
+        "y": 966.828125,
+        "width": 1697.46875,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The virtual object, the finger contact, and the mechanical movement should tell the same story.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "This film draws on the original Fresnel research and the twenty twenty-five bottle demonstration.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "One CAD model illustrates the series here. Earlier prototypes and experiments differ.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "The transcript links the primary sources and explains the limits.",
+        "x": 317.515625,
+        "y": 966.828125,
+        "width": 1284.96875,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      }
+    ]
+  },
+  "motion-verification": {
+    "illustrative": true,
+    "sameForceDifferentIndentation": true,
+    "thumbFixedDuringStiffness": true,
+    "gestureTransitionSettled": true,
+    "transition": [
+      {
+        "id": "inertia",
+        "local": 16.383333333333326,
+        "progress": 0.49898477157360377,
+        "duration": 32.833333333333336,
+        "angles": {
+          "A": -0.35682913791747906,
+          "B": 1.643170862082521,
+          "C": -2.356829137917479
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          -1.3284937026014358e-07,
+          0,
+          0
+        ],
+        "force": 0,
+        "indentation": 0,
+        "soft": false,
+        "graspY": 0,
+        "acceleration": -0.050975591131068435,
+        "axis": "x",
+        "active": "",
+        "input": "SHAKE · back and forth",
+        "output": "Acceleration-dependent cue added to shape"
+      },
+      {
+        "id": "inertia",
+        "local": 16.416666666666657,
+        "progress": 0.49999999999999967,
+        "duration": 32.833333333333336,
+        "angles": {
+          "A": -1.312030008332427e-13,
+          "B": 1.9999999999998688,
+          "C": -2.000000000000131
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          -6.584718062779344e-45,
+          0,
+          0
+        ],
+        "force": 0,
+        "indentation": 0,
+        "soft": false,
+        "graspY": 0,
+        "acceleration": -1.8743285833320386e-14,
+        "axis": "x",
+        "active": "",
+        "input": "SHAKE · back and forth",
+        "output": "Acceleration-dependent cue added to shape"
+      },
+      {
+        "id": "inertia",
+        "local": 16.44999999999999,
+        "progress": 0.5010152284263956,
+        "duration": 32.833333333333336,
+        "angles": {
+          "A": -0.3568291379172428,
+          "B": 2.356829137917243,
+          "C": -1.6431708620827572
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          0,
+          1.328493702598792e-07,
+          0
+        ],
+        "force": 0,
+        "indentation": 0,
+        "soft": false,
+        "graspY": 0,
+        "acceleration": 0.050975591131034684,
+        "axis": "y",
+        "active": "",
+        "input": "SHAKE · up and down",
+        "output": "Acceleration-dependent cue added to shape"
+      }
+    ],
+    "diagnostics": [
+      {
+        "id": "shape",
+        "local": 7.508333333333333,
+        "progress": 0.24999999999999997,
+        "duration": 30.033333333333335,
+        "angles": {
+          "A": 0,
+          "B": 6.587622308468785,
+          "C": 0
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          0,
+          0,
+          0
+        ],
+        "force": 0,
+        "indentation": 0,
+        "soft": false,
+        "graspY": 39.98751711211262,
+        "acceleration": 0,
+        "axis": "x",
+        "active": "",
+        "input": "GRASP · choose a contact location",
+        "output": "The planes follow the local tangent directions"
+      },
+      {
+        "id": "shape",
+        "local": 21.023333333333326,
+        "progress": 0.6999999999999997,
+        "duration": 30.033333333333335,
+        "angles": {
+          "A": 0,
+          "B": 8.847587802453274,
+          "C": 0
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          0,
+          0,
+          0
+        ],
+        "force": 0,
+        "indentation": 0,
+        "soft": false,
+        "graspY": 12.755438955970508,
+        "acceleration": 0,
+        "axis": "x",
+        "active": "",
+        "input": "GRASP · choose a contact location",
+        "output": "The planes follow the local tangent directions"
+      },
+      {
+        "id": "stiffness",
+        "local": 8.733333333333334,
+        "progress": 0.25000000000000006,
+        "duration": 34.93333333333333,
+        "angles": {
+          "A": 0,
+          "B": 9.468499220798744,
+          "C": 1.496426042079848e-05
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          0,
+          0,
+          0
+        ],
+        "force": 5.795305543510043e-06,
+        "indentation": 2.8976527717550216e-05,
+        "soft": false,
+        "graspY": 0,
+        "acceleration": 0,
+        "axis": "x",
+        "active": "",
+        "input": "SQUEEZE · firmer illustrated response",
+        "output": "Thumb fixed · index and middle follow deformation"
+      },
+      {
+        "id": "stiffness",
+        "local": 24.453333333333333,
+        "progress": 0.7000000000000001,
+        "duration": 34.93333333333333,
+        "angles": {
+          "A": 0,
+          "B": 6.406182245719772,
+          "C": 3.3235064339603353
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          0,
+          0,
+          0
+        ],
+        "force": 0.3390950740798369,
+        "indentation": 6.442806407516901,
+        "soft": true,
+        "graspY": 0,
+        "acceleration": 0,
+        "axis": "x",
+        "active": "",
+        "input": "SQUEEZE · softer illustrated response",
+        "output": "Thumb fixed · index and middle follow deformation"
+      },
+      {
+        "id": "center-of-gravity",
+        "local": 6.450000000000003,
+        "progress": 0.2500000000000001,
+        "duration": 25.8,
+        "angles": {
+          "A": -7,
+          "B": -5,
+          "C": -9
+        },
+        "bodyTiltDeg": -22,
+        "bodyOffsetMeters": [
+          0,
+          0,
+          0
+        ],
+        "force": 0,
+        "indentation": 0,
+        "soft": false,
+        "graspY": 0,
+        "acceleration": 0,
+        "axis": "x",
+        "active": "",
+        "input": "TILT · hold an orientation",
+        "output": "A sustained cue added to the shape orientation"
+      },
+      {
+        "id": "center-of-gravity",
+        "local": 18.060000000000002,
+        "progress": 0.7000000000000001,
+        "duration": 25.8,
+        "angles": {
+          "A": 7,
+          "B": 9,
+          "C": 5
+        },
+        "bodyTiltDeg": 22,
+        "bodyOffsetMeters": [
+          0,
+          0,
+          0
+        ],
+        "force": 0,
+        "indentation": 0,
+        "soft": false,
+        "graspY": 0,
+        "acceleration": 0,
+        "axis": "x",
+        "active": "",
+        "input": "TILT · hold an orientation",
+        "output": "A sustained cue added to the shape orientation"
+      },
+      {
+        "id": "inertia",
+        "local": 8.208333333333343,
+        "progress": 0.2500000000000003,
+        "duration": 32.833333333333336,
+        "angles": {
+          "A": 9.604697196880144e-14,
+          "B": 2.000000000000096,
+          "C": -1.9999999999999039
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          2.5831933426543012e-45,
+          0,
+          0
+        ],
+        "force": 0,
+        "indentation": 0,
+        "soft": false,
+        "graspY": 0,
+        "acceleration": 1.3720995995543063e-14,
+        "axis": "x",
+        "active": "",
+        "input": "SHAKE · back and forth",
+        "output": "Acceleration-dependent cue added to shape"
+      },
+      {
+        "id": "inertia",
+        "local": 22.98333333333335,
+        "progress": 0.7000000000000004,
+        "duration": 32.833333333333336,
+        "angles": {
+          "A": -4.750221478051875,
+          "B": 6.750221478051875,
+          "C": 2.7502214780518752
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          0,
+          -0.0068819096023558035,
+          0
+        ],
+        "force": 0,
+        "indentation": 0,
+        "soft": false,
+        "graspY": 0,
+        "acceleration": 0.678603068293125,
+        "axis": "y",
+        "active": "",
+        "input": "SHAKE · up and down",
+        "output": "Acceleration-dependent cue added to shape"
+      },
+      {
+        "id": "stiffness",
+        "local": 4.3633231299858295,
+        "progress": 0.12490428807211346,
+        "duration": 34.93333333333333,
+        "angles": {
+          "A": 0,
+          "B": 7.095797920564802,
+          "C": 2.5803888710272878
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          0,
+          0,
+          0
+        ],
+        "force": 1,
+        "indentation": 5,
+        "soft": false,
+        "graspY": 0,
+        "acceleration": 0,
+        "axis": "x",
+        "active": "",
+        "input": "SQUEEZE · firmer illustrated response",
+        "output": "Thumb fixed · index and middle follow deformation"
+      },
+      {
+        "id": "stiffness",
+        "local": 13.089969389957474,
+        "progress": 0.3747128642163399,
+        "duration": 34.93333333333333,
+        "angles": {
+          "A": 0,
+          "B": 0.3468871838339147,
+          "C": 9.717843196355918
+        },
+        "bodyTiltDeg": 0,
+        "bodyOffsetMeters": [
+          0,
+          0,
+          0
+        ],
+        "force": 1,
+        "indentation": 19,
+        "soft": true,
+        "graspY": 0,
+        "acceleration": 0,
+        "axis": "x",
+        "active": "",
+        "input": "SQUEEZE · softer illustrated response",
+        "output": "Thumb fixed · index and middle follow deformation"
+      }
+    ]
+  },
+  "browser": {
+    "completedAt": "2026-09-05T16:57:27.741Z",
+    "file": "fresnel-series-explainer-en.mp4",
+    "bytes": 23718388,
+    "playback": {
+      "duration": 217.033333,
+      "width": 1920,
+      "height": 1080,
+      "currentTime": 0.607431,
+      "paused": false,
+      "totalFrames": 23,
+      "droppedFrames": 0
+    },
+    "seekSeconds": [
+      10.065,
+      33.977,
+      61.682,
+      93.92,
+      124.743,
+      153.708,
+      183.137,
+      206.033
+    ],
+    "captionCues": 35,
+    "pageErrors": [],
+    "syntheticVoice": true,
+    "newHardwareVerification": false
+  },
+  "visual_inspection": {
+    "encoded_chapters_inspected": 8,
+    "three_contact_planes_visible": true,
+    "virtual_object_and_CAD_synchronized": true,
+    "titles_and_subtitles_readable": true,
+    "source_endcard_clear": true,
+    "independent_scientific_visual_review": "pass",
+    "same_force_stiffness_pair": "pass",
+    "settled_inertia_transition": "pass",
+    "color_matches_preview": "pass"
+  }
+}

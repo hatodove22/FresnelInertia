@@ -1,12 +1,5 @@
 import * as THREE from "three";
-
-const contactMaterial = new THREE.MeshStandardMaterial({
-  color: "#fff0dc",
-  roughness: 0.72,
-  metalness: 0.0,
-  transparent: true,
-  opacity: 0.82
-});
+import { disposeObjectTree } from "./disposeObjectTree";
 
 export class GripProxy {
   readonly group = new THREE.Group();
@@ -21,6 +14,10 @@ export class GripProxy {
     this.group.name = "fixed-pose-grip-proxy";
     this.group.visible = false;
 
+    const contactMaterial = new THREE.MeshStandardMaterial({
+      color: "#fff0dc", roughness: 0.72, metalness: 0.0, transparent: true, opacity: 0.82
+    });
+
     const padGeometry = new THREE.SphereGeometry(1, 20, 12);
     this.thumbPad = new THREE.Mesh(padGeometry, contactMaterial);
     this.indexPad = new THREE.Mesh(padGeometry, contactMaterial);
@@ -31,6 +28,12 @@ export class GripProxy {
       new THREE.LineBasicMaterial({ color: "#bdf7ef", transparent: true, opacity: 0.74 })
     );
     this.group.add(this.contactLine);
+  }
+
+  dispose() {
+    this.setVisible(false);
+    disposeObjectTree(this.group);
+    this.group.removeFromParent();
   }
 
   setVisible(visible: boolean) {

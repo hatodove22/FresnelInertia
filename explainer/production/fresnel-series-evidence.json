@@ -1,0 +1,355 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-09-06",
+  "purpose": "Primary-source claim ledger for the historical Fresnel-series explainer film.",
+  "scope": {
+    "historicalContacts": ["thumb", "index", "middle"],
+    "currentRepositoryContacts": 2,
+    "currentRepositoryVibrationChannels": 4,
+    "hardwareMeasuredDuringResearch": false,
+    "animationEvidence": "Synthetic CAD motion explains research concepts; it is not measured hardware telemetry or a perceptual result.",
+    "documentation": "docs/reference/34_FRESNEL_SERIES_EXPLAINER.md"
+  },
+  "authorGroups": {
+    "five": ["Hiroki Ota", "Yutaro Hirao", "Monica Perusquía-Hernández", "Hideaki Uchiyama", "Kiyoshi Kiyokawa"],
+    "six": ["Hiroki Ota", "Yutaro Hirao", "Monica Perusquía-Hernández", "Hideaki Uchiyama", "Kiyoshi Kiyokawa", "Maud Marchal"]
+  },
+  "sources": [
+    {
+      "id": "F24",
+      "title": "フレネルシェイプ：各指先接平面の傾きを操作する形状提示装置",
+      "titleEnglishEditorialTranslation": "FresnelShape: A Shape Display Device Manipulating Each Fingertip Contact-Plane Tilt",
+      "authorGroup": "five",
+      "year": 2024,
+      "month": 9,
+      "venue": "第29回日本バーチャルリアリティ学会大会",
+      "identifiers": ["3G-19", "3C2-03"],
+      "doi": null,
+      "url": "https://conference.vrsj.org/ac2024/program/doc/3G-19.pdf",
+      "sourceType": "official_conference_technical_report",
+      "peerReviewed": false,
+      "inspected": "All four pages, especially Table 1 and Sections 3–4.",
+      "access": "public_full_text",
+      "scopeLimit": "A pilot of labeled shape patterns; plausibility hypothesis was not supported."
+    },
+    {
+      "id": "V25",
+      "title": "Enhancing Visuo-Haptic Coherency by Manipulating Fingertip Contact Tilt",
+      "authorGroup": "six",
+      "year": 2025,
+      "month": 3,
+      "venue": "IEEE Conference on Virtual Reality and 3D User Interfaces Abstracts and Workshops",
+      "pages": "1308–1309",
+      "doi": "10.1109/VRW66409.2025.00300",
+      "url": "https://doi.org/10.1109/VRW66409.2025.00300",
+      "supportUrls": [
+        "https://carelab.info/en/2025/03/12/we-presented-8-research-projects-at-ieee-vr-2025/",
+        "https://radar.inria.fr/report/2025/rainbow/index.html"
+      ],
+      "sourceType": "author_laboratory_publication_record",
+      "inspected": "Author institution title, authors, poster designation, DOI and research summary.",
+      "access": "primary_metadata_and_summary_only",
+      "scopeLimit": "Final two-page publisher text was not read; do not derive additional quantitative claims from older local drafts."
+    },
+    {
+      "id": "D25",
+      "title": "FresnelDeformable: A Softness Presentation Technique Combining Fingertip Plane Tilt Manipulation and Pseudo-Stiffness",
+      "authorGroup": "six",
+      "year": 2025,
+      "month": 4,
+      "venue": "Extended Abstracts of the CHI Conference on Human Factors in Computing Systems",
+      "doi": "10.1145/3706599.3719778",
+      "url": "https://doi.org/10.1145/3706599.3719778",
+      "supportUrls": [
+        "https://www.monicaperusquia.com/publications.html",
+        "https://radar.inria.fr/report/2025/rainbow/index.html",
+        "https://hal.inria.fr/hal-05443500"
+      ],
+      "sourceType": "author_manuscript_with_primary_publication_metadata",
+      "inspected": "Nine-page locally held author manuscript, including Figure 4 and Sections 3.7–6; first-party publication records.",
+      "access": "local_author_manuscript_final_publisher_pdf_unavailable",
+      "localManuscriptRelativeToResearchDocuments": "NAIST_個人/2025_2nd/CHI/CHI_2025_Ota_LBW_DL_Jan_23_.pdf",
+      "scopeLimit": "Method and p-values below are manuscript evidence. Final typeset ACM PDF was not verified."
+    },
+    {
+      "id": "W25",
+      "title": "Bottle of Water: Demonstrating Stiffness, Mass, and Inertia by Controlling Fingertip Contact Plane Tilt",
+      "authorGroup": "six",
+      "year": 2025,
+      "month": 7,
+      "venue": "IEEE World Haptics Conference demonstration",
+      "identifiers": ["D1-04"],
+      "doi": null,
+      "url": "https://di0zxmb8pwajl.cloudfront.net/khc/conference/whc/abs2/D1-04.pdf",
+      "supportUrls": ["https://www.manuscriptlink.com/society/khc/conference/whc/programBook"],
+      "sourceType": "official_conference_demo_description",
+      "inspected": "Entire one-page description and enlarged Figure 1, including formulas omitted by text extraction.",
+      "access": "public_full_text",
+      "scopeLimit": "Interaction demonstration; no separate quantitative perceptual evaluation of CoG or inertia."
+    },
+    {
+      "id": "T25",
+      "title": "各指先接平面の動的な傾き操作による剛性・慣性提示",
+      "titleEnglishEditorialTranslation": "Presenting Stiffness and Inertia by Dynamically Manipulating Each Fingertip Contact-Plane Tilt",
+      "authorGroup": "five",
+      "year": 2025,
+      "month": 9,
+      "venue": "第30回日本バーチャルリアリティ学会大会",
+      "identifiers": ["1D2-04", "1G-29"],
+      "doi": null,
+      "url": "https://www.conference.vrsj.org/ac2025/program/doc/1D2-04.pdf",
+      "supportUrls": ["https://conference.vrsj.org/ac2025/program/1D2.html"],
+      "sourceType": "official_conference_technical_report",
+      "peerReviewed": false,
+      "inspected": "Both pages, Figure 1 enlarged equations, Figure 2 sensor placement and Section 2.",
+      "access": "public_full_text",
+      "scopeLimit": "Proposed system and integrated prototype; detailed perceptual evaluation remains future work."
+    },
+    {
+      "id": "F26",
+      "title": "FresnelShape: A Contact-Plane Tilt Haptic Display for Enhancing Visuo-Haptic Coherence",
+      "authorGroup": "six",
+      "year": 2026,
+      "publishedOn": "2026-03-23",
+      "venue": "IEEE Access",
+      "doi": "10.1109/ACCESS.2026.3676739",
+      "url": "https://doi.org/10.1109/ACCESS.2026.3676739",
+      "supportUrls": [
+        "https://ieeeaccess.ieee.org/featured-article/fresnelshape-a-contact-plane-tilt-haptic-display-for-enhancing-visuo-haptic-coherence/",
+        "https://ieeexplore.ieee.org/document/11454535"
+      ],
+      "sourceType": "publisher_featured_article_and_abstract",
+      "peerReviewed": true,
+      "inspected": "Publisher's complete featured abstract and publication metadata.",
+      "access": "primary_abstract_full_paper_unavailable",
+      "scopeLimit": "Only publisher-reported shape/coherence results are used; they do not validate dynamic material effects."
+    },
+    {
+      "id": "N09",
+      "title": "Local Surface Orientation Dominates Haptic Curvature Discrimination",
+      "authors": ["Maarten W. A. Wijntjes", "Akihiro Sato", "Vincent Hayward", "Astrid M. L. Kappers"],
+      "year": 2009,
+      "venue": "IEEE Transactions on Haptics",
+      "volume": 2,
+      "issue": 2,
+      "pages": "94–102",
+      "doi": "10.1109/TOH.2009.1",
+      "url": "https://doi.org/10.1109/TOH.2009.1",
+      "supportUrls": ["https://research.tue.nl/en/publications/local-surface-orientation-dominates-haptic-curvature-discriminati/"],
+      "sourceType": "author_institution_abstract",
+      "inspected": "Institutional abstract explaining independent surface-position/orientation manipulation during lateral exploration.",
+      "access": "primary_abstract",
+      "scopeLimit": "Perceptual motivation for local orientation; not validation of arbitrary shapes on the Fresnel mechanism."
+    }
+  ],
+  "claims": [
+    {
+      "id": "historical-three-finger-grasp",
+      "type": "reported_design",
+      "sources": ["F24", "W25", "T25", "F26"],
+      "locator": "F24 Section 2; W25 Section I; T25 Figure 2; F26 publisher abstract",
+      "claim": "Historical systems address thumb, index and middle fingertips.",
+      "allowedNarration": "Three moving contact surfaces meet three fingertips.",
+      "avoid": "Two historical contact planes plus four transducers."
+    },
+    {
+      "id": "four-exploratory-actions",
+      "type": "reported_demo",
+      "sources": ["W25"],
+      "locator": "Section I interaction list",
+      "claim": "Grasp maps to shape, squeeze to stiffness, tilt to center-of-gravity shift, shake to inertia.",
+      "avoid": "All four properties have quantitatively validated perceptual equivalence."
+    },
+    {
+      "id": "local-normal-plus-vision",
+      "type": "reported_design",
+      "sources": ["F26", "N09"],
+      "locator": "F26 publisher abstract; N09 abstract",
+      "claim": "Local plane orientation supplies a contact cue while vision supplies global geometry and fingertip placement.",
+      "avoid": "The hardware mechanically reproduces a complete arbitrary object or its full grasp aperture."
+    },
+    {
+      "id": "shape-2024-pilot",
+      "type": "measured_pilot_result",
+      "sources": ["F24"],
+      "locator": "Sections 3.4, 3.6, 4; Table 1",
+      "sampleSize": 13,
+      "labelAccuracyPercent": {"circle": 73.7, "rectangle": 85.9, "triangle": 69.87},
+      "claim": "Participants distinguished labeled tilt patterns; intended plausibility/Stroop evidence was not supported.",
+      "avoid": "Universal shape realism or accurate recognition of any 3D object."
+    },
+    {
+      "id": "deformation-study-mapping",
+      "type": "author_manuscript_method",
+      "sources": ["D25"],
+      "locator": "Sections 3.7 and 5; Figure 4",
+      "claim": "Grip-derived indentation controls the index/middle contour-normal tilt; thumb orientation is held fixed in this experiment.",
+      "forceAtMaximumN": 10,
+      "indentationAtMaximumCm": 1,
+      "baselineCm": 6.5,
+      "angleFit": {"expression": "d = 23.5 * y", "yUnit": "cm", "dInterpretation": "angular change", "rSquared": 0.993},
+      "avoid": "A calibrated general-purpose stiffness law or all-three-finger deformation experiment."
+    },
+    {
+      "id": "deformation-study-results",
+      "type": "author_manuscript_measured_result",
+      "sources": ["D25"],
+      "locator": "Sections 3.4, 3.10–3.12 and 4",
+      "sampleSize": 10,
+      "tiltMainEffectP": {"coherence": 0.032, "softness": 0.08, "realism": 0.197},
+      "visualTactileInteractionSignificant": false,
+      "claim": "Coherence improved significantly; softness showed a nonsignificant trend.",
+      "allowedNarration": "The study found better agreement between what people saw and felt; the change in softness ratings was not statistically clear.",
+      "avoid": "A proven expanded softness range, or that better coherence directly causes softness improvement."
+    },
+    {
+      "id": "bottle-grip-input",
+      "type": "reported_design",
+      "sources": ["W25"],
+      "locator": "Section I",
+      "claim": "A thumb pressure sensor supplies grip input for haptic and visual stimuli; the described July apparatus has a wrist-mounted controller/battery.",
+      "avoid": "Three measured sensors or integrated electronics attributed specifically to the July description."
+    },
+    {
+      "id": "integrated-three-sensor-version",
+      "type": "reported_design",
+      "sources": ["T25"],
+      "locator": "Section 2 and Figure 2",
+      "claim": "The September report places FSR400 sensors below the fins and uses three XC330 servos with 1:1 gears and plus/minus 45-degree contact-plane travel.",
+      "sensorRigidAttachmentToFinEstablished": false,
+      "avoid": "The pressure-sensor mesh must rotate rigidly with its fin."
+    },
+    {
+      "id": "dynamic-model-inputs",
+      "type": "reported_design",
+      "sources": ["T25"],
+      "locator": "Section 2, page 2",
+      "claim": "Unity calculates each plane's angle using hand position, pose, acceleration and fingertip force.",
+      "avoid": "The historical computation ran in the current AtomS3 container state pipeline."
+    },
+    {
+      "id": "dynamic-model-equations",
+      "type": "published_figure_model",
+      "sources": ["W25", "T25"],
+      "locator": "Figure 1, formulas embedded in the drawing",
+      "claim": "The figures add grip-normalized gravity-torque and horizontal/vertical acceleration terms to baseline tilt.",
+      "parametersCalibratedInSources": false,
+      "avoid": "These figures fully specify controller gains, units, servo signs or zero-force handling."
+    },
+    {
+      "id": "dynamic-diagram-directions",
+      "type": "visual_interpretation",
+      "sources": ["W25", "T25"],
+      "locator": "Enlarged Figure 1 green rotation arrows",
+      "claim": "In the 2D illustration, CoG and horizontal-inertia increments turn the three contacts in the same diagram-plane direction; vertical inertia opposes thumb and index/middle directions.",
+      "cadJointSignMappingEstablished": false,
+      "avoid": "These are calibrated positive/negative servo commands or historical common/differential channel names."
+    },
+    {
+      "id": "dynamic-effects-status",
+      "type": "evidence_limit",
+      "sources": ["W25", "T25"],
+      "locator": "W25 demonstration description; T25 conclusion",
+      "claim": "CoG and inertia are demonstrated/proposed effects; no isolated quantitative perceptual validation is supplied.",
+      "avoid": "A measured equivalent mass, validated fluid response, or free-space whole-hand force reproduction."
+    },
+    {
+      "id": "shape-2026-coherence",
+      "type": "publisher_reported_measured_result",
+      "sources": ["F26"],
+      "locator": "Publisher featured abstract, Study 1",
+      "shapeCount": 8,
+      "coherenceScale": [0, 100],
+      "meanCoherence": {"FresnelShape": 71.5, "controller": 40.9, "handTracking": 37.9},
+      "claim": "FresnelShape improved reported visual-haptic coherence across the tested shapes.",
+      "avoid": "These scores validate stiffness, center of gravity or inertia."
+    },
+    {
+      "id": "shape-2026-stroop",
+      "type": "publisher_reported_measured_result",
+      "sources": ["F26"],
+      "locator": "Publisher featured abstract, Study 2",
+      "circleContrastMs": 66.6,
+      "circleHolmP": 0.012,
+      "triangleHolmP": 0.081,
+      "claim": "Circle contrast survived correction; triangle contrast did not.",
+      "avoid": "A uniform reliable effect for every shape."
+    }
+  ],
+  "figureModels": {
+    "base": "Shape-related local contact-plane tilt",
+    "centerOfGravityIncrement": "k_t * l * m * g * sin(theta) / F_t",
+    "horizontalInertiaIncrement": "k_ix * l * m * a_x / F_t",
+    "verticalInertiaIncrement": "k_iy * m * a_y / F_t",
+    "sources": ["W25", "T25"],
+    "parameterInterpretation": "The drawing labels l, mg, theta, x and y. Grip-force F_t and gain k interpretations follow the force-sensing description; numerical controller calibration is absent.",
+    "executionStatus": "Not directly executable: gains, per-joint signs and zero-force handling are not fully specified.",
+    "animationRequirement": "Any waveform, clamp, force floor or CAD sign assignment must be documented as an illustrative choice, separate from published evidence."
+  },
+  "historicalShapeSettings": {
+    "source": "F24",
+    "locator": "Table 1",
+    "order": ["thumb", "index", "middle"],
+    "unit": "degree",
+    "circle": [0, 30, -30],
+    "rectangle": [0, 0, 0],
+    "triangle": [30, -30, -30],
+    "coordinateWarning": "Original prototype convention; do not send these directly to another rig."
+  },
+  "sceneRecipes": [
+    {
+      "id": "principle",
+      "status": "editorial_illustration",
+      "example": "A solid curved surface becomes three local tangent patches, then the original three-plane CAD.",
+      "claimIds": ["historical-three-finger-grasp", "local-normal-plus-vision"],
+      "disclosure": "Local directions are sampled; the whole physical surface is not reconstructed."
+    },
+    {
+      "id": "shape",
+      "status": "editorial_illustration",
+      "gesture": "grasp",
+      "example": "Compare ball, box, bottle shoulder and indented waist with matching tangent directions.",
+      "claimIds": ["local-normal-plus-vision", "four-exploratory-actions"],
+      "disclosure": "Broad curvature illustration, not measured microscopic bump or texture rendering."
+    },
+    {
+      "id": "stiffness",
+      "status": "editorial_illustration_with_study_constraint",
+      "gesture": "squeeze",
+      "example": "Equal input gives contrasting illustrative indentation in the bottle middle versus shoulder; index/middle tilt follows the changing contour.",
+      "claimIds": ["deformation-study-mapping", "deformation-study-results"],
+      "disclosure": "Thumb remains fixed when explaining the D25 experiment; softer/harder region comparison is explanatory rather than a calibrated study result."
+    },
+    {
+      "id": "center-of-gravity",
+      "status": "editorial_illustration",
+      "gesture": "tilt_and_hold",
+      "example": "Tilt a partly filled bottle; show a virtual mass marker, offset and gravity arrow with a sustained added tilt cue.",
+      "claimIds": ["dynamic-model-equations", "dynamic-effects-status"],
+      "disclosure": "Virtual CoG and synthetic plane motion; no real moving ballast or measured equivalent weight."
+    },
+    {
+      "id": "inertia",
+      "status": "editorial_illustration",
+      "gesture": "accelerate_brake_reverse",
+      "example": "Move laterally, brake and reverse, then repeat vertically with a distinct acceleration arrow.",
+      "claimIds": ["dynamic-model-equations", "dynamic-diagram-directions", "dynamic-effects-status"],
+      "disclosure": "Cue follows acceleration rather than constant velocity; water lag and joint commands are illustrative."
+    },
+    {
+      "id": "series",
+      "status": "editorial_synthesis",
+      "example": "Return to one CAD model and the four actions with dated publication cards.",
+      "claimIds": ["four-exploratory-actions"],
+      "disclosure": "Research branches overlap; original prototypes and experiments differ."
+    }
+  ],
+  "auditNotes": [
+    "Figure equations and arrows were inspected in rendered PDFs; plain text extraction misses the formulas.",
+    "Actual front-page authors override inconsistent secondary metadata.",
+    "A local file named IEEEVR_2025_HirokiOta.pdf contained an older anonymous full-paper draft with a different title; it was excluded as evidence for the published VRW two-page paper.",
+    "The broader institutional softness summary is qualified by the narrower D25 manuscript statistics.",
+    "A CAD document name establishes design provenance, not exact equivalence to each published photographed prototype.",
+    "No primary paper in this ledger validates the current two-plane/four-vibration implementation."
+  ]
+}

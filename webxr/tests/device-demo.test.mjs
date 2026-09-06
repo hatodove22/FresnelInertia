@@ -74,6 +74,11 @@ const bundle = await build({
   }]
 });
 const { DeviceDemo } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString("base64")}`);
+const sceneBundle = await build({
+  entryPoints: [fileURLToPath(new URL("../src/renderer/ContainerScene.ts", import.meta.url))],
+  bundle: true, format: "esm", platform: "node", write: false, logLevel: "silent"
+});
+const { ContainerScene } = await import(`data:text/javascript;base64,${Buffer.from(sceneBundle.outputFiles[0].text).toString("base64")}`);
 
 class FakeElement {
   disabled = false;
@@ -86,13 +91,20 @@ class FakeElement {
   click() { if (!this.disabled) this.onclick?.(); }
 }
 
-function fixture() {
+function fixture(target) {
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) elements.set(id, new FakeElement());
     return elements.get(id);
   };
-  globalThis.document = { getElementById: element, body: { classList: { toggle() {} } } };
+  const context = new Proxy({}, {
+    get: (object, key) => key in object ? object[key] : /create.*Gradient/.test(String(key)) ? () => ({ addColorStop() {} }) : () => {},
+    set: (object, key, value) => { object[key] = value; return true; }
+  });
+  globalThis.document = {
+    getElementById: element, body: { classList: { toggle() {} } },
+    createElement: () => ({ width: 0, height: 0, getContext: () => context })
+  };
   globalThis.Option = class { constructor(text, value) { this.text = text; this.value = value; } };
   element("device-transport").value = "auto";
   element("device-audio").checked = true;
@@ -100,20 +112,26 @@ function fixture() {
   const presets = [];
   const states = [];
   const orientations = [];
+  const accelerations = [];
+  const accelerationIntervals = [];
   const hookPresets = [];
   const previews = [];
   const panels = [];
   const container = {
-    setPreset: (preset, connected) => presets.push({ preset: structuredClone(preset), connected }),
-    setDeviceState: state => states.push(structuredClone(state)),
-    setDeviceOrientation: orientation => orientations.push(structuredClone(orientation))
+    setPreset: (preset, connected) => { presets.push({ preset: structuredClone(preset), connected }); target?.setPreset(preset, connected); },
+    setDeviceState: state => { states.push(structuredClone(state)); target?.setDeviceState(state); },
+    setDeviceOrientation: orientation => { orientations.push(structuredClone(orientation)); target?.setDeviceOrientation(orientation); },
+    setDeviceAcceleration: (acceleration, interval) => {
+      accelerations.push(structuredClone(acceleration)); accelerationIntervals.push(interval);
+      target?.setDeviceAcceleration(acceleration, interval);
+    }
   };
   const demo = new DeviceDemo(container, {
     onPreset: preset => hookPresets.push(structuredClone(preset)),
     onPreview: () => previews.push(true),
     onPanel: (state, callbacks) => panels.push({ state: structuredClone(state), callbacks })
   });
-  return { demo, link: demo.link, element, presets, states, orientations, hookPresets, previews, panels };
+  return { demo, link: demo.link, element, presets, states, orientations, accelerations, accelerationIntervals, hookPresets, previews, panels };
 }
 
 const snapshot = (overrides = {}) => ({
@@ -195,6 +213,37 @@ test("same-frame immediate metadata and mass snapshots reach the scene", () => {
   const count = states.length;
   demo.update(0.2);
   assert.equal(states.length, count, "an unchanged snapshot is not a new simulated sample");
+});
+
+test("resolved metadata before first mass sample keeps the actual scene out of preview simulation", () => {
+  const scene = new ContainerScene();
+  const { demo, link, states } = fixture(scene);
+  const descriptor = snapshot();
+  scene.setPreset({ preset: descriptor.preset, family: "Granular", container: descriptor.resolved.container });
+  const render = elapsed => {
+    const frame = demo.update(0.016);
+    assert.notEqual(frame, null);
+    scene.update(frame.tilt, frame.content, elapsed, 0.016);
+    return scene.group.getObjectByName("content-particles");
+  };
+  link.publish(snapshot({ mass: undefined }));
+  const mesh = render(0);
+  assert.equal(mesh.visible, false, "missing mass must not display an independently animated preview");
+  assert.equal(states.at(-1).fill, 0);
+  const held = Array.from(mesh.instanceMatrix.array);
+  const stateCount = states.length;
+  render(100);
+  link.patch({ stale: true });
+  render(200);
+  assert.deepEqual(Array.from(mesh.instanceMatrix.array), held);
+  assert.equal(states.length, stateCount, "the placeholder is installed once, not integrated each frame");
+  link.publish(snapshot());
+  render(300);
+  assert.equal(mesh.visible, true);
+  assert.equal(states.at(-1).massX, 0.2);
+  assert.notDeepEqual(Array.from(mesh.instanceMatrix.array), held);
+  assert.deepEqual(link.calls, [], "receiving state never sends output commands");
+  scene.dispose();
 });
 
 test("preset request and ACK alone do not claim a new visible material", async () => {
@@ -299,16 +348,16 @@ test("Start is explicit and output labels continue to reflect telemetry, not des
 });
 
 test("stale telemetry freezes content and pose without switching to local simulation", () => {
-  const { demo, link, states, orientations } = fixture();
+  const { demo, link, states, orientations, accelerations } = fixture();
   link.publish(snapshot());
   const active = demo.update(0.016);
-  const before = { states: structuredClone(states), orientations: structuredClone(orientations) };
+  const before = { states: structuredClone(states), orientations: structuredClone(orientations), accelerations: structuredClone(accelerations) };
   const stale = snapshot({ frame_counter: 102, mass: { pos_norm: [-1, 1], vel_norm_s: [2, 3], energy: 1, fill: 1 } });
   link.patch({ telemetry: stale, stale: true });
   const held = demo.update(5);
   assert.notEqual(held, null);
   assert.deepEqual(held, active);
-  assert.deepEqual({ states, orientations }, before);
+  assert.deepEqual({ states, orientations, accelerations }, before);
 });
 
 test("device-frame mounting transform and legacy identity both give neutral gravity pose", () => {
@@ -472,4 +521,23 @@ test("fresh broadcast telemetry does not enable output while the bridge reports 
   assert.deepEqual(link.calls, []);
   link.patch({ paired: true });
   assert.equal(element("device-start").disabled, false);
+});
+
+
+test('acceleration is projected once per new snapshot and never from render time', () => {
+  const { demo, link, accelerations, accelerationIntervals } = fixture();
+  const sample = snapshot(); sample.resolved.model.device_frame_transform = false;
+  sample.imu = {valid:true,accel_g:[0,1,0]};
+  link.publish(sample);demo.update(0.016);
+  assert.deepEqual(accelerations.at(-1),[0,0,0]);
+  link.publish({...sample,timestamp_ms:1050,frame_counter:200,imu:{valid:true,accel_g:[0.8,1,0]}});demo.update(0.016);
+  assert.ok(accelerations.at(-1)[0]>0.5);
+  assert.deepEqual(accelerationIntervals,[0.1,0.05]);
+  const count=accelerations.length;
+  for(let i=0;i<60;i++)demo.update(0.016);
+  assert.equal(accelerations.length,count);
+  link.patch({stale:true}); demo.update(10);
+  assert.equal(accelerations.length,count);
+  link.publish({...sample,timestamp_ms:9000,frame_counter:201});demo.update(0.016);
+  assert.equal(accelerationIntervals.at(-1),0.1,'resuming after a gap does not fast-forward recovery');
 });

@@ -1,5 +1,7 @@
 import * as THREE from "three";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { ContainerScene } from "./renderer/ContainerScene";
+import { frameDesktopContainer } from "./renderer/desktopView";
 import { EnvironmentScene } from "./renderer/EnvironmentScene";
 import { SpatialControlPanel } from "./renderer/SpatialControlPanel";
 import { PhoneInput } from "./input/PhoneInput";
@@ -51,11 +53,18 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.06;
 
 const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+const reflectionRoom = new RoomEnvironment();
+const reflectionMap = pmrem.fromScene(reflectionRoom, 0.04);
+scene.environment = reflectionMap.texture;
+scene.environmentIntensity = 0.65;
+reflectionRoom.dispose();
+pmrem.dispose();
 const worldRoot = new THREE.Group();
 worldRoot.name = "demo-world-root";
 scene.add(worldRoot);
@@ -63,17 +72,20 @@ const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerH
 camera.position.set(0, 1.18, 0.78);
 
 const lightRig = new THREE.Group();
-lightRig.add(new THREE.HemisphereLight("#edf8ff", "#263127", 1.72));
-const key = new THREE.DirectionalLight("#fff7ea", 3.3);
+lightRig.add(new THREE.HemisphereLight("#edf8ff", "#243b41", 1.4));
+const key = new THREE.DirectionalLight("#fff7ea", 2.4);
 key.position.set(1.2, 2.25, 0.8);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
 key.shadow.camera.near = 0.2;
 key.shadow.camera.far = 5;
-key.shadow.camera.left = -1.6;
-key.shadow.camera.right = 1.6;
-key.shadow.camera.top = 1.4;
-key.shadow.camera.bottom = -1.4;
+key.target.position.set(0, 0.86, -0.72);
+lightRig.add(key.target);
+key.shadow.camera.left = -0.35;
+key.shadow.camera.right = 0.35;
+key.shadow.camera.top = 0.35;
+key.shadow.camera.bottom = -0.35;
+key.shadow.normalBias = 0.00015;
 lightRig.add(key);
 const rim = new THREE.DirectionalLight("#7fcbd5", 1.1);
 rim.position.set(-1.4, 1.4, -1.6);
@@ -85,7 +97,7 @@ const floor = new THREE.Mesh(
   new THREE.ShadowMaterial({ opacity: 0.28 })
 );
 floor.rotation.x = -Math.PI / 2;
-floor.position.y = 0.826;
+floor.position.y = 0.8241;
 floor.position.z = -0.72;
 floor.receiveShadow = true;
 worldRoot.add(floor);
@@ -136,6 +148,7 @@ worldRoot.add(spatialPanel.group);
 const xrBridge = new WebXrBridge(renderer, scene, worldRoot, container.group, ui.modeBadge, spatialPanel, container.gripProxy, camera);
 xrBridge.setPreferredHand("right");
 const desktopViewTarget = new THREE.Vector3();
+const desktopViewSize = new THREE.Vector3();
 let activePreset = findPreset("liquid_small_box");
 let lastTime = performance.now();
 const deviceDemo = new DeviceDemo(container, {
@@ -242,6 +255,7 @@ renderer.setAnimationLoop((time) => {
   const dt = Math.min(0.05, Math.max(0.001, (time - lastTime) / 1000));
   lastTime = time;
   xrBridge.update();
+  container.setDesktopPresentation(!renderer.xr.isPresenting);
 
   const deviceFrame = deviceDemo.update(dt);
   const liveTilt = renderer.xr.isPresenting ? xrBridge.tilt : phoneInput.tilt;
@@ -253,16 +267,11 @@ renderer.setAnimationLoop((time) => {
   // A close view uses the camera, never an invented scale on the physical box.
   // XR continues to use its own tracked camera and hand-positioned container.
   if (!renderer.xr.isPresenting) {
-    const target = container.group.getWorldPosition(desktopViewTarget);
+    const target = worldRoot.localToWorld(container.getDesktopTarget(desktopViewTarget));
     const extent = Math.max(activePreset.container.span_x_m, activePreset.container.span_y_m, activePreset.container.span_z_m);
     const distance = Math.max(0.18, extent * 2.8);
-    camera.position.set(target.x, target.y + distance * 0.38, target.z + distance);
-    camera.lookAt(target.x, target.y, target.z);
-    const mobile = window.innerWidth <= 520;
-    camera.setViewOffset(window.innerWidth, window.innerHeight,
-      mobile ? 0 : -Math.min(215, window.innerWidth * 0.17),
-      mobile ? window.innerHeight * 0.23 : 0,
-      window.innerWidth, window.innerHeight);
+    frameDesktopContainer(camera, target, container.getSize(desktopViewSize).multiplyScalar(1.2),
+      { width: window.innerWidth, height: window.innerHeight }, distance);
   }
   spatialPanel.group.visible = renderer.xr.isPresenting;
   spatialPanel.update();

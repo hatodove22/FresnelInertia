@@ -1,0 +1,381 @@
+{
+  "version": 1,
+  "researchDate": "2026-09-06",
+  "status": "全デモは将来の提案。既存の容器デモ以外のゲーム、状態変化、追跡、機構は未実装・未評価。",
+  "sources": [
+    {
+      "id": "S01",
+      "title": "Hand movements: A window into haptic object recognition",
+      "authors": "Susan J. Lederman; Roberta L. Klatzky",
+      "year": 1987,
+      "url": "https://doi.org/10.1016/0010-0285(87)90008-9",
+      "claim": "物体の何を知りたいかによって探索動作が変わることを実験で示した。重さ、材質、形、機能を同じ動作で扱わない設計の出発点になる。",
+      "transferLimit": "実物を手で探索した研究。現機のIMUは指先の走査や押す力を測っておらず、そのままの再現ではない。"
+    },
+    {
+      "id": "S02",
+      "title": "Towards wearability in fingertip haptics: a 3-DoF wearable device for cutaneous force feedback",
+      "authors": "Domenico Prattichizzo; Francesco Chinello; Claudio Pacchierotti; Monica Malvezzi",
+      "year": 2013,
+      "url": "https://doi.org/10.1109/ToH.2013.53",
+      "claim": "指腹に接する3自由度の面の姿勢と変位で皮膚感覚を提示した。曲率弁別は接地型装置と併用して評価している。",
+      "transferLimit": "現機は各指1軸。任意方向の面法線、法線押込み、接地型装置による抵抗まで再現できるという根拠ではない。"
+    },
+    {
+      "id": "S03",
+      "title": "Gravity Grabber: Wearable Haptic Display to Present Virtual Mass Sensation",
+      "authors": "Kouta Minamizawa; Souichiro Fukamachi; Hiroyuki Kajimoto; Naoki Kawakami; Susumu Tachi",
+      "year": 2007,
+      "url": "https://www.tachilab.org/content/files/publication/ic/minamizawa200708SIGGRAPH.pdf",
+      "claim": "指腹のベルト変形による重量感の提示を扱い、空のコップに仮想の水を入れる体験を提案した。",
+      "transferLimit": "1本の指に2モーターでベルトを駆動する機構。現機の親指・人差し指の共通／差動角度へモーター方向や力の式は移植できない。"
+    },
+    {
+      "id": "S04",
+      "title": "An Experiment on Length Perception with a Virtual Rolling Stone",
+      "authors": "Hsin-Yun Yao; Vincent Hayward",
+      "year": 2006,
+      "url": "https://www.cim.mcgill.ca/~haptic/pub/HY-VH-EH-06.pdf",
+      "claim": "傾けた管内の転がり音・衝突の触覚手掛かりから、隠れた移動距離を推測する実験。最長条件は短い2条件から概ね区別された。",
+      "transferLimit": "参加者は8名で短い2条件は混同された。任意の長さを正確に知覚できるという結果ではない。"
+    },
+    {
+      "id": "S05",
+      "title": "DualVib: Simulating Haptic Sensation of Dynamic Mass by Combining Pseudo-Force and Texture Feedback",
+      "authors": "Yudai Tanaka; Arata Horie; Xiang 'Anthony' Chen",
+      "year": 2020,
+      "url": "https://yudai-tanaka.com/wp-content/uploads/2021/04/vrst20-dualvib.pdf",
+      "claim": "非対称振動による擬似力と材質振動を分けて組み合わせ、動く内容物の質量・材質識別を比較した。",
+      "transferLimit": "液体のリアリティ向上は示せていない。非対称波形の極性と、現機の4箇所への空間配分は別の仕組み。"
+    },
+    {
+      "id": "S06",
+      "title": "Vibr-eau: Emulating Fluid Behavior in Vessel Handling through Vibrotactile Actuators",
+      "authors": "Frank Wencheng Liu; Ryan Wirjadi; Yanjun Lyu; Shiling Dai; Byron Lahey; Assegid Kidane; Robert LiKamWa",
+      "year": 2025,
+      "url": "https://arxiv.org/html/2501.18755v1",
+      "claim": "容器内の流体重心と加速度条件に応じて局所的な振動を出し、モーター配置や容器形状を探索した。引用はarXiv v1。",
+      "transferLimit": "強度・タイミングの不一致と視覚への依存が報告されている。実液体との有意差なしは同等性の証明ではなく、現機の4chを直接検証した結果でもない。"
+    },
+    {
+      "id": "S07",
+      "title": "Shifty: A Weight-Shifting Dynamic Passive Haptic Proxy to Enhance Object Perception in Virtual Reality",
+      "authors": "André Zenner; Antonio Krüger",
+      "year": 2017,
+      "url": "https://doi.org/10.1109/TVCG.2017.2656978",
+      "claim": "実際の内部重りを移動して重量分布を変え、仮想物体の形や重さの知覚を扱った。",
+      "transferLimit": "現機は重りを移動しない。接触面の傾きによる手掛かりと、実際の重心・慣性変化を区別する必要がある。"
+    },
+    {
+      "id": "S08",
+      "title": "Drag:on – A Virtual Reality Controller Providing Haptic Feedback Based on Drag and Weight Shift",
+      "authors": "André Zenner; Antonio Krüger",
+      "year": 2019,
+      "url": "https://doi.org/10.1145/3290605.3300441",
+      "claim": "展開する面で空気抵抗と重量分布を変え、振る・回す操作の抵抗感を提示した。",
+      "transferLimit": "実際の空気流と展開機構を使う。現機の傾き・振動で風を表現しても、手全体の運動を同じように抵抗できるわけではない。"
+    },
+    {
+      "id": "S09",
+      "title": "Haptic Revolver: Touch, Shear, Texture, and Shape Rendering on a Reconfigurable Virtual Reality Controller",
+      "authors": "Eric Whitmire; Hrvoje Benko; Christian Holz; Eyal Ofek; Mike Sinclair",
+      "year": 2018,
+      "url": "https://hbenko.com/publications/2018/Whitmire_HapticRevolver_2018.pdf",
+      "claim": "指下のホイールの接触・回転と交換可能な表面を使い、追跡された仮想表面に触感を位置合わせした。",
+      "transferLimit": "現機には連続回転する触面、交換形状、力センサー、表面走査の位置追跡がない。"
+    },
+    {
+      "id": "S10",
+      "title": "Touch&Fold: A Foldable Haptic Actuator for Rendering Touch in Mixed Reality",
+      "authors": "Shan-Yuan Teng; Pengyu Li; Romain Nith; Joshua Fonseca; Pedro Lopes",
+      "year": 2021,
+      "url": "https://lab.plopes.org/published/2021-CHI-TouchFold.pdf",
+      "claim": "爪側から指腹へ折り畳む機構で仮想接触を提示し、退避時には実物にも触れられるMR操作を扱った。",
+      "transferLimit": "指腹を自由にする機構は現機にはない。論文でも試作方式による柔らかい面の自然な表現は達成していない。"
+    },
+    {
+      "id": "S11",
+      "title": "Haptic Links: Bimanual Haptics for Virtual Reality Using Variable Stiffness Actuation",
+      "authors": "Evan Strasnick; Christian Holz; Eyal Ofek; Mike Sinclair; Hrvoje Benko",
+      "year": 2018,
+      "url": "https://www.microsoft.com/en-us/research/wp-content/uploads/2018/02/HapticLinks_Strasnick_et_al_CHI2018-5a9063428e701.pdf",
+      "claim": "2つのコントローラーを物理的につなぎ、可変剛性で両手間の相対運動を制約した。",
+      "transferLimit": "抵抗を作る実機構であり、現機の内部物体が「止まった」と知らせる触覚とは異なる。プロジェクトの通信層Haptic Linkとは無関係。"
+    },
+    {
+      "id": "S12",
+      "title": "Tactile Brush: Drawing on Skin with a Tactile Grid Display",
+      "authors": "Ali Israr; Ivan Poupyrev",
+      "year": 2011,
+      "url": "https://la.disneyresearch.com/wp-content/uploads/Tactile-Brush-Drawing-on-Skin-with-a-Tactile-Grid-Display-Paper.pdf",
+      "claim": "刺激の開始時刻・持続時間による仮現運動と、強度配分による中間位置の感覚を組み合わせた。",
+      "transferLimit": "皮膚上の配置と硬い筐体内の4chは異なる。順番に振動させるだけで連続移動を感じるとは限らない。"
+    },
+    {
+      "id": "S13",
+      "title": "Control Space of Apparent Haptic Motion",
+      "authors": "Ali Israr; Ivan Poupyrev",
+      "year": 2011,
+      "url": "https://la.disneyresearch.com/wp-content/uploads/whc2011-israr-poupyrev.pdf",
+      "claim": "前腕・背中で、仮現運動が生じる開始時間差の範囲と刺激長、身体部位、方向などの関係を測った。",
+      "transferLimit": "実験の時間差は現機の校正値ではない。チャンネル数や複雑な経路を増やすことが知覚分解能の向上を保証しない。"
+    },
+    {
+      "id": "S14",
+      "title": "Haptic Stylus and Empirical Studies on Braille, Button, and Texture Display",
+      "authors": "Ki-Uk Kyung; Jun-Young Lee; Junseok Park",
+      "year": 2008,
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2246069/",
+      "claim": "Ubi-Pen IIは3×3ピン配列と衝撃モジュールを備え、ボタンの接触と表面探索の触感を扱った。",
+      "transferLimit": "現機は指腹の点字用ピン配列でも接地型力覚装置でもない。振動だけを触読可能な凹凸や押込みとして説明しない。"
+    }
+  ],
+  "demos": [
+    {
+      "id": "C01",
+      "slug": "blind-reliquary",
+      "title": "見えない標本箱",
+      "tagline": "中身を見る前に、手で正体を探る。",
+      "gesture": "小さく傾けて止め、もう一度揺らす。設定を止めて切り替え、2つの中身を比べる。",
+      "percept": "単体が転がる感覚と、細かいものが流れる感覚の違い。",
+      "feasibility": "presentation",
+      "state": "現在の適用済み材質・寸法・充填率、内容物位置と速度、接触状態。",
+      "slow": "既存の方向性と慣性の手掛かりで、偏りや追従の違いを示す。",
+      "fast": "既存の単発衝突と、粒状・流動イベントの密度や質感を使う。",
+      "visual": "最初は不透明な箱。開示すると、既に動いていたデバイス状態をそのまま見せる。",
+      "additions": "Web側の隠す／開示する画面と、停止中の比較操作。既存の物理モデルを使う。",
+      "limit": "新しい画面は未実装。最初は既存の証拠が強い固体と粒状を比較し、液体の識別性は未確認とする。",
+      "experiment": "内部を隠した比較と、見せた比較を行う。見せた時にだけ区別できるなら、触覚単独で識別できたとはしない。",
+      "sources": [
+        "S01",
+        "S05"
+      ]
+    },
+    {
+      "id": "C02",
+      "slug": "impossible-tunnel",
+      "title": "伸びる秘密の空洞",
+      "tagline": "跳ね返りを待つ時間から、見えない奥行きを想像する。",
+      "gesture": "短い空洞と長い空洞で、似た小さな傾け動作を行う。寸法変更は停止して適用する。",
+      "percept": "物体が壁に届くまでの距離と時間。",
+      "feasibility": "presentation",
+      "state": "既存の適用済み寸法と内容物の移動・壁接触。映像だけで長さを変えない。",
+      "slow": "内容物位置と重心による既存の傾き手掛かり。",
+      "fast": "モデル上で壁に届いた時の衝突。",
+      "visual": "比較後に断面を開示し、適用済みの仮想寸法と内容物を表示する。",
+      "additions": "Web側の寸法比較と断面開示。対応済みの形状・寸法パラメータに限定する。",
+      "limit": "実物の筐体は伸びない。異なる仮想寸法を表現するもので、任意の長さを正確に触知できるとは約束しない。",
+      "experiment": "同じ材質で十分に異なる移動距離を比較する。衝突時刻がモデルと整合し、隠した状態で長短の順序を推測できるかを見る。",
+      "sources": [
+        "S04"
+      ]
+    },
+    {
+      "id": "C03",
+      "slug": "balancing-ember",
+      "title": "火種を育てる",
+      "tagline": "小さな火種を中央で静かに支えると、光が開く。",
+      "gesture": "小さく逆向きに傾けて補正し、静かに保持する。",
+      "percept": "流れ始める方向と、止まって落ち着いた状態。",
+      "feasibility": "presentation",
+      "state": "既存の内容物位置と接触イベント累積数。Webは受信状態から粗い滞在スコアだけを計算する。",
+      "slow": "既存の重心移動が、火種の流れる向きを示す。",
+      "fast": "転がりと壁衝突。休止すれば静かになる。",
+      "visual": "中央の目標、デバイス駆動の火種、保持に応じた光。",
+      "additions": "Webの目標表示と滞在スコア。既存のマーブル挙動を保つ。",
+      "limit": "新ゲームは未実装。現在の材質設定で中央保持が可能かを確認する。10Hz受信から厳密な衝突時刻は推定しない。",
+      "experiment": "同じ画面で傾き＋振動と振動のみを比べる。傾きが補正に役立つか、注意を散らすかを確かめる。",
+      "sources": [
+        "S03",
+        "S05"
+      ]
+    },
+    {
+      "id": "C04",
+      "slug": "last-grain",
+      "title": "最後の一粒",
+      "tagline": "注ぐ、減る、そして最後の一粒が静けさに変わる。",
+      "gesture": "出口へ傾け、戻して流れを弱め、直立して止める。",
+      "percept": "偏りながら残量が減り、空になったと分かる終わり方。",
+      "feasibility": "software",
+      "state": "残存質量、出口条件、流量、排出イベントの進行。初期充填率と現在の残量を分ける。",
+      "slow": "残った内容物の重心が出口側へ移り、その質量成分が減るにつれて手掛かりも小さくなる。",
+      "fast": "流量に連動する粒状イベント。終盤は疎な粒になり、空になれば無音・無振動。",
+      "visual": "残量と流れの状態から内容物と排出流を描く。最後の粒の離脱を同じ状態変化に合わせる。",
+      "additions": "AtomS3に出口と質量収支の規則を追加し、残量・流量・完了を報告する。設定の連続書込みで排出を模倣しない。",
+      "limit": "将来の挙動。画面内の受け皿なら位置追跡は不要だが、ARの実空間へ正確に注ぐには追跡も必要。",
+      "experiment": "残量で傾きが減る条件と、同じ流れでも傾きが一定の条件を比較する。終わりが分かりやすいかと、残量ゼロ時の静止を確認する。",
+      "sources": [
+        "S03",
+        "S06"
+      ]
+    },
+    {
+      "id": "C05",
+      "slug": "magnetic-cargo",
+      "title": "くっつく積み荷",
+      "tagline": "壁に張り付いた玉を、そっと引き離して受け止める。",
+      "gesture": "玉を壁へ運び、反対へゆっくり傾けるか短い動きで剥がす。",
+      "percept": "自由な転がり、張り付き、解放の切り替わり。",
+      "feasibility": "software",
+      "state": "壁への付着状態、離脱条件、離脱イベントを内容物モデルに追加する。離脱まで位置を付着点に保つ。",
+      "slow": "付着中は壁側の偏りが持続し、離脱後は移動する重心へ滑らかにつながる。",
+      "fast": "付着の短いクリック、静かな保持、離脱の瞬間、その後の実接触。",
+      "visual": "玉、磁性の壁、付着／離脱表示を同じ状態から描く。",
+      "additions": "AtomS3の付着・離脱ルール、パラメータ、状態報告。握力を測ったことにはしない。",
+      "limit": "将来の挙動。仮想内容物の付着を表すもので、手を物理的にロックする機構ではない。",
+      "experiment": "付着状態を持つ玉と、単に減衰の強い玉を比較する。「止まってから外れる」と感じるか、クリックが離脱より先に出ていないかを見る。",
+      "sources": [
+        "S04",
+        "S11"
+      ]
+    },
+    {
+      "id": "C06",
+      "slug": "living-seed",
+      "title": "手の中の小さな命",
+      "tagline": "揺らすと目覚め、静かに支えると眠る。",
+      "gesture": "軽く揺らして起こし、バランスを取って落ち着かせる。",
+      "percept": "自分の扱い方に反応して中の存在が活動する因果感。",
+      "feasibility": "software",
+      "state": "覚醒度と制限付きの自発運動を、x/y内の位置・速度・壁接触に結び付ける。",
+      "slow": "小さな存在の位置と移動が、そのままゆっくりした偏りになる。",
+      "fast": "移動や壁接触に応じた短い足音・タップ。休息時の鼓動も共有状態の動作として定義する。",
+      "visual": "位置はデバイス状態に従い、姿勢と発光は覚醒度を表す。",
+      "additions": "AtomS3の小さな行動状態機械、自発運動の上限、再現可能な変動、覚醒度・動作状態の報告。",
+      "limit": "将来の挙動。握る力は入力に含めない。生命らしさは未評価で、Webだけの別シミュレーションは使わない。",
+      "experiment": "動作に反応する覚醒と、同程度に動く時間駆動の脚本を比較する。利用者が意図的に起こす／眠らせることができるかを見る。",
+      "sources": [
+        "S05",
+        "S12"
+      ]
+    },
+    {
+      "id": "C07",
+      "slug": "glass-to-rubble",
+      "title": "結晶が砂に変わる",
+      "tagline": "割れた一瞬だけでなく、その後の手触りが変わる。",
+      "gesture": "中程度の壁接触を重ね、割れた後に軽く傾けて確かめる。",
+      "percept": "まとまった塊から、広がる破片への持続的な材質変化。",
+      "feasibility": "software",
+      "state": "衝突エネルギーによる損傷蓄積、破壊段階、破片分布。変化の前後でモデル上の総質量を保つ。",
+      "slow": "塊の重心移動から、分散した内容物の重心へ変わる。",
+      "fast": "一度の破壊イベントの後、密な破片接触と異なる包絡・スペクトルへ移る。",
+      "visual": "報告された破壊状態で結晶を破片へ変える。",
+      "additions": "AtomS3の状態遷移、遷移後の質量・位置初期化、破壊状態とイベントの報告。",
+      "limit": "将来の挙動。衝突で割れる比喩であり、実際に指で押し潰す入力や抵抗はない。",
+      "experiment": "状態が変わる条件と、通常のマーブルに大きな衝撃だけを足した条件を比較する。その後の探索でも変化を認識できるかを見る。",
+      "sources": [
+        "S05",
+        "S14"
+      ]
+    },
+    {
+      "id": "C08",
+      "slug": "tilt-chime",
+      "title": "傾けて奏でる",
+      "tagline": "中を走る玉が、指先と音で小さな旋律を編む。",
+      "gesture": "穏やかにリズムを変えて傾け、玉を狙った境界へ運ぶ。",
+      "percept": "自分の動きで接触列を作る操作感。",
+      "feasibility": "software",
+      "state": "内容物の軌道に内部の溝・ゲート接触とイベント時刻・連番を加える。音程は接触に割り当てる。",
+      "slow": "既存の位置・重心が移動方向を連続的に示す。",
+      "fast": "溝の通過では短い弾き、壁では別の衝撃を同じイベントから出す。",
+      "visual": "光る軌跡と共鳴点。必要ならデバイス由来イベントへ音を付ける。",
+      "additions": "内部接触ルールとイベントの時間情報。Web音声の時刻合わせを明示的に設計する。",
+      "limit": "将来の挙動。現在の10Hzスナップショットだけで正確なホスト側演奏タイミングを保証しない。",
+      "experiment": "不規則な手の動きで、接触に同期した発音と一定テンポのパターンを比べる。狙った接触列を作れるかを見る。",
+      "sources": [
+        "S04",
+        "S12",
+        "S13"
+      ]
+    },
+    {
+      "id": "C09",
+      "slug": "pocket-weather",
+      "title": "ポケットの天気",
+      "tagline": "手の中の雲を集め、嵐をなだめて霧雨にする。",
+      "gesture": "傾けて保持し、小さな動きで内部の天候エネルギーを変える。",
+      "percept": "方向を持つ流れと、嵐から疎な滴へ落ち着く変化。",
+      "feasibility": "software",
+      "state": "x/y内の内部場の方向・エネルギー、雲の移動、接触・降水イベントを共有する。",
+      "slow": "雲の分布と慣性応答による、ゆっくり変わる方向性。",
+      "fast": "疎な滴と、重なった流動イベントを位置に合わせて出す。",
+      "visual": "断面の雲と内部場の矢印。滴と接触表示は報告された状態に従う。",
+      "additions": "AtomS3の内部場・エネルギー規則、降水イベント、状態報告。まず2つの明快な天候を作る。",
+      "limit": "将来の挙動。実際の風や手全体を押し返す空気抵抗ではない。方位センサーがあるとも扱わない。",
+      "experiment": "状態に沿って空間配分した振動と、同数のイベントを一様配分した振動を比べる。傾きと同じ方向を読み取れるかを見る。",
+      "sources": [
+        "S08",
+        "S12",
+        "S13"
+      ]
+    },
+    {
+      "id": "C10",
+      "slug": "portal-courier",
+      "title": "小さな運び屋",
+      "tagline": "ARの器から器へ、中身をこぼさず届ける。",
+      "gesture": "受け皿まで動かしてから傾け、残りを持って戻る。",
+      "percept": "拾う、運ぶ、注ぐ、残るという一連の結果。",
+      "feasibility": "tracking",
+      "state": "最後の一粒の残量・流量に、追跡による受け皿判定を加える。AtomS3が中身の状態を保持する。",
+      "slow": "拾う・運ぶ・注ぐ間の重心と残量を表す。",
+      "fast": "受理された拾得・注入状態と流出接触に対応する確認。",
+      "visual": "デバイスに位置合わせした容器と、実空間に置かれた受け皿。",
+      "additions": "デバイス位置追跡、座標校正、受け皿判定、追跡喪失時の処理、高水準の拾得・注入指示。実機AndroidでUSBとカメラを検証する。",
+      "limit": "追跡と排出モデルの両方が未実装。IMUだけでは受け皿へ到達したか判断できない。",
+      "experiment": "固定の受け皿1つで、内側と外側の注入を比較する。追跡を失った時も架空の注入完了を作らないか確認する。",
+      "sources": [
+        "S03",
+        "S06",
+        "S09"
+      ]
+    },
+    {
+      "id": "C11",
+      "slug": "fossil-brush",
+      "title": "触って発掘する",
+      "tagline": "砂のざらつきが消えると、化石の稜線が現れる。",
+      "gesture": "追跡された浅い横方向の一往復から始める。",
+      "percept": "表面の粒と、隠れた輪郭をたどる感覚。",
+      "feasibility": "tracking",
+      "state": "接触位置、投影した局所勾配、走査速度、除去済み層量。外部追跡の接触意図をデバイス側の縮約モデルで扱う。",
+      "slow": "局所勾配を、接触面が動ける1軸方向へ投影する。",
+      "fast": "走査速度に連動する粒状感と、稜線の通過イベント。",
+      "visual": "位置合わせしたブラシと、共有された除去量に応じて現れる化石。",
+      "additions": "位置追跡・接触校正、表面と稜線の表現、ブラシ状態、対応する通信定義。",
+      "limit": "追跡と表面モデルが未実装。押す力、任意の3D面法線、突き抜けられない硬い面は表現できたことにしない。",
+      "experiment": "既知の稜線を両方向に走査し、質感の有無を比べる。触覚の通過位置と勾配が表示に合うかを先に確かめる。",
+      "sources": [
+        "S01",
+        "S02",
+        "S09",
+        "S14"
+      ]
+    },
+    {
+      "id": "C12",
+      "slug": "squeeze-to-bloom",
+      "title": "握って花を開く",
+      "tagline": "種の殻をやさしく縮め、ほどける瞬間を感じる。",
+      "gesture": "実際に開口幅が変わるグリップを、力と変位を測りながら押して離す。",
+      "percept": "柔らかく変形し、閾値を越えて殻が開く感覚。",
+      "feasibility": "hardware",
+      "state": "握力・変位、変形、蓄積エネルギー、殻の開放状態。開いた後の中身は既存の運動モデルへつなぐ。",
+      "slow": "現機の傾きは偏った荷重の手掛かりに使えるが、法線方向の柔らかさには機構を追加する。",
+      "fast": "殻がほどける短い割れと、その後の細かい動き。",
+      "visual": "測定した変形と開放状態に従って花が開く。",
+      "additions": "力または開口幅のセンサーと、柔軟または駆動可能なグリップ機構。入力校正と出力則の変更。",
+      "limit": "機構変更が必要。FSRを足すだけでは柔らかさや開口幅を作れない。現機の傾け操作による開放とは別の体験。",
+      "experiment": "変更後の機構で、測定変形に連動する開放と時間駆動の開放を比較する。閾値未満で止め、意図して越えられるかを見る。",
+      "sources": [
+        "S01",
+        "S10",
+        "S11",
+        "S14"
+      ]
+    }
+  ]
+}

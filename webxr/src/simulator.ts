@@ -1,9 +1,9 @@
-import type { ContainerPreset, LocalContentState, TiltState } from "./types";
-import type { SpatialPanelState } from "./types";
+import type { ContainerPreset, LocalContentState, PreviewMotionTuning, TiltState } from "./types";
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const mix = (from: number, to: number, factor: number) => from + (to - from) * factor;
 
+/** Browser-local approximation. Never advance this source for a connected scene. */
 export class VisualSimulator {
   private content: LocalContentState = {
     surfaceOffsetX: 0,
@@ -20,15 +20,15 @@ export class VisualSimulator {
   private previousTilt: TiltState = { x: 0, y: 0 };
   private phase = 0;
 
-  update(preset: ContainerPreset, tilt: TiltState, dt: number, panelState?: SpatialPanelState): LocalContentState {
+  update(preset: ContainerPreset, tilt: TiltState, dt: number, tuning?: PreviewMotionTuning): LocalContentState {
     const viscosity = preset.container.viscosity ?? 0.12;
     const particleCount = preset.container.particle_count ?? 0;
     const hardness = preset.container.particle_hardness ?? 0.3;
     const fill = preset.container.fill;
     const familyGain = preset.family === "Liquid" ? 0.86 : preset.family === "Hybrid" ? 0.64 : 0.42;
     const deltaTilt = Math.hypot(tilt.x - this.previousTilt.x, tilt.y - this.previousTilt.y);
-    const shakeBoost = 0.65 + (panelState?.shakeBoost ?? 0.35) * 1.4;
-    const dampingPreview = panelState?.dampingPreview ?? 0.5;
+    const shakeBoost = 0.65 + (tuning?.shakeBoost ?? 0.35) * 1.4;
+    const dampingPreview = tuning?.dampingPreview ?? 0.5;
     const targetX = clamp(tilt.x * familyGain, -0.92, 0.92);
     const targetY = clamp(tilt.y * familyGain, -0.92, 0.92);
     const naturalHz = mix(2.8, 1.15, clamp(viscosity, 0, 1)) * mix(1.18, 0.82, fill);

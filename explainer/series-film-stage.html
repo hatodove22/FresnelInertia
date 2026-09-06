@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fresnel series film render stage</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101319;color:#f5f1e8;font-family:Bahnschrift,"Segoe UI",Arial,sans-serif}
+    .topline{position:absolute;left:74px;right:74px;top:32px;display:flex;justify-content:space-between;font-size:22px;letter-spacing:2px;color:#aebac9}
+    .title-block{position:absolute;left:76px;top:101px;pointer-events:none}
+    #kicker{font-size:23px;letter-spacing:2px;color:#ff9b63;margin-bottom:17px}
+    h1{font-size:62px;font-weight:600;line-height:1.13;letter-spacing:-1.3px;margin:0;max-width:1740px}
+    .panel-label{position:absolute;top:241px;font-size:22px;letter-spacing:1.7px;color:#96a9bd}
+    #virtual-label{left:76px}#mechanism-label{left:1060px}
+    #illustration{position:absolute;left:56px;top:278px;width:900px;height:528px}
+    #cad-wrap{position:absolute;left:966px;top:278px;width:900px;height:548px;transform-origin:50% 50%}
+    #cad{display:block;width:100%;height:100%}
+    #contact-markers{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+    #input{position:absolute;left:76px;top:822px;font-size:27px;color:#8ce2d5;max-width:845px}
+    #output{position:absolute;left:1060px;top:822px;font-size:26px;color:#ffd1b3;max-width:785px}
+    #scope{position:absolute;left:76px;right:76px;top:875px;font-size:20px;color:#a5b1bf;letter-spacing:.2px;display:flex;justify-content:space-between}
+    #sources{position:absolute;left:78px;top:285px;width:860px;display:none}
+    #sources .source{margin-bottom:16px;line-height:1.4;font-size:25px;color:#e8e9e8}
+    #sources .source small{display:block;font-size:21px;color:#9fafc1;margin-top:5px}
+    #sources .note{font-size:23px;line-height:1.5;color:#aeb9c7;margin-top:30px}
+    #caption-band{position:absolute;left:0;right:0;bottom:0;height:172px;background:#101319;display:flex;align-items:center;justify-content:center;border-top:1px solid #37404d}
+    #caption{font-family:"Segoe UI",Arial,sans-serif;font-size:45px;line-height:1.23;font-weight:500;text-align:center;max-width:1710px;margin:0}
+    #progress{position:absolute;bottom:0;left:0;height:5px;background:#ff995f;width:0}
+    #shade{position:absolute;inset:0;background:#101319;opacity:0;pointer-events:none}
+  </style>
+</head>
+<body>
+  <div class="topline"><span>FRESNEL / FOUR PROPERTIES, ONE CONTACT PRINCIPLE</span><span>ENGLISH NARRATION · AI-GENERATED</span></div>
+  <div class="title-block"><div id="kicker"></div><h1 id="title"></h1></div>
+  <div class="panel-label" id="virtual-label">VIRTUAL OBJECT & FINGERTIP CONTACT</div>
+  <div class="panel-label" id="mechanism-label">WHC 2025 · ACTUAL CAD MECHANISM</div>
+  <canvas id="illustration" width="900" height="528"></canvas>
+  <div id="cad-wrap"><canvas id="cad"></canvas><svg id="contact-markers" viewBox="0 0 900 548"></svg></div>
+  <div id="input"></div><div id="output"></div>
+  <aside id="sources"></aside>
+  <div id="scope"><span id="scope-left">ILLUSTRATIVE INPUTS & CONTACT-PLANE COMMANDS</span><span>NOT A HARDWARE MEASUREMENT</span></div>
+  <div id="caption-band"><p id="caption"></p></div><div id="progress"></div><div id="shade"></div>
+  <script type="module" src="/src/series-film-stage.ts"></script>
+</body>
+</html>

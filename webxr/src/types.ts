@@ -40,10 +40,13 @@ export interface VisualRuntime {
   content: LocalContentState;
 }
 
-export interface SpatialPanelState {
+/** Browser-local approximation controls, independent of the input surface. */
+export interface PreviewMotionTuning {
   shakeBoost: number;
   dampingPreview: number;
 }
+
+export type SpatialPanelState = PreviewMotionTuning;
 
 export interface DemoUiElements {
   presetSelect: HTMLSelectElement;

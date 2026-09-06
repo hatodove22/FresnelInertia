@@ -1,0 +1,16 @@
+import { chromium } from 'playwright';
+import { mkdir } from 'node:fs/promises';
+const base = process.env.EXPLAINER_URL || 'http://127.0.0.1:4175';
+const output = '../output/explainer-qa';
+await mkdir(output,{recursive:true});
+const browser=await chromium.launch({channel:'chrome',headless:true});
+const page=await browser.newPage({viewport:{width:1440,height:1000},deviceScaleFactor:1});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.goto(base,{waitUntil:'networkidle'});await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(1500);
+await page.screenshot({path:`${output}/desktop-hero.png`});
+await page.screenshot({path:`${output}/desktop-full.png`,fullPage:true});
+await page.locator('#device').scrollIntoViewIfNeeded();await page.waitForTimeout(1000);await page.screenshot({path:`${output}/desktop-device.png`});
+await page.getByRole('button',{name:'水',exact:true}).click();await page.waitForTimeout(1000);await page.screenshot({path:`${output}/desktop-water.png`});
+await page.setViewportSize({width:390,height:844});await page.evaluate(()=>scrollTo(0,0));await page.waitForTimeout(500);await page.screenshot({path:`${output}/mobile-hero.png`});await page.screenshot({path:`${output}/mobile-full.png`,fullPage:true});
+console.log(JSON.stringify({errors,overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)},null,2));
+await browser.close();

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CAD mechanism film render stage</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101319;color:#f5f1e8;font-family:Bahnschrift,"Segoe UI",Arial,sans-serif}
+    #cad{position:absolute;inset:95px 0 145px;width:100%;height:840px;display:block}
+    .topline{position:absolute;left:74px;right:74px;top:32px;display:flex;justify-content:space-between;font-size:23px;letter-spacing:2px;color:#abb6c4}
+    .title-block{position:absolute;left:76px;top:101px;pointer-events:none}
+    #kicker{font-size:23px;letter-spacing:2.5px;color:#ff9b63;margin-bottom:17px}
+    h1{font-size:62px;font-weight:600;line-height:1.13;letter-spacing:-1.5px;margin:0;max-width:1740px;text-shadow:0 2px 20px #101319}
+    #detail{position:absolute;left:76px;top:800px;font-size:26px;color:#bac5d2;letter-spacing:.3px;text-shadow:0 2px 10px #101319}
+    .footer{position:absolute;left:76px;right:76px;top:868px;display:flex;justify-content:space-between;align-items:center;color:#9ca9b8;font-size:21px}
+    #caption-band{position:absolute;left:0;right:0;bottom:0;height:172px;background:#101319;display:flex;align-items:center;justify-content:center;border-top:1px solid #37404d}
+    #caption{font-family:"Segoe UI",Arial,sans-serif;font-size:45px;line-height:1.23;font-weight:500;text-align:center;max-width:1710px;margin:0;white-space:normal}
+    #progress{position:absolute;bottom:0;left:0;height:5px;background:#ff995f;width:0}
+    #state{position:absolute;left:76px;top:308px;width:372px;border:1px solid #4c5868;border-radius:18px;padding:22px 24px;background:#141a23f2;display:none}
+    #state .label{font-size:21px;color:#aec0d1;letter-spacing:1.3px;margin-bottom:22px}
+    #container{height:126px;width:320px;position:relative;border:2px solid #acb7c5;border-radius:8px;background:#1d2733}
+    #marble{position:absolute;left:146px;bottom:12px;width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 35% 28%,#ffdaa7,#f79e52 50%,#a34c24);box-shadow:0 0 18px #ffae6545}
+    .cue{display:flex;justify-content:space-between;align-items:center;font-size:22px;margin-top:24px;color:#e5e9ed}
+    .bar{width:125px;height:7px;background:#324151;border-radius:5px;overflow:hidden}.bar span{display:block;width:0;height:100%;background:#ffae6e}
+    .bar.fast span{background:#63ddc8}
+    #materials{position:absolute;left:76px;top:343px;display:none;font-size:31px;line-height:2.1;color:#ced7df}
+    #materials span{display:block}.note{font-size:22px;color:#b5c2cc;max-width:350px;line-height:1.45;margin-top:26px}
+    #shade{position:absolute;inset:0;background:#101319;opacity:0;pointer-events:none}
+  </style>
+</head>
+<body>
+  <canvas id="cad"></canvas>
+  <div class="topline"><span>FRESNEL INERTIA / INSIDE THE MECHANISM</span><span>ENGLISH NARRATION · AI-GENERATED</span></div>
+  <div class="title-block"><div id="kicker"></div><h1 id="title"></h1></div>
+  <div id="detail"></div>
+  <aside id="state"><div class="label">ILLUSTRATED CONTENT STATE</div><div id="container"><div id="marble"></div></div><div class="cue">Slow tilt <div class="bar"><span id="slow"></span></div></div><div class="cue">Brief contact <div class="bar fast"><span id="fast"></span></div></div></aside>
+  <aside id="materials"><span>Marble</span><span>Grains</span><span>Liquid</span><div class="note">Next: tuning tools<br>and Android AR</div></aside>
+  <div class="footer"><span id="scope">ACTUAL CAD GEOMETRY · ILLUSTRATIVE COMMANDS</span><span>NOT A HARDWARE MEASUREMENT</span></div>
+  <div id="caption-band"><p id="caption"></p></div><div id="progress"></div><div id="shade"></div>
+  <script type="module" src="/src/film-stage.ts"></script>
+</body>
+</html>

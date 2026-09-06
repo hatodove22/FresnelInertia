@@ -1,0 +1,59 @@
+WEBVTT
+
+00:00:00.650 --> 00:00:05.090
+An empty handheld device can feel as if something is moving inside.
+
+00:00:05.390 --> 00:00:10.454
+This is the actual mechanism, shown here as an animated computer model.
+
+00:00:12.183 --> 00:00:16.407
+Your thumb and index finger meet these two contact surfaces.
+
+00:00:16.707 --> 00:00:22.275
+Each surface turns around its own pivot, while the frame and motor bodies stay in place.
+
+00:00:23.983 --> 00:00:27.199
+First, the two surfaces tilt together.
+
+00:00:27.499 --> 00:00:34.651
+This shared motion provides a slow directional cue, linked to the position and apparent load of the virtual contents.
+
+00:00:36.383 --> 00:00:39.935
+Now the surfaces tilt in opposite directions.
+
+00:00:40.235 --> 00:00:47.435
+Changing their difference adds a cue for shifting weight and inertia. The two motions can also be combined.
+
+00:00:49.150 --> 00:00:54.118
+Here, the gears carry motion from each motor to its contact surface.
+
+00:00:54.418 --> 00:00:58.090
+We slow the animation so you can follow the rotation.
+
+00:00:59.817 --> 00:01:06.345
+Four vibration elements provide the faster sensations: taps, collisions, and flowing texture.
+
+00:01:06.645 --> 00:01:11.589
+The glowing markers show changing drive strength, not large physical movement.
+
+00:01:13.317 --> 00:01:17.037
+Both outputs follow one virtual content state.
+
+00:01:17.337 --> 00:01:22.654
+As this object moves toward a wall, the surfaces give a slower cue.
+
+00:01:22.654 --> 00:01:27.153
+Its contact creates a brief vibration, while that slower cue continues.
+
+00:01:28.883 --> 00:01:32.572
+The same mechanism can suggest a marble, grains,
+
+00:01:32.572 --> 00:01:37.643
+or liquid. The current content model moves in a two-dimensional cross-section.
+
+00:01:37.943 --> 00:01:41.730
+These are illustrative commands, not measured hardware motion.
+
+00:01:41.730 --> 00:01:46.463
+Better tuning and Android augmented reality are the next steps.
+

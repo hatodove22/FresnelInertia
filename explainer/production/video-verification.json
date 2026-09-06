@@ -1,0 +1,25 @@
+{
+  "completedAt": "2026-09-05T15:20:31.296Z",
+  "file": "container-haptics-explainer-ja.mp4",
+  "bytes": 9419587,
+  "playback": {
+    "duration": 109.366667,
+    "width": 1920,
+    "height": 1080,
+    "currentTime": 0.609434,
+    "paused": false,
+    "quality": {
+      "totalVideoFrames": 23,
+      "droppedVideoFrames": 0
+    }
+  },
+  "seekSeconds": [
+    5,
+    46,
+    75,
+    102
+  ],
+  "pageErrors": [],
+  "syntheticVoice": true,
+  "newHardwareVerification": false
+}

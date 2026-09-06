@@ -1,0 +1,46 @@
+{
+  "title": "Fresnel: Four Properties, One Contact Principle",
+  "duration": 217.03333333333336,
+  "chapters": [
+    {
+      "id": "principle",
+      "title": "A small tilt changes the touch.",
+      "start": 0
+    },
+    {
+      "id": "mechanism",
+      "title": "Three fingertips. Three moving surfaces.",
+      "start": 22.366666666666667
+    },
+    {
+      "id": "shape",
+      "title": "The angle suggests the surface.",
+      "start": 48.16666666666667
+    },
+    {
+      "id": "stiffness",
+      "title": "Squeeze. Feel a different response.",
+      "start": 78.2
+    },
+    {
+      "id": "center-of-gravity",
+      "title": "Where does the weight seem to be?",
+      "start": 113.13333333333333
+    },
+    {
+      "id": "inertia",
+      "title": "Motion brings a changing cue.",
+      "start": 138.93333333333334
+    },
+    {
+      "id": "series",
+      "title": "One principle. Four properties.",
+      "start": 171.76666666666668
+    },
+    {
+      "id": "sources",
+      "title": "A research concept, made visible.",
+      "start": 197.03333333333336
+    }
+  ]
+}

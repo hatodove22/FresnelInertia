@@ -1,0 +1,12 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const input=process.argv[2] ? path.resolve(process.argv[2]) : fileURLToPath(new URL('../../output/fresnel-series-film/timeline.json',import.meta.url));
+const timeline=JSON.parse(await readFile(input,'utf8'));
+if(timeline.research_status!=='approved'||!Number.isFinite(timeline.duration))throw new Error('An approved, narrated timeline is required.');
+const chapters=timeline.scenes.map(({id,title,start})=>({id,title,start}));
+if(new Set(chapters.map(c=>c.id)).size!==chapters.length || chapters.some((c,i)=>!Number.isFinite(c.start)||c.start<0||c.start>=timeline.duration||(i>0&&c.start<=chapters[i-1].start)))throw new Error('Invalid chapter boundaries.');
+for(const id of ['shape','stiffness','center-of-gravity','inertia'])if(!chapters.some(c=>c.id===id))throw new Error(`Missing property chapter: ${id}`);
+const output=new URL('../public/media/fresnel-series-chapters.json',import.meta.url);
+await writeFile(output,JSON.stringify({title:timeline.title,duration:timeline.duration,chapters},null,2)+'\n');
+console.log(`Wrote ${chapters.length} chapters from approved narration timing (${timeline.duration.toFixed(3)}s).`);

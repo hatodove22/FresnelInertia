@@ -1,0 +1,360 @@
+{
+  "file": "fresnel-inertia-explainer-en.mp4",
+  "bytes": 8590906,
+  "duration_s": 107.533333,
+  "video": {
+    "codec_name": "h264",
+    "width": 1920,
+    "height": 1080,
+    "avg_frame_rate": "30/1",
+    "pix_fmt": "yuv420p",
+    "color_range": "tv",
+    "color_space": "bt709",
+    "side_data_list": [
+      {
+        "side_data_type": "ICC Profile"
+      }
+    ],
+    "duration": "107.533333",
+    "nb_frames": "3226"
+  },
+  "audio": {
+    "codec_name": "aac",
+    "sample_rate": "48000",
+    "channels": 1,
+    "duration": "107.533000"
+  },
+  "full_decode": "pass",
+  "faststart": true,
+  "mean_volume_db": -19.6,
+  "peak_volume_db": -1.5,
+  "subtitle_cues": 19,
+  "subtitle_timing": "pass",
+  "cad_motion_frame_checks": {
+    "common": {
+      "changed_pixels_over_10": 14078,
+      "same_camera": true,
+      "captions_excluded": true
+    },
+    "differential": {
+      "changed_pixels_over_10": 14078,
+      "same_camera": true,
+      "captions_excluded": true
+    }
+  },
+  "encoded_color_comparison": [
+    {
+      "scene": "overview",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.776
+    },
+    {
+      "scene": "contact-pads",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.876
+    },
+    {
+      "scene": "common",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.853
+    },
+    {
+      "scene": "differential",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.866
+    },
+    {
+      "scene": "gears",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 3.051
+    },
+    {
+      "scene": "spatial-four",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.711
+    },
+    {
+      "scene": "shared-state",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.692
+    },
+    {
+      "scene": "possibilities",
+      "reference_background_rgb": [
+        16,
+        19,
+        25
+      ],
+      "encoded_background_rgb": [
+        13,
+        17,
+        23
+      ],
+      "cad_region_mean_absolute_rgb_error": 2.789
+    }
+  ],
+  "cad_source": "Actual exported Fusion CAD via shared explainer/src/device.ts rig",
+  "commands": "illustrative; not hardware measurement",
+  "synthetic_voice": true,
+  "new_hardware_verification": false,
+  "sha256": "bae9d94e4582202fd6e1acc64617388e8926028ae7940359b838db6bd5619419",
+  "subtitle_layout": {
+    "checkedCaptions": 19,
+    "allInsideSubtitleBand": true,
+    "maxLines": 2,
+    "captionLayouts": [
+      {
+        "text": "An empty handheld device can feel as if something is moving inside.",
+        "x": 262.046875,
+        "y": 966.828125,
+        "width": 1395.90625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "This is the actual mechanism, shown here as an animated computer model.",
+        "x": 196.6875,
+        "y": 966.828125,
+        "width": 1526.625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "Your thumb and index finger meet these two contact surfaces.",
+        "x": 325.953125,
+        "y": 966.828125,
+        "width": 1268.078125,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "Each surface turns around its own pivot, while the frame and motor bodies stay in place.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "First, the two surfaces tilt together.",
+        "x": 605.046875,
+        "y": 966.828125,
+        "width": 709.90625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "This shared motion provides a slow directional cue, linked to the position and apparent load of the virtual contents.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "Now the surfaces tilt in opposite directions.",
+        "x": 516.28125,
+        "y": 966.828125,
+        "width": 887.4375,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "Changing their difference adds a cue for shifting weight and inertia. The two motions can also be combined.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "Here, the gears carry motion from each motor to its contact surface.",
+        "x": 264.359375,
+        "y": 966.828125,
+        "width": 1391.265625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "We slow the animation so you can follow the rotation.",
+        "x": 408.5625,
+        "y": 966.828125,
+        "width": 1102.875,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "Four vibration elements provide the faster sensations: taps, collisions, and flowing texture.",
+        "x": 105,
+        "y": 939.15625,
+        "width": 1710,
+        "height": 110.6875,
+        "bottom": 1049.84375
+      },
+      {
+        "text": "The glowing markers show changing drive strength, not large physical movement.",
+        "x": 123.609375,
+        "y": 966.828125,
+        "width": 1672.78125,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "Both outputs follow one virtual content state.",
+        "x": 495.046875,
+        "y": 966.828125,
+        "width": 929.90625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "As this object moves toward a wall, the surfaces give a slower cue.",
+        "x": 286.578125,
+        "y": 966.828125,
+        "width": 1346.84375,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "Its contact creates a brief vibration, while that slower cue continues.",
+        "x": 268.546875,
+        "y": 966.828125,
+        "width": 1382.90625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "The same mechanism can suggest a marble, grains,",
+        "x": 438.453125,
+        "y": 966.828125,
+        "width": 1043.078125,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "or liquid. The current content model moves in a two-dimensional cross-section.",
+        "x": 151.546875,
+        "y": 966.828125,
+        "width": 1616.90625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "These are illustrative commands, not measured hardware motion.",
+        "x": 292.921875,
+        "y": 966.828125,
+        "width": 1334.140625,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      },
+      {
+        "text": "Better tuning and Android augmented reality are the next steps.",
+        "x": 306.265625,
+        "y": 966.828125,
+        "width": 1307.453125,
+        "height": 55.34375,
+        "bottom": 1022.171875
+      }
+    ]
+  },
+  "browser": {
+    "completedAt": "2026-09-05T16:28:21.789Z",
+    "file": "fresnel-inertia-explainer-en.mp4",
+    "bytes": 8590906,
+    "playback": {
+      "duration": 107.533333,
+      "width": 1920,
+      "height": 1080,
+      "currentTime": 0.618546,
+      "paused": false,
+      "totalFrames": 23,
+      "droppedFrames": 0
+    },
+    "seekSeconds": [
+      5.19,
+      16.843,
+      28.913,
+      41.478,
+      53.3,
+      61.117,
+      79.672,
+      96.918
+    ],
+    "captionCues": 19,
+    "pageErrors": [],
+    "syntheticVoice": true,
+    "newHardwareVerification": false
+  },
+  "visual_inspection": {
+    "encoded_chapters_inspected": 8,
+    "titles_and_subtitles_readable": true,
+    "cad_geometry_main_visual_in_all_chapters": true,
+    "common_differential_raw_canvas_checked": true,
+    "four_vibration_locations_checked": true,
+    "orange_and_gold_geometry_match_render": true,
+    "limits_and_AI_disclosure_visible": true
+  }
+}

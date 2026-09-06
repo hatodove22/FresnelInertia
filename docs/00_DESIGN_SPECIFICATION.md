@@ -30,6 +30,14 @@ SystemParams owns applied configuration. TelemetrySnapshot owns reported state;
 DriveFrame4 keeps spatial output independent of the audio transport.
 HapticPipeline applies commands; radio callbacks only queue them.
 
+The hardware-free `HapticSynthesisCore` now owns the composition of the existing
+layers and parallel tilt model. `HapticPipeline` retains runtime authority,
+sensor acquisition, Stop, faults, calibration, telemetry and physical dispatch.
+The browser's pure state projections and separate liquid/particle renderers
+consume accepted device state; they do not advance device dynamics. See the
+[firmware](reference/30_REUSABLE_FIRMWARE_CORE.md) and
+[visual](reference/31_REUSABLE_VISUAL_ARCHITECTURE.md) reuse contracts.
+
 ## Research alignment
 
 The supplied paper, *A Handheld Haptic Device Integrating Fingertip Contact-plane
@@ -108,6 +116,10 @@ Formal localization/psychophysics, grip sensing, automatic resonance fitting,
 recorder/replay recovery, OTA, product security, multi-client sessions, new
 transports and publication assets remain later work. Collision/cracker effects
 remain possible application extensions, not erased from the concept.
+
+The [interaction atlas](reference/32_INTERACTION_DESIGN_SPACE.md) maps 12 future
+experiences onto these boundaries, with required additions and comparisons.
+Its three browser sketches are explanatory models, not new device capabilities.
 
 Current facts: [16](16_PROGRESS_STATUS.md).
 Next work: [08](08_IMPLEMENTATION_PLAN.md).

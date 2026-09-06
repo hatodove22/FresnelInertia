@@ -2,6 +2,16 @@
 
 > Technical reference; read only when the current task needs this detail. Current scope, facts, and demo acceptance are in ../08_IMPLEMENTATION_PLAN.md, ../16_PROGRESS_STATUS.md, and ../07_TEST_AND_VALIDATION.md.
 
+> **2026-09-06 research update:** this v1 proposal retains historical formulas
+> and illustrative values. Consult the [FW model research](34_FW_MODEL_RESEARCH.md)
+> for the current-code audit, alternatives and applicability limits before using
+> them. In particular, the +x convention below differs from current [04](../04_HARDWARE_AND_PIN_SPEC.md);
+> unconditional noise, activity updates without input-time scaling, proximity-based
+> taps and old servo limits are not current implementation requirements.
+> Current coherent contacts, accepted output authority and shared-state behavior
+> take precedence. Neither this proposal nor the new research is an additional
+> active work plan.
+
 ## 0. Purpose and repo alignment
 
 This document explores a richer on-device model, not the current firmware's

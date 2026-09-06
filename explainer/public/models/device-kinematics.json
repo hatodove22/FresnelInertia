@@ -1,0 +1,543 @@
+{
+  "schemaVersion": 1,
+  "source": "Fusion VRSJ2026 v30 — live read-only joint and analytic BRep inspection",
+  "units": "meters",
+  "angleUnits": "radians",
+  "coordinateFrame": "centered original CAD XYZ",
+  "sourceCenterCm": [
+    -0.04999990463256854,
+    0.20163881544307705,
+    -0.2014983887698012
+  ],
+  "inputConvention": "Channel input is contact pad angle about original CAD +Z, right-hand rule. fin angle = input; driver angle = -input. Zero is the exported CAD pose.",
+  "transformConvention": "World-centered mesh vertices: pAnimated = pivot + R(axis, ratio * contactPadAngleRad) * (pRest - pivot). Preserve the exact rest pose; do not use mesh bounding-box centers as hinges.",
+  "channels": [
+    {
+      "id": "left",
+      "label": "パッドA（CAD −X側）",
+      "input": "contactPadAngleRad",
+      "inputConvention": "接触パッドが元CAD +Z軸まわりに右手則で回転する角度。これはファームウェアのサーボ指令値ではない。",
+      "groups": [
+        {
+          "id": "fin",
+          "pivot": [
+            -0.03150000095367432,
+            -0.0020163881544305955,
+            0.024014983887698016
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "ratio": 1,
+          "nodeIndices": [
+            37
+          ],
+          "nodeNames": [
+            "fin:1/ボディ1"
+          ],
+          "pivotOriginalCm": [
+            -3.2,
+            1.7524176554317705e-14,
+            2.2
+          ],
+          "evidence": [
+            "K02",
+            "K04",
+            "K05"
+          ],
+          "confidence": "joint-and-surface",
+          "membershipNote": "フィン1ボディ全体。"
+        },
+        {
+          "id": "driver",
+          "pivot": [
+            -0.011500000953674316,
+            -0.0020163881544305955,
+            0.024014983887698016
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "ratio": -1,
+          "nodeIndices": [
+            4,
+            8,
+            9,
+            35
+          ],
+          "nodeNames": [
+            "XL,XC-330 v1:1+DC15_A01_HORN_DUMMY:1/ボディ1",
+            "XL,XC-330 v1:1+BTS2_M2_6X8:1/ボディ1",
+            "XL,XC-330 v1:1+BTS2_M2_6X8:1/ボディ2",
+            "pinion:1/ボディ1"
+          ],
+          "pivotOriginalCm": [
+            -1.2000000000000002,
+            1.7524176554317705e-14,
+            2.2
+          ],
+          "evidence": [
+            "K03",
+            "K04",
+            "K05"
+          ],
+          "confidence": "coaxial-surface-and-mount-geometry",
+          "membershipNote": "ピニオン、出力ホーン、同軸のホーン保持ねじ2ボディ。ねじの追従は取付形状に基づく。サーボケースは固定。"
+        }
+      ],
+      "axisSeparationMeters": 0.02,
+      "firmwareChannel": null,
+      "fingerAssignment": null,
+      "occurrenceTransformsCm": {
+        "fin:1": [
+          1.0,
+          0.0,
+          0.0,
+          -1.2000000000000002,
+          0.0,
+          1.0,
+          0.0,
+          1.7524176554317705e-14,
+          0.0,
+          0.0,
+          1.0,
+          2.2,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "pinion:1": [
+          -3.3306690738754696e-16,
+          -1.000000000000001,
+          0.0,
+          -1.2000000000000002,
+          1.000000000000001,
+          -3.3306690738754696e-16,
+          0.0,
+          1.7524176554317705e-14,
+          0.0,
+          0.0,
+          1.0,
+          2.2,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "right",
+      "label": "パッドB（CAD ＋X側）",
+      "input": "contactPadAngleRad",
+      "inputConvention": "接触パッドが元CAD +Z軸まわりに右手則で回転する角度。これはファームウェアのサーボ指令値ではない。",
+      "groups": [
+        {
+          "id": "fin",
+          "pivot": [
+            0.03149999985843898,
+            -0.002022187500322694,
+            0.024014983887698006
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "ratio": 1,
+          "nodeIndices": [
+            38
+          ],
+          "nodeNames": [
+            "fin:4/ボディ1"
+          ],
+          "pivotOriginalCm": [
+            3.1000000812113293,
+            -0.0005799345891923438,
+            2.1999999999999993
+          ],
+          "evidence": [
+            "K02",
+            "K04",
+            "K05"
+          ],
+          "confidence": "same-part-surface-and-placement",
+          "membershipNote": "フィン1ボディ全体。"
+        },
+        {
+          "id": "driver",
+          "pivot": [
+            0.011499999046325687,
+            -0.0020163881544305938,
+            0.02401498388769802
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "ratio": -1,
+          "nodeIndices": [
+            21,
+            25,
+            26,
+            36
+          ],
+          "nodeNames": [
+            "XL,XC-330 v1:2+DC15_A01_HORN_DUMMY:1/ボディ1",
+            "XL,XC-330 v1:2+BTS2_M2_6X8:1/ボディ1",
+            "XL,XC-330 v1:2+BTS2_M2_6X8:1/ボディ2",
+            "pinion:3/ボディ1"
+          ],
+          "pivotOriginalCm": [
+            1.1,
+            1.7642137750684128e-14,
+            2.2000000000000006
+          ],
+          "evidence": [
+            "K03",
+            "K04",
+            "K05"
+          ],
+          "confidence": "coaxial-surface-and-mount-geometry",
+          "membershipNote": "ピニオン、出力ホーン、同軸のホーン保持ねじ2ボディ。ねじの追従は取付形状に基づく。サーボケースは固定。"
+        }
+      ],
+      "axisSeparationMeters": 0.02000000165292356,
+      "firmwareChannel": null,
+      "fingerAssignment": null,
+      "occurrenceTransformsCm": {
+        "fin:4": [
+          -0.9999999999999993,
+          6.123233995737379e-17,
+          -4.551914400963141e-15,
+          1.1000000812113306,
+          -6.123233995758184e-17,
+          -0.9999999999999987,
+          1.3552527157031216e-18,
+          -0.0005799345891924663,
+          -4.551914400963141e-15,
+          1.3552527157015439e-18,
+          0.9999999999999954,
+          2.1999999999999904,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "pinion:3": [
+          1.0,
+          0.0,
+          -9.860761315262648e-32,
+          1.1,
+          0.0,
+          1.0,
+          0.0,
+          1.7642137750684128e-14,
+          9.860761315262648e-32,
+          0.0,
+          1.0,
+          2.2000000000000006,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    }
+  ],
+  "fixedNodeIndices": [
+    1,
+    2,
+    3,
+    5,
+    6,
+    7,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    22,
+    23,
+    24,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57
+  ],
+  "suggestedIllustrationAmplitudeDeg": 8,
+  "physicalTravelLimitsDeg": null,
+  "evidence": [
+    {
+      "id": "K01",
+      "kind": "live-read-only-export",
+      "path": "output/explainer-assets/fusion-kinematics-raw.json",
+      "document": "VRSJ2026 v30",
+      "timestampLocal": "2026-09-06T01:13:12.516232",
+      "units": "cm",
+      "counts": {
+        "occurrences": 333,
+        "joints": 3,
+        "asBuiltJoints": 0,
+        "motionLinks": 0
+      },
+      "isModifiedBefore": true,
+      "isModifiedAfter": true,
+      "claim": "Fusionのgetterで形状・配置・拘束を読み出した。CAD編集、保存、回転駆動は行っていない。"
+    },
+    {
+      "id": "K02",
+      "kind": "joint-and-cylinder",
+      "jointName": "回転 2",
+      "occurrence": "fin:1",
+      "worldOriginCm": [
+        -3.2,
+        0,
+        2.2
+      ],
+      "jointAxis": [
+        0,
+        0,
+        -1
+      ],
+      "nativeCylinderFaceTempIds": [
+        6,
+        10,
+        21,
+        28
+      ],
+      "nativeCylinderOriginCm": [
+        -2,
+        0,
+        0.3
+      ],
+      "nativeCylinderRadiusCm": 0.875,
+      "claim": "左フィン支点はジョイント位置と同軸の円筒面で確認した。右フィンは同じネイティブ形状を正確なoccurrence transformで写す。"
+    },
+    {
+      "id": "K03",
+      "kind": "coaxial-surfaces",
+      "pinionNativeOriginCm": [
+        0,
+        0,
+        0
+      ],
+      "pinionCylinderFaceTempIds": [
+        6,
+        38,
+        152
+      ],
+      "hornCylinderFaceTempIds": [
+        6,
+        7,
+        8,
+        17,
+        22,
+        29
+      ],
+      "hornNativeAxis": [
+        0,
+        1,
+        0
+      ],
+      "claim": "ピニオン中心の円筒面とホーンの円筒面は、配置変換後に同じCAD Z軸に一致する。ホーン中心ねじの同軸面も確認した。"
+    },
+    {
+      "id": "K04",
+      "kind": "geometry-derived-ratio",
+      "nominalFinToPinionAngularRatio": -1,
+      "toothPitchDeg": 18,
+      "equivalentFullWheelToothCount": 20,
+      "rootRadiusCm": 0.875,
+      "toothTopRadiusCm": 1.1,
+      "leftAxisSeparationCm": 2,
+      "pinionToothTopSamples": [
+        {
+          "faceTempId": 43,
+          "angleDeg": -16.850000000000033,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 50,
+          "angleDeg": -34.85000000000004,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 57,
+          "angleDeg": -52.85000000000003,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 65,
+          "angleDeg": -70.85000000000005,
+          "radiusCm": 1.1000000000000005
+        },
+        {
+          "faceTempId": 72,
+          "angleDeg": -88.85069543731538,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 79,
+          "angleDeg": 163.14999999999998,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 85,
+          "angleDeg": 145.14999999999998,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 93,
+          "angleDeg": 127.14999999999998,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 100,
+          "angleDeg": 109.14999999999996,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 106,
+          "angleDeg": 91.14930456268463,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 114,
+          "angleDeg": 73.14999999999996,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 121,
+          "angleDeg": 55.15,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 127,
+          "angleDeg": 37.149999999999984,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 135,
+          "angleDeg": 19.14999999999998,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 142,
+          "angleDeg": 1.1493045626846348,
+          "radiusCm": 1.1
+        }
+      ],
+      "finToothTopSamples": [
+        {
+          "faceTempId": 14,
+          "angleDeg": -82.14999999999992,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 114,
+          "angleDeg": -64.14999999999996,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 121,
+          "angleDeg": -46.14999999999997,
+          "radiusCm": 1.1000000000000005
+        },
+        {
+          "faceTempId": 127,
+          "angleDeg": -28.149999999999967,
+          "radiusCm": 1.1000000000000005
+        },
+        {
+          "faceTempId": 135,
+          "angleDeg": -10.149999999999965,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 142,
+          "angleDeg": 7.850000000000022,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 148,
+          "angleDeg": 25.85000000000002,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 156,
+          "angleDeg": 43.85000000000003,
+          "radiusCm": 1.1000000000000008
+        },
+        {
+          "faceTempId": 163,
+          "angleDeg": 61.85000000000003,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 169,
+          "angleDeg": 79.85,
+          "radiusCm": 1.1
+        }
+      ],
+      "claim": "両歯形の歯先半径・歯元半径と18度の歯の間隔が一致し、軸間距離は20 mm。外歯車の等角・逆方向回転を説明用の公称モデルに用いる。CAD motionLinkや実測伝達比による確認ではない。"
+    },
+    {
+      "id": "K05",
+      "kind": "mesh-coordinate-map",
+      "path": "output/explainer-assets/device-cad-metadata.json",
+      "originalCenterCm": [
+        -0.04999990463256854,
+        0.20163881544307705,
+        -0.2014983887698012
+      ],
+      "conversion": "(worldCm - originalCenterCm) * 0.01",
+      "claim": "GLBは元CADのXYZ方向を保持し、平行移動とcmからmへの換算のみ。nodeIndicesはGLB nodes配列のindex。"
+    }
+  ],
+  "limits": [
+    "このJSONは実CAD形状に基づく説明用機構モデル。実機の運動測定、動作確認、校正データではない。",
+    "左右はCAD −X側／＋X側の識別だけを表す。親指／人差し指、ファームウェアch0／ch1への対応は未確認。",
+    "CAD +Zは表示用の軸。左ジョイントの−Z表現を+Zへ統一し、パッド角を入力としてピニオン側の符号を反転した。実サーボ指令の符号とは未対応。",
+    "歯車比は歯形から導く公称−1。3個のCAD回転ジョイントのうち右側のコピー2個はoccurrence関連がnullで、右支点の根拠には使用しない。motionLinkは存在しない。",
+    "左右とも同じフィン形状を使用。右フィンには元配置の約−0.005799 mmのYずれがあり、そのまま保持した。",
+    "±8°は説明用振幅の提案であり、可動範囲や干渉、歯のかみ合い、バックラッシュ、指との接触、トルクの検証結果ではない。",
+    "4個のHapticReactor、サーボケース、PCB/コントローラ、固定構造はこの回転機構の可動グループに含めない。振動を剛体の大きな位置移動として表現しない。",
+    "元CADの既知の省略・旧型部品はCAD_ASSETS.mdを参照。"
+  ]
+}

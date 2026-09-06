@@ -1,6 +1,6 @@
 # 07 Demo Acceptance
 
-Updated: 2026-09-05. This is the active acceptance contract.
+Updated: 2026-09-06. This is the active acceptance contract.
 [Plan](08_IMPLEMENTATION_PLAN.md) sets priorities; [status](16_PROGRESS_STATUS.md)
 records results. The [full historical record](archive/2026-09-05/07_TEST_AND_VALIDATION_FULL_RECORD.md)
 preserves earlier tests and observations; its old gates are not current prerequisites.
@@ -89,6 +89,38 @@ the later successful production run in 16 is not invalidated by this history.
 | Motion/output logic | Relevant deterministic checks and the affected physical rehearsal. |
 
 Run PlatformIO builds sequentially. Reuse valid results for unchanged paths.
+
+The reuse boundaries have targeted regression commands:
+
+```powershell
+pio test -e native-layers
+pio test -e native-synthesis-core
+npm --prefix webxr test
+npm --prefix webxr run build
+npm --prefix explainer test
+npm --prefix explainer run build
+```
+
+The synthesis suite compares pre-extraction orchestration and independently
+checks hold/reset/neutral intent. It shares leaf algorithms with production;
+it does not prove a future changed material law. The visual suite checks
+accepted-state authority, deterministic projections, source transitions,
+resource ownership and camera framing. Browser screenshots still matter:
+no DOM overflow does not imply a tilted object fits inside its WebGL canvas.
+
+The atlas browser flow uses `explainer/scripts/verify-atlas.mjs` against a local
+preview. It checks the three illustrative transitions, pause/step/reset,
+filters, source links, JSON download, reduced motion and narrow layouts.
+`explainer/scripts/verify.mjs` covers articulated CAD controls, synchronized
+viewports, keyboard interaction, responsive layout, and English film playback.
+`explainer/tests/device-rig.test.mjs` loads the actual GLB to check neutral-pose
+preservation, offset pivots, opposite gear rotation, fixed-frame invariance,
+and return to zero without drift. Movie verification includes a complete
+decode and inspection of encoded frames; CAD animation is not hardware motion
+capture or a physical clearance test.
+These sketches must remain explicitly separate from physical output and live
+telemetry. Their tests prove explanatory behavior, not perceptual feasibility.
+
 The legacy environment matrix, exhaustive static poses, strict evidence hashes,
 fault-injection campaigns, and long soaks are not routine demo prerequisites.
 

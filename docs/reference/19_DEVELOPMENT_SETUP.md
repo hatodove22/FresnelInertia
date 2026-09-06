@@ -70,7 +70,7 @@ cd webxr
 npm.cmd ci
 npm.cmd run typecheck
 npm.cmd run build
-node --test test/haptic-link.test.mjs tests/device-demo.test.mjs tests/container-scene.test.mjs tests/spatial-control-panel.test.mjs tests/webxr-bridge.test.mjs
+npm.cmd test
 ```
 
 Use `npm.cmd run dev` for HTTPS development or `npm.cmd run quest` for the
@@ -86,6 +86,7 @@ Choose checks according to the changed behavior:
 
 ```powershell
 pio test -e native-layers
+pio test -e native-synthesis-core
 node test/schema/validate_schemas.mjs
 node test/schema/validate_resolved_telemetry.mjs
 node tools/lab/lab.mjs self-test
@@ -94,8 +95,10 @@ node --test test/lab/self_test.mjs
 
 The lab tool is passive and optional unless its contract changed.
 
-On this Windows PC, the already-installed Unity Editor WebGL SDK can execute
-the production C++ tests as WebAssembly under Node when GCC is unavailable:
+When a Unity Editor WebGL SDK is installed, the optional fallback can execute
+the production C++ tests as WebAssembly under Node when GCC is unavailable.
+The 2026-09-06 session used installed Strawberry GCC through PlatformIO native;
+the Wasm SDK was absent on that host. Choose the available route:
 
 ```powershell
 & .\tools\test_cpp_wasm.ps1

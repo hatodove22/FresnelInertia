@@ -21,3 +21,9 @@ artifacts/lab/
 # Local screenshots, paper renderings and scratch captures are not source.
 # Selected bench evidence is retained explicitly under docs/archive/.
 /tmp/
+
+# Explanatory media intermediates, source-publication checkout, and visual QA.
+/output/
+/.playwright-cli/
+/explainer/node_modules/
+/explainer/dist/

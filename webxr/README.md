@@ -6,8 +6,10 @@ StampC5-connected demo and a separate browser-local preview.
 The connected desktop UI, USB/radio command path and device-driven rendering are
 implemented; desktop handling and visual/felt agreement have been demonstrated.
 The next direction is a PC/shared Web tuning studio and visual refinement, then
-Android AR. A/B comparison, saved applied settings and the planned liquid/sand
-visual improvements are not implemented yet. The Android device and simultaneous
+Android AR. The first visual pass adds contained liquid, rotation-aware tabletop
+clearance, bounded acceleration translation and revised vessel/material styling.
+A/B comparison, saved applied settings and granular accumulation/avalanche
+rendering are not implemented yet. The Android device and simultaneous
 USB/AR operation are unverified. VR/Quest development is on hold; its retained
 implementation and initial USB/MR-entry evidence are not a completed MR demo.
 See [current status](../docs/16_PROGRESS_STATUS.md) for evidence,
@@ -15,6 +17,14 @@ See [current status](../docs/16_PROGRESS_STATUS.md) for evidence,
 [demo acceptance](../docs/07_TEST_AND_VALIDATION.md) for validation.
 
 The app is intentionally kept as a nested web project. Its Node dependencies, Vite config, generated assets, and tunnel script are isolated under `webxr/` so the PlatformIO firmware builds stay independent.
+
+For reuse and extension, see [the visual architecture](../docs/reference/31_REUSABLE_VISUAL_ARCHITECTURE.md).
+`visualState.ts` adapts accepted snapshots without THREE or DOM;
+`ContainerScene` composes owned geometry and liquid/particle renderers.
+`DeviceDemo` keeps connection and command authority. `npm test` runs state,
+transport, renderer, resource-lifecycle and framing regressions.
+The independent [concept atlas](../explainer/README.md) is an explanatory
+artifact; its sketches do not drive this connected scene.
 
 ## Modes
 

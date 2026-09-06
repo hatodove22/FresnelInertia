@@ -1,0 +1,107 @@
+WEBVTT
+
+00:00:00.700 --> 00:00:05.692
+When you touch an object, each fingertip meets a small part of its surface.
+
+00:00:06.042 --> 00:00:12.282
+That local surface has a direction. A small contact plate can turn to match it.
+
+00:00:12.632 --> 00:00:16.528
+The Fresnel series explores how this simple contact-plane
+
+00:00:16.528 --> 00:00:20.912
+tilt can suggest shape, stiffness, weight distribution, and inertia.
+
+00:00:23.067 --> 00:00:29.115
+Here is the original CAD geometry from the World Haptics twenty twenty-five demo design.
+
+00:00:29.465 --> 00:00:37.025
+Three moving surfaces meet the thumb, index finger, and middle finger. Grip force provides an input.
+
+00:00:37.375 --> 00:00:41.028
+Watch the contact surfaces turn around their own pivots.
+
+00:00:41.028 --> 00:00:46.711
+The virtual object beside them shows what that changing touch is meant to represent.
+
+00:00:48.867 --> 00:00:54.147
+First, shape. Imagine grasping different parts of a bottle.
+
+00:00:54.497 --> 00:01:00.257
+The side is almost straight. Near the shoulder, the local surface leans.
+
+00:01:00.607 --> 00:01:04.939
+The contact plates change orientation to follow those local directions.
+
+00:01:04.939 --> 00:01:09.271
+The fingertip cues can agree with the object you see.
+
+00:01:09.621 --> 00:01:16.749
+The mechanism does not build the whole bottle. It presents a few carefully chosen contact surfaces.
+
+00:01:18.900 --> 00:01:24.948
+Next, squeeze. Grip force drives indentation of the virtual surface.
+
+00:01:25.298 --> 00:01:33.650
+A softer region deforms more for the same input. As its shape changes, the local contact directions change too.
+
+00:01:34.000 --> 00:01:37.672
+In the twenty twenty-five deformation study, the index and
+
+00:01:37.672 --> 00:01:41.752
+middle contact planes moved while the thumb plane stayed fixed.
+
+00:01:42.102 --> 00:01:46.491
+The study found better agreement between what people saw and felt.
+
+00:01:46.491 --> 00:01:51.678
+The change in softness ratings was a trend, not a statistically clear result.
+
+00:01:53.833 --> 00:01:59.449
+Now tilt the bottle. The red dot marks its virtual center of gravity.
+
+00:01:59.799 --> 00:02:06.375
+When the mass is offset from the grasp, gravity creates a turning effect that changes with the bottle's angle.
+
+00:02:06.725 --> 00:02:11.114
+The proposed rendering model changes the fingertip-plane cue accordingly.
+
+00:02:11.114 --> 00:02:17.453
+This suggests a different weight distribution, without moving real ballast inside the mechanism.
+
+00:02:19.633 --> 00:02:25.057
+Finally, move the bottle back and forth. Then move it up and down.
+
+00:02:25.407 --> 00:02:31.767
+The cue changes with acceleration: how the motion speeds up, slows down, or reverses.
+
+00:02:32.117 --> 00:02:36.590
+The published model treats horizontal and vertical motion separately,
+
+00:02:36.590 --> 00:02:40.565
+using coordinated fingertip-plane tilt to suggest inertial effects.
+
+00:02:40.915 --> 00:02:44.937
+The arrows and moving surfaces here explain that relationship.
+
+00:02:44.937 --> 00:02:50.299
+They are illustrative commands, not a recording of measured forces or motion.
+
+00:02:52.467 --> 00:03:00.147
+Across the Fresnel series, the contact principle stays the same. The input and the rendering rule change.
+
+00:03:00.497 --> 00:03:09.065
+Grasp for shape. Squeeze for stiffness. Tilt for weight distribution. Shake for inertia.
+
+00:03:09.415 --> 00:03:15.559
+The virtual object, the finger contact, and the mechanical movement should tell the same story.
+
+00:03:17.733 --> 00:03:23.709
+This film draws on the original Fresnel research and the twenty twenty-five bottle demonstration.
+
+00:03:24.059 --> 00:03:30.330
+One CAD model illustrates the series here. Earlier prototypes and experiments differ.
+
+00:03:30.330 --> 00:03:35.555
+The transcript links the primary sources and explains the limits.
+

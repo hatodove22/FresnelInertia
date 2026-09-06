@@ -1,0 +1,870 @@
+{
+  "schemaVersion": 1,
+  "source": "Fusion WHC2025demo v30 — live read-only joints and analytic BRep inspection",
+  "units": "meters",
+  "angleUnits": "radians",
+  "coordinateFrame": "centered original CAD XYZ",
+  "sourceCenterCm": [
+    1.7250001430511475,
+    -0.19106527047646837,
+    -1.4043080810738178
+  ],
+  "inputConvention": "Channel input is contact pad angle about original CAD +Z, right-hand rule. Fin ratio +1, driver ratio -1. Zero is the exported CAD pose.",
+  "transformConvention": "pAnimated = pivot + R(axis, ratio * contactPadAngleRad) * (pRest - pivot). Mesh vertices already use centered CAD world coordinates.",
+  "vibrationCount": 0,
+  "vibrationNodeIndices": [],
+  "channels": [
+    {
+      "id": "A",
+      "label": "Pad A — negative CAD X",
+      "fingerAssignment": null,
+      "firmwareChannel": null,
+      "input": "contactPadAngleRad",
+      "inputConvention": "Right-hand rotation of the contact pad about original CAD +Z; driver rotates by the negative of this angle.",
+      "groups": [
+        {
+          "id": "fin",
+          "pivot": [
+            -0.03725000143051148,
+            0.0019106527047646838,
+            0.014043080810738177
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "ratio": 1,
+          "nodeIndices": [
+            55
+          ],
+          "nodeNames": [
+            "fin:1/ボディ1"
+          ],
+          "pivotOriginalCm": [
+            -2.0,
+            0.0,
+            0.0
+          ],
+          "evidence": [
+            "W02",
+            "W03"
+          ],
+          "membership": "Exact fin body"
+        },
+        {
+          "id": "driver",
+          "pivot": [
+            -0.017250001430511475,
+            0.0019106527047646838,
+            0.014043080810738177
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "ratio": -1,
+          "nodeIndices": [
+            4,
+            8,
+            9,
+            52
+          ],
+          "nodeNames": [
+            "XL,XC-330 v1:1+DC15_A01_HORN_DUMMY:1/ボディ1",
+            "XL,XC-330 v1:1+BTS2_M2_6X8:1/ボディ1",
+            "XL,XC-330 v1:1+BTS2_M2_6X8:1/ボディ2",
+            "pinion:1/ボディ1"
+          ],
+          "pivotOriginalCm": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "evidence": [
+            "W03",
+            "W04"
+          ],
+          "membership": "Coaxial pinion, output horn and two bodies of the horn retaining screw; mechanical attachment inferred from mounting geometry."
+        }
+      ],
+      "contact": {
+        "anchorRestMeters": [
+          -0.037250001430511534,
+          0.001910652704764682,
+          -0.00370691926861046
+        ],
+        "normalRest": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "attachedNodeIndex": 55,
+        "coordinateFrame": "centered original CAD XYZ; rest mesh vertex coordinates before rig reparenting",
+        "source": "Analytic outer planar face tempId 18 pointOnFace; outward normal sign confirmed by exported mesh normals. This representative face point is not a measured fingertip contact location.",
+        "nativePointOnFaceCm": [
+          -2.0000000000000058,
+          -1.6653345369377348e-16,
+          -1.7750000079348638
+        ],
+        "nativePlaneOriginCm": [
+          -2.0000000000000115,
+          1.2000000178813934,
+          0.3000000000000001
+        ],
+        "faceTempId": 18,
+        "evidence": [
+          "W05"
+        ]
+      },
+      "axisSeparationMeters": 0.02,
+      "fusionJoint": {
+        "name": "回転 2",
+        "occurrenceOne": "fin:1",
+        "occurrenceTwo": "outerwall:1",
+        "originWorldCm": [
+          -2.0,
+          0.0,
+          0.0
+        ],
+        "sourceAxis": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "rotationLimitsEnabled": false
+      },
+      "sourceOccurrences": {
+        "fin": "fin:1",
+        "pinion": "pinion:1",
+        "servo": "XL,XC-330 v1:1"
+      },
+      "pressureSensor": {
+        "nodeIndex": 215,
+        "name": "FSR400:1/ボディ1",
+        "attachmentStatus": "unresolved",
+        "movesWithFin": null,
+        "evidence": [
+          "W06"
+        ],
+        "presentation": "Held at its exported rest pose unless a separate mounting reference confirms attachment; do not claim that this static pose verifies a fixed mount."
+      }
+    },
+    {
+      "id": "B",
+      "label": "Pad B — positive CAD X, positive Y",
+      "fingerAssignment": null,
+      "firmwareChannel": null,
+      "input": "contactPadAngleRad",
+      "inputConvention": "Right-hand rotation of the contact pad about original CAD +Z; driver rotates by the negative of this angle.",
+      "groups": [
+        {
+          "id": "fin",
+          "pivot": [
+            0.03724999938160181,
+            0.01039537270793115,
+            0.014043080810738177
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "ratio": 1,
+          "nodeIndices": [
+            56
+          ],
+          "nodeNames": [
+            "fin:2/ボディ1"
+          ],
+          "pivotOriginalCm": [
+            5.4500000812113285,
+            0.8484720003166466,
+            0.0
+          ],
+          "evidence": [
+            "W02",
+            "W03"
+          ],
+          "membership": "Exact fin body"
+        },
+        {
+          "id": "driver",
+          "pivot": [
+            0.01724999856948853,
+            0.010410652704764685,
+            0.014043080810738177
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "ratio": -1,
+          "nodeIndices": [
+            38,
+            42,
+            43,
+            53
+          ],
+          "nodeNames": [
+            "XL,XC-330 v1:3+DC15_A01_HORN_DUMMY:1/ボディ1",
+            "XL,XC-330 v1:3+BTS2_M2_6X8:1/ボディ1",
+            "XL,XC-330 v1:3+BTS2_M2_6X8:1/ボディ2",
+            "pinion:2/ボディ1"
+          ],
+          "pivotOriginalCm": [
+            3.45,
+            0.8500000000000001,
+            0.0
+          ],
+          "evidence": [
+            "W03",
+            "W04"
+          ],
+          "membership": "Coaxial pinion, output horn and two bodies of the horn retaining screw; mechanical attachment inferred from mounting geometry."
+        }
+      ],
+      "contact": {
+        "anchorRestMeters": [
+          0.03724999938160188,
+          0.010395372707931153,
+          -0.003706919268610438
+        ],
+        "normalRest": [
+          1.0,
+          6.123233995751906e-17,
+          6.661338147750938e-16
+        ],
+        "attachedNodeIndex": 56,
+        "coordinateFrame": "centered original CAD XYZ; rest mesh vertex coordinates before rig reparenting",
+        "source": "Analytic outer planar face tempId 18 pointOnFace; outward normal sign confirmed by exported mesh normals. This representative face point is not a measured fingertip contact location.",
+        "nativePointOnFaceCm": [
+          -2.0000000000000058,
+          -1.6653345369377348e-16,
+          -1.7750000079348638
+        ],
+        "nativePlaneOriginCm": [
+          -2.0000000000000115,
+          1.2000000178813934,
+          0.3000000000000001
+        ],
+        "faceTempId": 18,
+        "evidence": [
+          "W05"
+        ]
+      },
+      "axisSeparationMeters": 0.020000006649069774,
+      "fusionJoint": {
+        "name": "回転 4",
+        "occurrenceOne": "fin:2",
+        "occurrenceTwo": "outerwall:1",
+        "originWorldCm": [
+          5.4500000812113285,
+          0.8484720003166466,
+          0.0
+        ],
+        "sourceAxis": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "rotationLimitsEnabled": false
+      },
+      "sourceOccurrences": {
+        "fin": "fin:2",
+        "pinion": "pinion:2",
+        "servo": "XL,XC-330 v1:3"
+      },
+      "pressureSensor": {
+        "nodeIndex": 216,
+        "name": "FSR400:2/ボディ1",
+        "attachmentStatus": "unresolved",
+        "movesWithFin": null,
+        "evidence": [
+          "W06"
+        ],
+        "presentation": "Held at its exported rest pose unless a separate mounting reference confirms attachment; do not claim that this static pose verifies a fixed mount."
+      }
+    },
+    {
+      "id": "C",
+      "label": "Pad C — positive CAD X, negative Y",
+      "fingerAssignment": null,
+      "firmwareChannel": null,
+      "input": "contactPadAngleRad",
+      "inputConvention": "Right-hand rotation of the contact pad about original CAD +Z; driver rotates by the negative of this angle.",
+      "groups": [
+        {
+          "id": "fin",
+          "pivot": [
+            0.03724999938160181,
+            -0.012445146641127459,
+            0.014043080810738177
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "ratio": 1,
+          "nodeIndices": [
+            57
+          ],
+          "nodeNames": [
+            "fin:3/ボディ1"
+          ],
+          "pivotOriginalCm": [
+            5.4500000812113285,
+            -1.4355799345892142,
+            -2.775557561562418e-17
+          ],
+          "evidence": [
+            "W02",
+            "W03"
+          ],
+          "membership": "Exact fin body"
+        },
+        {
+          "id": "driver",
+          "pivot": [
+            0.01724999856948853,
+            -0.012589347295235316,
+            0.014043080810738177
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "ratio": -1,
+          "nodeIndices": [
+            21,
+            25,
+            26,
+            54
+          ],
+          "nodeNames": [
+            "XL,XC-330 v1:2+DC15_A01_HORN_DUMMY:1/ボディ1",
+            "XL,XC-330 v1:2+BTS2_M2_6X8:1/ボディ1",
+            "XL,XC-330 v1:2+BTS2_M2_6X8:1/ボディ2",
+            "pinion:3/ボディ1"
+          ],
+          "pivotOriginalCm": [
+            3.45,
+            -1.45,
+            0.0
+          ],
+          "evidence": [
+            "W03",
+            "W04"
+          ],
+          "membership": "Coaxial pinion, output horn and two bodies of the horn retaining screw; mechanical attachment inferred from mounting geometry."
+        }
+      ],
+      "contact": {
+        "anchorRestMeters": [
+          0.03724999938160193,
+          -0.012445146641127459,
+          -0.0037069192686104337
+        ],
+        "normalRest": [
+          1.0,
+          6.123233995758218e-17,
+          3.0531133177191797e-15
+        ],
+        "attachedNodeIndex": 57,
+        "coordinateFrame": "centered original CAD XYZ; rest mesh vertex coordinates before rig reparenting",
+        "source": "Analytic outer planar face tempId 18 pointOnFace; outward normal sign confirmed by exported mesh normals. This representative face point is not a measured fingertip contact location.",
+        "nativePointOnFaceCm": [
+          -2.0000000000000058,
+          -1.6653345369377348e-16,
+          -1.7750000079348638
+        ],
+        "nativePlaneOriginCm": [
+          -2.0000000000000115,
+          1.2000000178813934,
+          0.3000000000000001
+        ],
+        "faceTempId": 18,
+        "evidence": [
+          "W05"
+        ]
+      },
+      "axisSeparationMeters": 0.02000052065105249,
+      "fusionJoint": {
+        "name": "回転 3",
+        "occurrenceOne": "fin:3",
+        "occurrenceTwo": "outerwall:1",
+        "originWorldCm": [
+          5.4500000812113285,
+          -1.4355799345892142,
+          -2.7755575615625758e-17
+        ],
+        "sourceAxis": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "rotationLimitsEnabled": false
+      },
+      "sourceOccurrences": {
+        "fin": "fin:3",
+        "pinion": "pinion:3",
+        "servo": "XL,XC-330 v1:2"
+      },
+      "pressureSensor": {
+        "nodeIndex": 217,
+        "name": "FSR400:3/ボディ1",
+        "attachmentStatus": "unresolved",
+        "movesWithFin": null,
+        "evidence": [
+          "W06"
+        ],
+        "presentation": "Held at its exported rest pose unless a separate mounting reference confirms attachment; do not claim that this static pose verifies a fixed mount."
+      }
+    }
+  ],
+  "fixedNodeIndices": [
+    1,
+    2,
+    3,
+    5,
+    6,
+    7,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    22,
+    23,
+    24,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    39,
+    40,
+    41,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99,
+    100,
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    122,
+    123,
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168,
+    169,
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    179,
+    180,
+    181,
+    182,
+    183,
+    184,
+    185,
+    186,
+    187,
+    188,
+    189,
+    190,
+    191,
+    192,
+    193,
+    194,
+    195,
+    196,
+    197,
+    198,
+    199,
+    200,
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    207,
+    208,
+    209,
+    210,
+    211,
+    212,
+    213,
+    214,
+    215,
+    216,
+    217
+  ],
+  "unresolvedAttachmentNodeIndices": [
+    215,
+    216,
+    217
+  ],
+  "suggestedIllustrationAmplitudeDeg": 8,
+  "physicalTravelLimitsDeg": null,
+  "evidence": [
+    {
+      "id": "W01",
+      "kind": "live-read-only-export",
+      "sourceDocument": "WHC2025demo v30",
+      "timestampLocal": "2026-09-06T01:36:09.742928",
+      "documentModifiedBefore": false,
+      "documentModifiedAfter": false,
+      "meshCount": 217,
+      "triangleCount": 144938,
+      "jointCount": 3,
+      "asBuiltJointCount": 0,
+      "motionLinkCount": 0,
+      "claim": "The user-opened WHC2025demo v30 was inspected using getters and visible-body tessellation. No CAD changes, saves or joint drives were performed."
+    },
+    {
+      "id": "W02",
+      "kind": "three-valid-revolute-joints",
+      "claim": "All three fins have unsuppressed, unlocked revolute joints to outerwall:1. The joint origins agree with transformed native fin hinge geometry. All source joint axes are -Z; presentation input is canonicalized to +Z."
+    },
+    {
+      "id": "W03",
+      "kind": "geometry-derived-external-gear-ratio",
+      "nominalFinToDriverRatio": -1,
+      "rootRadiusCm": 0.875,
+      "toothTopRadiusCm": 1.1,
+      "toothPitchDeg": 18,
+      "equivalentFullWheelToothCount": 20,
+      "pinionSamples": [
+        {
+          "faceTempId": 43,
+          "angleDeg": -16.850000000000033,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 50,
+          "angleDeg": -34.85000000000004,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 57,
+          "angleDeg": -52.85000000000003,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 65,
+          "angleDeg": -70.85000000000005,
+          "radiusCm": 1.1000000000000005
+        },
+        {
+          "faceTempId": 72,
+          "angleDeg": -88.85069543731538,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 79,
+          "angleDeg": 163.14999999999998,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 85,
+          "angleDeg": 145.14999999999998,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 93,
+          "angleDeg": 127.14999999999998,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 100,
+          "angleDeg": 109.14999999999996,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 106,
+          "angleDeg": 91.14930456268463,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 114,
+          "angleDeg": 73.14999999999996,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 121,
+          "angleDeg": 55.15,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 127,
+          "angleDeg": 37.149999999999984,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 135,
+          "angleDeg": 19.14999999999998,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 142,
+          "angleDeg": 1.1493045626846348,
+          "radiusCm": 1.1
+        }
+      ],
+      "finSamples": [
+        {
+          "faceTempId": 10,
+          "angleDeg": -82.14999999999992,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 112,
+          "angleDeg": -64.14999999999996,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 119,
+          "angleDeg": -46.14999999999997,
+          "radiusCm": 1.1000000000000005
+        },
+        {
+          "faceTempId": 125,
+          "angleDeg": -28.149999999999967,
+          "radiusCm": 1.1000000000000005
+        },
+        {
+          "faceTempId": 133,
+          "angleDeg": -10.149999999999965,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 140,
+          "angleDeg": 7.850000000000022,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 147,
+          "angleDeg": 25.85000000000002,
+          "radiusCm": 1.1
+        },
+        {
+          "faceTempId": 155,
+          "angleDeg": 43.85000000000003,
+          "radiusCm": 1.1000000000000008
+        },
+        {
+          "faceTempId": 162,
+          "angleDeg": 61.85000000000003,
+          "radiusCm": 1.1000000000000003
+        },
+        {
+          "faceTempId": 168,
+          "angleDeg": 79.85,
+          "radiusCm": 1.1
+        }
+      ],
+      "claim": "Equal tooth pitch and radii with approximately 20 mm axis separation support nominal equal-and-opposite external-gear motion. This is inferred from geometry, not a measured transmission ratio or Fusion motionLink."
+    },
+    {
+      "id": "W04",
+      "kind": "coaxial-output-mapping",
+      "claim": "The actual shaft positions pair fin:1/pinion:1 with servo occurrence1, fin:2/pinion:2 with servo occurrence3, and fin:3/pinion:3 with servo occurrence2. Output horn native Y axes transform to CAD +Z. The retaining screws share these axes."
+    },
+    {
+      "id": "W05",
+      "kind": "analytic-contact-face",
+      "nativeFaceTempId": 18,
+      "nativeOutwardNormal": [
+        -1,
+        0,
+        0
+      ],
+      "normalEvidenceVertexCount": 50,
+      "claim": "The largest outer contact plane provides a guaranteed on-face anchor from Fusion pointOnFace. Exported normals on that plane confirm outward -X in native coordinates; occurrence transforms determine each pad normal."
+    },
+    {
+      "id": "W06",
+      "kind": "unresolved-sensor-attachment",
+      "sensorNodeIndices": [
+        215,
+        216,
+        217
+      ],
+      "claim": "Three FSR400 bodies are visible near the inner side of the fins. No FSR occurrence is referenced by any exported joint or rigidGroup; read-only static CAD data does not establish rigid attachment to the moving fins. Attachment remains explicitly unresolved."
+    },
+    {
+      "id": "W07",
+      "kind": "coordinate-and-node-map",
+      "originalCenterCm": [
+        1.7250001430511475,
+        -0.19106527047646837,
+        -1.4043080810738178
+      ],
+      "conversion": "(worldCm - originalCenterCm) * 0.01",
+      "claim": "GLB nodes use centered world vertices in metres with original CAD XYZ retained. The original node index and name identify each member independently of loader name sanitization."
+    },
+    {
+      "id": "W08",
+      "kind": "publication-corroboration",
+      "title": "各指先接平面の動的な傾き操作による剛性・慣性提示",
+      "authors": [
+        "Hiroki Ota",
+        "Yutaro Hirao",
+        "Monica Perusquía-Hernández",
+        "Hideaki Uchiyama",
+        "Kiyoshi Kiyokawa"
+      ],
+      "year": 2025,
+      "venue": "VRSJ2025 technical report",
+      "url": "https://www.conference.vrsj.org/ac2025/program/doc/1D2-04.pdf",
+      "inspectedLocalCopy": "HirokiOta_vrsj2025.pdf",
+      "pages": [
+        1,
+        2
+      ],
+      "claim": "The report states a 1:1 servo-to-fin gear ratio. Figure 2B shows the FSR on the electronics-side subassembly; Figure 2C and the text place sensors beneath the fins. This supports retaining sensor rest poses in the illustration, but does not supply a CAD rigid constraint or dynamic sensor-motion measurement. Its stated ±45 degree range is a publication specification, not validated clearance for this export."
+    }
+  ],
+  "limits": [
+    "This is a geometric explanation rig, not measured actuator motion, force calibration or proof of perceptual performance.",
+    "A/B/C identify CAD positions. Finger and firmware channel assignments are intentionally null until separately confirmed.",
+    "The negative-Z source joint orientation is canonicalized to positive-Z pad input; actual servo-command signs are not calibrated by this export.",
+    "Nominal transmission ratio -1 is geometry-derived. No motionLink exists, and contact, backlash, load and collision limits were not simulated or measured.",
+    "Original placement differences are retained: the paired-side fin Y coordinates do not exactly match the corresponding servo shaft Y coordinates.",
+    "FSR rigid attachment is unresolved. These nodes are retained at the exported rest pose by default; this is a presentation fallback, not a statement that the actual sensors are fixed to the frame.",
+    "There are no vibration transducer bodies in this CAD. Three FSR400 bodies identify sensor geometry, not verified channel wiring or force measurements.",
+    "The representative contact anchors come from actual planar faces, but are not measured finger-contact points.",
+    "No original VRSJ2026 CAD assets were overwritten. Hidden WHC bodies were not exported."
+  ]
+}

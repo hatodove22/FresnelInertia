@@ -27,16 +27,6 @@ uint64_t addTelemetryCountSaturating(uint64_t total, uint64_t increment) {
   return total + increment;
 }
 
-template <std::size_t Capacity>
-void appendEvents(EventFrame<Capacity>& destination,
-                  const EventFrame<Capacity>& source) {
-  for (std::size_t i = 0;
-       i < source.count && destination.count < destination.items.size();
-       ++i) {
-    destination.items[destination.count++] = source.items[i];
-  }
-}
-
 bool isCommand(const char* command, const char* expected) {
   return std::strcmp(command, expected) == 0;
 }
@@ -265,16 +255,10 @@ bool HapticPipeline::begin(const SystemParams& params) {
   preset_store_.begin();
   calibrator_.loadStoredCarriers(params_);
   const bool imu_ready = imu_.begin();
-  motion_activity_filter_.configure(params_);
-  mass_layer_.configure(params_);
-  event_layer_.configure(params_);
-  texture_layer_.configure(params_);
-  resonance_layer_.configure(params_);
+  synthesis_.configure(params_);
   calibrator_.configure(params_);
-  spatial_renderer_.configure(params_);
   const bool audio_ready = audio_.begin(params_);
-  tilt_model_.configure(params_);
-  tilt_model_.reset();
+  synthesis_.resetTilt();
   const bool tilt_ready = tilt_.begin(params_);
   const bool remote_ready = remote_.begin(params_);
   const bool usb_telemetry_ready = usb_telemetry_.begin(params_);
@@ -307,15 +291,9 @@ bool HapticPipeline::begin(const SystemParams& params) {
 
 bool HapticPipeline::reconfigurePipeline() {
   clearCurrentEventTelemetry(telemetry_);
-  motion_activity_filter_.configure(params_);
-  mass_layer_.configure(params_);
-  event_layer_.configure(params_);
-  texture_layer_.configure(params_);
-  resonance_layer_.configure(params_);
+  synthesis_.configure(params_);
   calibrator_.configure(params_);
-  spatial_renderer_.configure(params_);
   const bool audio_ready = audio_.configure(params_);
-  tilt_model_.configure(params_);
   tilt_.configure(params_);
   remote_.configure(params_);
   usb_telemetry_.configure(params_);
@@ -483,7 +461,7 @@ void HapticPipeline::processEspNowControlRequests() {
           } else if (!imuSafetyInterlockAllowsPhysicalArm(
                          imu_stale_safe_stop_, imu_fault_injection_active_) ||
                      !motionDynamicsAllowTiltArm(
-                         mass_layer_.maxStableStepS())) {
+                         synthesis_.maxStableStepS())) {
             result = EspNowControlResult::Rejected;
             detail = "tilt_safety_interlock";
           } else {
@@ -528,7 +506,7 @@ void HapticPipeline::processEspNowControlRequests() {
       telemetry_.active_preset[sizeof(telemetry_.active_preset) - 1U] = '\0';
       telemetry_.run_mode = currentRunMode();
       if (telemetry_.run_mode == RunMode::Idle) {
-        telemetry_.mass = makeDefaultMassState();
+        telemetry_.mass = HapticSynthesisCore::defaultMassState(params_);
       }
       telemetry_.audio = audio_.status();
       telemetry_.safety.audio_zero_asserted = telemetry_.audio.output_silenced;
@@ -540,22 +518,14 @@ void HapticPipeline::processEspNowControlRequests() {
 }
 
 void HapticPipeline::refreshOutputConfig() {
-  resonance_layer_.configure(params_);
+  synthesis_.configureOutput(params_);
   calibrator_.configure(params_);
-  spatial_renderer_.configure(params_);
   audio_.configure(params_);
 }
 
 void HapticPipeline::resetDynamicPipelineState() {
   clearCurrentEventTelemetry(telemetry_);
-  motion_activity_filter_.configure(params_);
-  mass_layer_.configure(params_);
-  event_layer_.configure(params_);
-  texture_layer_.configure(params_);
-  resonance_layer_.configure(params_);
-  spatial_renderer_.configure(params_);
-  tilt_model_.configure(params_);
-  tilt_model_.reset();
+  synthesis_.reset(params_);
 }
 
 bool HapticPipeline::applyAudioConfigOrRollback(
@@ -608,7 +578,7 @@ void HapticPipeline::enterSafeIdle() {
 
   telemetry_.run_mode = RunMode::Idle;
   clearCurrentEventTelemetry(telemetry_);
-  telemetry_.mass = makeDefaultMassState();
+  telemetry_.mass = HapticSynthesisCore::defaultMassState(params_);
   telemetry_.last_event = {};
   telemetry_.actuators = {};
   telemetry_.tilt = {};
@@ -654,7 +624,7 @@ void HapticPipeline::commitPresetParams(SystemParams next_params, const RuntimeC
   params_ = next_params;
   current_family_ = params_.container.family;
   reconfigurePipeline();
-  tilt_model_.reset();
+  synthesis_.resetTilt();
 }
 
 bool HapticPipeline::loadPresetByName(const char* preset_name) {
@@ -825,17 +795,6 @@ void HapticPipeline::stopRuntimeCalibration(bool keep_results) {
   Serial.println(keep_results ? "calibration: complete" : "calibration: stopped");
 }
 
-MassState HapticPipeline::makeDefaultMassState() const {
-  MassState state{};
-  state.fill = params_.container.fill;
-  state.headspace = params_.container.headspace;
-  state.container_x_m = params_.container.span_x_m;
-  state.container_y_m = params_.container.span_y_m;
-  state.container_z_m = params_.container.span_z_m;
-  state.family = params_.container.family;
-  return state;
-}
-
 ActuatorFrame4 HapticPipeline::summarizeDriveFrame(const DriveFrame4& frame) const {
   ActuatorFrame4 summary{};
   for (int i = 0; i < 4; ++i) {
@@ -847,26 +806,23 @@ ActuatorFrame4 HapticPipeline::summarizeDriveFrame(const DriveFrame4& frame) con
   return summary;
 }
 
-TiltPlaneCommand HapticPipeline::updateTiltCommand(const ImuSample& sample, const MassState& state, float dt_s) {
-  if (tilt_manual_test_active_) {
-    TiltPlaneCommand command{};
-    const float thumb_angle =
-        clampf(tilt_manual_test_angle_deg_, params_.tilt.min_angle_deg,
-               params_.tilt.max_angle_deg);
-    const float index_sign = tilt_manual_test_common_mode_ ? 1.0f : -1.0f;
-    const float index_angle =
-        clampf(index_sign * tilt_manual_test_angle_deg_, params_.tilt.min_angle_deg,
-               params_.tilt.max_angle_deg);
-    command.thumb_angle_deg = thumb_angle;
-    command.index_angle_deg = index_angle;
-    command.thumb_base_deg = thumb_angle;
-    command.index_base_deg = index_angle;
-    command.thumb_current_limit_ma = params_.tilt.max_current_ma;
-    command.index_current_limit_ma = params_.tilt.max_current_ma;
-    command.pseudoforce_enabled = false;
-    return command;
-  }
-  return tilt_model_.update(sample, state, dt_s);
+TiltPlaneCommand HapticPipeline::manualTiltCommand() const {
+  TiltPlaneCommand command{};
+  const float thumb_angle =
+      clampf(tilt_manual_test_angle_deg_, params_.tilt.min_angle_deg,
+             params_.tilt.max_angle_deg);
+  const float index_sign = tilt_manual_test_common_mode_ ? 1.0f : -1.0f;
+  const float index_angle =
+      clampf(index_sign * tilt_manual_test_angle_deg_, params_.tilt.min_angle_deg,
+             params_.tilt.max_angle_deg);
+  command.thumb_angle_deg = thumb_angle;
+  command.index_angle_deg = index_angle;
+  command.thumb_base_deg = thumb_angle;
+  command.index_base_deg = index_angle;
+  command.thumb_current_limit_ma = params_.tilt.max_current_ma;
+  command.index_current_limit_ma = params_.tilt.max_current_ma;
+  command.pseudoforce_enabled = false;
+  return command;
 }
 
 RunMode HapticPipeline::currentRunMode() const {
@@ -1064,7 +1020,7 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
       return false;
     }
     params_.features.enable_coherent_container_demo = value.boolean;
-    tilt_model_.reset();
+    synthesis_.resetTilt();
   } else if (pathMatches(path, "calibration.low_start_hz", "calibration.low_start") && value.has_number) {
     params_.calibration.low_start_hz = clampf(value.number, 20.0f, 1000.0f);
   } else if (pathMatches(path, "calibration.low_stop_hz", "calibration.low_stop") && value.has_number) {
@@ -1217,7 +1173,7 @@ bool HapticPipeline::applyControlMessage(const ControlMessage& message) {
            !params_.features.allow_remote_tilt_arm ||
            !imuSafetyInterlockAllowsPhysicalArm(
                imu_stale_safe_stop_, imu_fault_injection_active_) ||
-           !motionDynamicsAllowTiltArm(mass_layer_.maxStableStepS()) ||
+           !motionDynamicsAllowTiltArm(synthesis_.maxStableStepS()) ||
            (currentRunMode() != RunMode::Live &&
             currentRunMode() != RunMode::Record))) {
         return false;
@@ -1277,16 +1233,6 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   if (!std::isfinite(dt_s) || dt_s <= 0.0f) {
     return;
   }
-  const float raw_dt_s = dt_s;
-  const float nominal_dt_s = 1.0f / std::max(1.0f, params_.mass.control_rate_hz);
-  const bool motion_path_requested = motionInputBoundaryEnabled(
-      params_.features.enable_gravity_separated_mass_activity,
-      params_.features.enable_mass_layer,
-      params_.features.enable_tilt_plane);
-  if (!motion_path_requested &&
-      dt_s > kMotionInputResetGapS) {
-    dt_s = nominal_dt_s;
-  }
 
   ImuSample checked_sample = sample;
   if (!isFiniteImuSample(sample)) {
@@ -1338,103 +1284,25 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
       (run_mode == RunMode::Live || run_mode == RunMode::Record) &&
       !imu_stale_safe_stop_ &&
       params_.features.enable_tilt_plane;
-  const bool mass_enabled = !safe_output_stop && params_.features.enable_mass_layer;
-  const bool event_enabled = !safe_output_stop && params_.features.enable_event_layer;
-  const bool texture_enabled = !safe_output_stop && params_.features.enable_texture_layer;
-  const bool resonance_enabled = !safe_output_stop && params_.features.enable_resonance_layer;
-  const bool spatial_enabled = !safe_output_stop && params_.features.enable_spatial_renderer;
-  const bool gravity_separated_activity = motionInputBoundaryEnabled(
-      params_.features.enable_gravity_separated_mass_activity,
-      mass_enabled,
-      tilt_mode_allowed);
-
-  MassState mass = mass_enabled ? mass_layer_.state() : makeDefaultMassState();
-  EventFrame<kMaxEventsPerFrame> events{};
-  float sensor_dt_s = dt_s;
-  bool hold_tilt_command = false;
-  bool fail_closed_tilt_command = false;
-
-  if (gravity_separated_activity) {
-    const bool was_motion_initialized = motion_activity_filter_.initialized();
-    const MotionInputResult motion_input =
-        motion_activity_filter_.process(model_sample, raw_dt_s);
-    if (motion_input.action == MotionInputAction::RejectFrame) {
-      return;
-    }
-
-    if (motion_input.action == MotionInputAction::ResetNeutral) {
-      // A long sensor gap is a discontinuity, not a large integration step.
-      // Clear every dynamic layer and leave the physical tilt command held
-      // until a fresh valid sample re-establishes the estimator baseline.
-      resetDynamicPipelineState();
-      mass = mass_layer_.state();
-      hold_tilt_command = true;
-    } else if (motion_input.action == MotionInputAction::HoldNoSample) {
-      // Existing texture/resonance/spatial tails still advance below using
-      // raw wall-clock time. Sensor-driven Mass/Event/Tilt state is held.
-      mass = mass_layer_.state();
-      hold_tilt_command = true;
-    } else {
-      sensor_dt_s = motion_input.effective_dt_s;
-      const uint8_t substep_count =
-          motionIntegrationSubstepCount(sensor_dt_s,
-                                        mass_layer_.maxStableStepS());
-      const MotionIntegrationSafetyAction safety_action =
-          motionIntegrationSafetyAction(substep_count);
-      if (safety_action ==
-          MotionIntegrationSafetyAction::ResetNeutralAndDisarmTilt) {
-        // Unlike a recoverable missing-sample gap, invalid or unsupported
-        // dynamics cannot safely retain an earlier physical tilt command.
-        resetDynamicPipelineState();
-        mass = mass_layer_.state();
-        fail_closed_tilt_command = true;
-      } else {
-        const float substep_dt_s = sensor_dt_s / substep_count;
-        for (uint8_t substep = 0; substep < substep_count; ++substep) {
-          if (mass_enabled) {
-            mass = mass_layer_.updateWithActivity(
-                model_sample, motion_input.activity, substep_dt_s);
-          }
-          // The first valid sample establishes gravity and may move the
-          // quasi-static mass path, but it must never manufacture an event.
-          if (mass_enabled && event_enabled && was_motion_initialized) {
-            const std::size_t remaining_event_slots =
-                events.items.size() - events.count;
-            appendEvents(
-                events,
-                event_layer_.update(
-                    mass, substep_dt_s, remaining_event_slots));
-          }
-        }
-      }
-    }
-  } else {
-    if (mass_enabled) {
-      mass = mass_layer_.update(model_sample, dt_s);
-    }
-    if (event_enabled) {
-      events = event_layer_.update(mass, dt_s);
-    }
+  SynthesisContext context{};
+  context.outputs_allowed = !safe_output_stop;
+  context.tilt_allowed = tilt_mode_allowed;
+  context.use_tilt_model = !tilt_manual_test_active_;
+  const auto frame = synthesis_.step(params_, model_sample, dt_s, context);
+  if (!frame.accepted) {
+    return;
   }
-
-  const float tail_dt_s = gravity_separated_activity ? raw_dt_s : dt_s;
-  const auto textures = texture_enabled
-                            ? texture_layer_.update(events, tail_dt_s)
-                            : TextureFrame<kMaxTexturesPerFrame>{};
-  const auto resonances =
-      resonance_enabled ? resonance_layer_.update(textures) : ResonanceFrame<kMaxResonanceVoicesPerFrame>{};
-  const auto spatial =
-      spatial_enabled ? spatial_renderer_.update(resonances, tail_dt_s) : SpatialFrame4{};
-  TiltPlaneCommand tilt_cmd =
-      tilt_mode_allowed && hold_tilt_command && !fail_closed_tilt_command
-          ? telemetry_.tilt
-          : TiltPlaneCommand{};
+  const auto& mass = frame.mass;
+  const auto& spatial = frame.spatial;
+  const bool fail_closed_tilt_command =
+      frame.tilt_action == SynthesisTiltAction::FaultNeutral;
   const bool submit_tilt_command =
-      tilt_mode_allowed && !hold_tilt_command && !fail_closed_tilt_command;
-  if (submit_tilt_command) {
-    tilt_cmd = updateTiltCommand(model_sample, mass, sensor_dt_s);
+      frame.tilt_action == SynthesisTiltAction::Submit;
+  TiltPlaneCommand tilt_cmd = frame.tilt_action == SynthesisTiltAction::Hold
+      ? telemetry_.tilt : frame.tilt;
+  if (submit_tilt_command && tilt_manual_test_active_) {
+    tilt_cmd = manualTiltCommand();
   }
-  const HapticEvent last_event = event_enabled ? event_layer_.lastEvent() : HapticEvent{};
 
   DriveFrame4 audio_drive = spatial.drive;
   ActuatorFrame4 actuator_summary = spatial.summary;
@@ -1464,13 +1332,13 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
 
   telemetry_.timestamp_ms = millis();
   telemetry_.frame_counter = addTelemetryCountSaturating(telemetry_.frame_counter, 1);
-  telemetry_.new_evt = static_cast<uint16_t>(events.count);
+  telemetry_.new_evt = frame.debug.event_count;
   telemetry_.evt_total = addTelemetryCountSaturating(telemetry_.evt_total, telemetry_.new_evt);
   std::strncpy(telemetry_.active_preset, params_.preset_name, sizeof(telemetry_.active_preset) - 1);
   telemetry_.run_mode = run_mode;
   telemetry_.imu = checked_sample;
   telemetry_.mass = mass;
-  telemetry_.last_event = last_event;
+  telemetry_.last_event = frame.last_event;
   telemetry_.actuators = actuator_summary;
   telemetry_.tilt = tilt_cmd;
   telemetry_.tilt_servo = tilt_.status();
@@ -1483,14 +1351,7 @@ void HapticPipeline::processSample(const ImuSample& sample, float dt_s) {
   telemetry_.calibration = calibrator_.status();
   telemetry_.recorder = recorder_.status();
   telemetry_.remote = remote_.status();
-  telemetry_.pipeline_debug.event_count = telemetry_.new_evt;
-  telemetry_.pipeline_debug.texture_count = static_cast<uint16_t>(textures.count);
-  telemetry_.pipeline_debug.resonance_count = static_cast<uint16_t>(resonances.count);
-  telemetry_.pipeline_debug.mass_enabled = mass_enabled;
-  telemetry_.pipeline_debug.event_enabled = event_enabled;
-  telemetry_.pipeline_debug.texture_enabled = texture_enabled;
-  telemetry_.pipeline_debug.resonance_enabled = resonance_enabled;
-  telemetry_.pipeline_debug.spatial_enabled = spatial_enabled;
+  telemetry_.pipeline_debug = frame.debug;
   telemetry_.pipeline_debug.imu_stale_safe_stop = imu_stale_safe_stop_;
 
   recorder_.append(telemetry_);
@@ -1899,7 +1760,7 @@ void HapticPipeline::handleConsoleCommand(const char* command) {
       Serial.println("tilt: arm rejected by IMU safety interlock");
       return;
     }
-    if (!motionDynamicsAllowTiltArm(mass_layer_.maxStableStepS())) {
+    if (!motionDynamicsAllowTiltArm(synthesis_.maxStableStepS())) {
       Serial.println("tilt: arm rejected; invalid motion dynamics");
       return;
     }

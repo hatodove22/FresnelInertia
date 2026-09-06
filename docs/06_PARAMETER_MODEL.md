@@ -6,6 +6,11 @@ runtime handling in [HapticPipeline.cpp](../src/HapticPipeline.cpp);
 preset overlays in [PresetStore.cpp](../src/PresetStore.cpp).
 Use [08](08_IMPLEMENTATION_PLAN.md) to choose what actually needs work.
 
+For the 2026-09-06 code-level applicability audit and proposals separating
+physical properties, model state, perceptual gains and device compensation,
+see [FW model research (Japanese)](reference/34_FW_MODEL_RESEARCH.md).
+Its candidate parameters and algorithms are not new implemented controls.
+
 ## Three different surfaces
 
 1. C++ parameters describe the complete model and hardware/session settings.
