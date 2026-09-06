@@ -200,12 +200,18 @@ bool EspNowTelemetryProducer::sendSnapshot(
     const TelemetrySnapshot& snapshot) {
 #if HAPTICS_ENABLE_ESPNOW_TELEMETRY
   const uint32_t sequence = status_.sequence + 1U;
-  const EspNowTelemetryPacketV3 packet =
-      encodeEspNowTelemetryPacketV3(snapshot, sequence, resolved_);
-  const esp_err_t result = esp_now_send(
-      kBroadcastAddress,
-      reinterpret_cast<const uint8_t*>(&packet),
-      sizeof(packet));
+  esp_err_t result;
+  if (snapshot.mass.granular_pile_active || snapshot.mass.pressure.enabled) {
+    const auto packet = encodeEspNowTelemetryPacketV4(snapshot, sequence, resolved_);
+    status_.packet_bytes = static_cast<uint16_t>(sizeof(packet));
+    result = esp_now_send(kBroadcastAddress,
+        reinterpret_cast<const uint8_t*>(&packet), sizeof(packet));
+  } else {
+    const auto packet = encodeEspNowTelemetryPacketV3(snapshot, sequence, resolved_);
+    status_.packet_bytes = static_cast<uint16_t>(sizeof(packet));
+    result = esp_now_send(kBroadcastAddress,
+        reinterpret_cast<const uint8_t*>(&packet), sizeof(packet));
+  }
   status_.sequence = sequence;
   if (result == ESP_OK) {
     ++status_.transmitted_packets;

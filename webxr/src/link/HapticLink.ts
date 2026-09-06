@@ -14,17 +14,34 @@ export interface ResolvedContainer {
   [key: string]: unknown;
 }
 
+export interface DeviceDemoState {
+  pile_slope: number;
+  granular_flow: number;
+  granular_pile_active: boolean;
+  pressure: {
+    enabled: boolean;
+    phase: "sealed" | "burst" | "spent";
+    charge: number;
+    phase_s: number;
+    remaining: number;
+    burst_sequence: number;
+  };
+}
+
+export type DeviceEventType = "None" | "WallHit" | "RollTrain" | "ImpactCluster" |
+  "DropletCluster" | "RoofSlap" | "Scrape" | "PressurePop";
+
 export interface DeviceSnapshot {
   timestamp_ms: number;
   frame_counter: number;
   preset: string;
   run_mode: string;
   imu?: { valid?: boolean; accel_g?: number[]; gyro_dps?: number[]; [key: string]: unknown };
-  mass?: { pos_norm?: number[]; vel_norm_s?: number[]; energy?: number; fill?: number; [key: string]: unknown };
+  mass?: { pos_norm?: number[]; vel_norm_s?: number[]; energy?: number; fill?: number; demo?: DeviceDemoState; [key: string]: unknown };
   audio?: { runtime_enabled?: boolean; output_silenced?: boolean; [key: string]: unknown };
   safety?: { imu_stale_safe_stop?: boolean; audio_zero_asserted?: boolean; tilt_disarmed?: boolean; [key: string]: unknown };
   tilt_servo?: { state?: number; fault?: number; devices?: Array<Record<string, unknown>>; [key: string]: unknown };
-  last_event?: { type?: string; primary_wall?: string; amplitude?: number; [key: string]: unknown };
+  last_event?: { type?: DeviceEventType; primary_wall?: string; amplitude?: number; [key: string]: unknown };
   evt_total?: number;
   new_evt?: number;
   actuators?: number[];
@@ -89,6 +106,24 @@ export function parseHapticLinkLine(raw: string): ParsedBridgeLine | null {
           if (vector !== undefined && (!Array.isArray(vector) || vector.length !== length || !vector.every(Number.isFinite))) {
             return { kind: "diagnostic", message: `Ignored invalid ${group}.${field}` };
           }
+        }
+      }
+      if (record(value.mass) && value.mass.demo !== undefined) {
+        const demo = value.mass.demo;
+        const unit = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1;
+        if (!record(demo) || !Number.isFinite(demo.pile_slope) ||
+            !unit(demo.granular_flow) || typeof demo.granular_pile_active !== "boolean" ||
+            !record(demo.pressure)) {
+          return { kind: "diagnostic", message: "Ignored invalid mass.demo" };
+        }
+        const pressure = demo.pressure;
+        if (typeof pressure.enabled !== "boolean" || typeof pressure.phase !== "string" ||
+            !["sealed", "burst", "spent"].includes(String(pressure.phase)) ||
+            !unit(pressure.charge) || !unit(pressure.remaining) ||
+            typeof pressure.phase_s !== "number" || !Number.isFinite(pressure.phase_s) || pressure.phase_s < 0 ||
+            typeof pressure.burst_sequence !== "number" || !Number.isInteger(pressure.burst_sequence) ||
+            pressure.burst_sequence < 0 || pressure.burst_sequence > 65535) {
+          return { kind: "diagnostic", message: "Ignored invalid mass.demo.pressure" };
         }
       }
       if (value.resolved !== undefined) {

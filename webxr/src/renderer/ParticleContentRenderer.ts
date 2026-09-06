@@ -4,6 +4,7 @@ import type { ContainerPreset, LocalContentState } from "../types";
 import { deviceParticleLayout, deviceParticlePose, isSingleMarble, type DeviceContentState } from "../visualState";
 import { ContainerGeometry } from "./ContainerGeometry";
 import { disposeObjectTree } from "./disposeObjectTree";
+import { SandPileRenderer } from "./SandPileRenderer";
 
 interface ParticleState {
   pos: THREE.Vector3;
@@ -24,12 +25,15 @@ export class ParticleContentRenderer {
   private dummy = new THREE.Object3D();
   private localGravity = new THREE.Vector3();
   private lastElapsed = 0;
+  private readonly sandPile?: SandPileRenderer;
+  private readonly preferPile: boolean;
 
   constructor(private readonly preset: ContainerPreset, private readonly geometry: ContainerGeometry,
     private readonly resolvedDimensions: boolean) {
     const sand = /sand/i.test(preset.preset);
     const coin = /coin/i.test(preset.preset);
     const marble = isSingleMarble(preset, resolvedDimensions);
+    this.preferPile = sand && !marble;
     const material = new THREE.MeshPhysicalMaterial(this.preset.family === "Hybrid"
       ? { color: "#e1f3f5", roughness: 0.2, clearcoat: 1, metalness: 0.06 }
       : marble ? { color: "#d8c071", roughness: 0.76 }
@@ -60,6 +64,10 @@ export class ParticleContentRenderer {
     }
     this.particleStates = this.createParticleStates();
     this.group.add(this.particles);
+    if (preset.family === "Granular" && !marble) {
+      this.sandPile = new SandPileRenderer(geometry);
+      this.group.add(this.sandPile.group);
+    }
   }
 
   private createParticleStates(): ParticleState[] {
@@ -92,6 +100,17 @@ export class ParticleContentRenderer {
   updatePreview(content: LocalContentState, elapsed: number, dt: number, orientation: THREE.Quaternion,
     surface?: { normal: THREE.Vector3; level: number }) {
     this.lastElapsed = elapsed;
+    if (this.preferPile && this.sandPile) {
+      this.sandPile.group.visible = true;
+      this.particles.visible = false;
+      this.sandPile.update({
+        massX: content.surfaceOffsetX, massY: -1 + this.preset.container.fill,
+        velocityX: content.surfaceVelocityX, velocityY: content.surfaceVelocityY,
+        energy: content.agitation, fill: this.preset.container.fill,
+        phaseS: elapsed, granularFlow: content.agitation
+      });
+      return;
+    }
     if (!this.particles || !this.preset) {
       return;
     }
@@ -205,6 +224,15 @@ export class ParticleContentRenderer {
   }
 
   updateDevice(state: DeviceContentState) {
+    if (this.sandPile) {
+      const pile = this.preferPile || state.pileSlope !== undefined;
+      this.sandPile.group.visible = pile;
+      if (pile) {
+        this.particles.visible = false;
+        this.sandPile.update(state);
+        return;
+      }
+    }
     this.particles.visible = state.fill > 0;
     const layout = deviceParticleLayout(this.geometry.dimensions, state, this.preset.family, isSingleMarble(this.preset, this.resolvedDimensions));
     for (let i = 0; i < this.particleCount; i += 1) {
@@ -219,6 +247,7 @@ export class ParticleContentRenderer {
   }
 
   dispose() {
+    this.sandPile?.dispose();
     disposeObjectTree(this.group);
     this.group.removeFromParent();
   }

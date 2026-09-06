@@ -230,6 +230,8 @@ void EventLayer::configure(const SystemParams& params) {
   roll_wall_ = WallId::None;
   coherent_flow_phase_ = 0.0f;
   coherent_flow_wall_ = WallId::None;
+  pressure_burst_seen_ = 0;
+  pressure_flow_phase_ = 0.0f;
 }
 
 void EventLayer::pushEvent(EventFrame<kMaxEventsPerFrame>& frame, const HapticEvent& event) {
@@ -734,9 +736,49 @@ EventFrame<kMaxEventsPerFrame> EventLayer::updateCoherent(const MassState& state
   const float particles = clampf(params_.container.particle_count, 0.0f, 1.0f);
   const float hardness = clampf(params_.container.particle_hardness, 0.0f, 1.0f);
   const float viscosity = clampf(params_.container.viscosity, 0.0f, 1.0f);
+  const bool pressure_demo = params_.features.enable_pressurized_demo && state.pressure.enabled;
+  const float remaining_fill = state.fill * (pressure_demo ? clampf(state.pressure.remaining, 0.0f, 1.0f) : 1.0f);
   const float amount_gain = state.family == MaterialFamily::Detented
                                 ? 1.0f
-                                : std::sqrt(clampf(state.fill / (sparse ? 0.04f : 0.35f), 0.0f, 1.4f));
+                                : std::sqrt(clampf(remaining_fill / (sparse ? 0.04f : 0.35f), 0.0f, 1.4f));
+
+  if (pressure_demo) {
+    // The opening is an edge in shared model state, not a renderer timer.
+    if (state.pressure.phase == PressurePhase::Burst &&
+        state.pressure.burst_sequence != pressure_burst_seen_ && output_limit_ > 0) {
+      HapticEvent pop{};
+      pop.type = EventType::PressurePop;
+      pop.primary_wall = WallId::Top;
+      pop.direction.y = 1.0f;
+      pop.amplitude = 0.95f;
+      pop.duration_ms = 18.0f;
+      pop.density_hz = 1.0f;
+      pushEvent(frame, pop);
+      pressure_burst_seen_ = state.pressure.burst_sequence;
+    }
+    const bool venting = state.pressure.phase == PressurePhase::Burst;
+    const float fizz = venting ? state.pressure.charge
+                              : state.pressure.phase == PressurePhase::Sealed
+                                    ? state.pressure.charge * clampf(state.energy * 3.0f, 0.0f, 1.0f)
+                                    : 0.0f;
+    if (fizz > 0.025f) {
+      pressure_flow_phase_ += std::min(dt_s, 0.05f) * (venting ? 35.0f : 12.0f) * fizz;
+      const std::size_t slots = frame.count < output_limit_ ? output_limit_ - frame.count : 0;
+      const std::size_t count = consumeScheduledPhase(pressure_flow_phase_, slots);
+      for (std::size_t n = 0; n < count; ++n) {
+        HapticEvent event{};
+        event.type = venting ? EventType::DropletCluster : EventType::RollTrain;
+        event.primary_wall = WallId::Top;
+        event.direction.y = 1.0f;
+        event.amplitude = (venting ? 0.52f : 0.12f) * fizz;
+        event.duration_ms = venting ? 35.0f : 16.0f;
+        event.density_hz = venting ? 24.0f : 12.0f;
+        pushEvent(frame, event);
+      }
+    } else {
+      pressure_flow_phase_ = 0.0f;
+    }
+  }
 
   // Impact velocity is captured by Mass before restitution. No positional
   // threshold or recurring energy clock may manufacture a second rigid tap.

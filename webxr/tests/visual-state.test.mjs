@@ -71,6 +71,24 @@ test("gravity adaptation is explicit per snapshot and never mutates the previous
   assert.equal(orientationFromSnapshot({ imu: { valid: true, accel_g: [0, Infinity, 0] } }, previous), null);
 });
 
+test("v4 source time, retained pile and burst state cross the pure adapter as bounded owned copies", () => {
+  const pressure = { enabled: true, charge: 0.8, phase: "burst", phase_s: 0.3, remaining: 0.7, burst_sequence: 4 };
+  const snapshot = { timestamp_ms: 2300, mass: { pos_norm: [0.2, -0.4], vel_norm_s: [0, 0], energy: 0.5,
+    demo: { granular_pile_active: true, pile_slope: 0.45, granular_flow: 0.6, pressure } } };
+  const result = contentFromSnapshot(snapshot, 0.5);
+  close(result.phaseS, 2.3);
+  close(result.pileSlope, 0.45); close(result.granularFlow, 0.6);
+  assert.deepEqual(result.pressure, { charge: 0.8, phase: "burst", phaseS: 0.3, remaining: 0.7, burstSequence: 4 });
+  pressure.phase_s = 99;
+  close(result.pressure.phaseS, 0.3);
+  const invalid = sanitizeDeviceContent({ ...state, phaseS: Infinity, pileSlope: 99, granularFlow: NaN,
+    pressure: { charge: Infinity, phase: "unknown", phaseS: -1, remaining: 9, burstSequence: -1 } });
+  assert.equal(invalid.phaseS, undefined);
+  assert.equal(invalid.pileSlope, 8);
+  assert.equal(invalid.granularFlow, 0);
+  assert.equal(invalid.pressure, undefined);
+});
+
 test("pure particle layout preserves mass centroid for odd/even clouds and wall contacts", () => {
   for (const count of [1, 17, 74]) for (const mass of [[0.6, -0.7], [-1, 1], [0, 0]]) {
     const layout = deviceParticleLayout(size, { ...state, massX: mass[0], massY: mass[1] }, "Granular", count === 1);

@@ -21,6 +21,12 @@ Android is the planned mobile host; VR/Quest work is on hold. These primary
 sources establish platform prerequisites, not a working Android implementation
 or simultaneous StampC5 USB/camera/AR operation in this project.
 
+- [MediaPipe Hand Landmarker for Web](https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js):
+  the primary planned hand-tracking approach, not an installed/integrated feature.
+  Image landmarks provide normalized x/y and wrist-relative depth; metric world
+  landmarks have a hand-centered origin. Our inference: neither is an absolute
+  room/camera anchor without an additional placement/alignment convention.
+  Video detection is synchronous; a worker can keep it off the UI thread.
 - [Google WebXR requirements](https://developers.google.com/ar/develop/webxr/requirements)
   and [ARCore-supported devices](https://developers.google.com/ar/devices):
   supported Android hardware, Chrome, Google Play Services for AR and HTTPS.
@@ -33,9 +39,10 @@ or simultaneous StampC5 USB/camera/AR operation in this project.
   camera/world tracking and placement on discovered surfaces do not by themselves
   track a separate moving hand-held container.
 - [AR.js official documentation](https://ar-js-org.github.io/AR.js-Docs/):
-  camera/marker tracking is an available WebAR approach. A device-mounted marker
-  is a candidate, not an adopted dependency or implemented feature. Camera-frame
-  alignment and heading cannot be replaced by gravity-only IMU tilt.
+  background for optional marker alignment, not the primary hand-following
+  plan or an adopted dependency. A marker or the AtomS3 screen may help align
+  frames, but is not required for tracking the hand. Camera-frame alignment
+  and heading cannot be replaced by gravity-only IMU tilt.
 
 ## Retained Quest transport references
 

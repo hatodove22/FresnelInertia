@@ -6,7 +6,9 @@ import { contentFromSnapshot, orientationFromSnapshot, resolvedPresetFromSnapsho
 const devicePresets = [
   ["granular_single_marble_box", "ひと粒のビー玉"],
   ["granular_sand_box", "細かい砂"],
+  ["granular_sand_pile_box", "堆積する砂（新FW）"],
   ["liquid_small_box", "水の容器"],
+  ["liquid_soda_bottle", "炭酸ボトル（新FW）"],
   ["hybrid_ice_water", "氷と水"],
   ["granular_bead_box", "ビーズ"],
   ["granular_coin_box", "コイン"],

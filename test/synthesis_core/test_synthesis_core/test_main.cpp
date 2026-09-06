@@ -7,6 +7,7 @@
 #include <limits>
 
 #include "haptics/HapticSynthesisCore.hpp"
+#include "haptics/HardwareProfiles.hpp"
 #include "pre_extraction_reference.hpp"
 
 namespace {
@@ -35,6 +36,11 @@ void assertSameMass(const MassState& expected, const MassState& actual) {
   SAME_FLOAT(energy); SAME_FLOAT(fill); SAME_FLOAT(headspace);
   SAME_FLOAT(container_x_m); SAME_FLOAT(container_y_m); SAME_FLOAT(container_z_m);
   SAME_VALUE(family);
+  SAME_VALUE(granular_pile_active);
+  SAME_FLOAT(pile_slope); SAME_FLOAT(granular_flow);
+  SAME_VALUE(pressure.enabled); SAME_VALUE(pressure.phase);
+  SAME_FLOAT(pressure.charge); SAME_FLOAT(pressure.phase_s);
+  SAME_FLOAT(pressure.remaining); SAME_VALUE(pressure.burst_sequence);
   for (int i = 0; i < 4; ++i) {
     SAME_FLOAT(wall_impact_speed_norm_s[i]); SAME_FLOAT(wall_contact[i]);
   }
@@ -363,6 +369,142 @@ void test_manual_override_leaves_normal_tilt_model_unadvanced() {
     }
   }
 }
+
+SystemParams materialDemo(bool soda) {
+  auto params = soda ? makeDefaultSodaPreset() : makeDefaultGranularSandPreset();
+  applyAsBuiltAtomS3Profile(params);
+  params.features.enable_tilt_plane = true;  // model intent, no backend is linked
+  params.features.enable_granular_pile_demo = !soda;
+  return params;
+}
+
+ImuSample upright() {
+  ImuSample sample{};
+  sample.valid = true;
+  sample.accel_g.y = 1.0f;
+  return sample;
+}
+
+void test_pile_and_soda_composition_match_retained_pre_extraction_orchestration() {
+  for (bool soda : {false, true}) {
+    const auto params = materialDemo(soda);
+    Comparison pair;
+    pair.reset(params);
+    for (int i = 0; i < 2000; ++i) {
+      auto sample = upright();
+      if (soda) sample.accel_g.y += 2.5f * std::sin(i * 0.25f);
+      else sample.accel_g = i < 300 ? Vec3f{0.0f, 1.0f, 0.0f}
+          : i < 1000 ? Vec3f{0.707107f, 0.707107f, 0.0f}
+          : Vec3f{0.0f, 1.0f, 0.0f};
+      pair.compare(params, sample, kDt);
+    }
+    TEST_ASSERT_GREATER_THAN_UINT32(0, pair.events);
+    TEST_ASSERT_GREATER_THAN_UINT32(0, pair.driven_frames);
+  }
+}
+
+void test_pile_retention_events_and_tilt_share_the_core_mass_then_reset() {
+  const auto params = materialDemo(false);
+  const auto context = contextFor(params, RunMode::Live);
+  HapticSynthesisCore core;
+  TiltPseudoForceModel independent_tilt;
+  core.reset(params);
+  independent_tilt.configure(params);
+  independent_tilt.reset();
+  SynthesisFrame deposited{};
+  SynthesisFrame level{};
+  uint32_t flow_events = 0;
+  uint32_t driven = 0;
+  for (int i = 0; i < 1500; ++i) {
+    auto sample = upright();
+    if (i >= 50 && i < 800) sample.accel_g = {0.707107f, 0.707107f, 0.0f};
+    const auto frame = core.step(params, sample, kDt, context);
+    TEST_ASSERT_TRUE(frame.accepted && frame.mass.granular_pile_active);
+    TEST_ASSERT_EQUAL_UINT32(frame.debug.event_count, frame.events.count);
+    assertSameTilt(independent_tilt.update(sample, frame.mass, kDt), frame.tilt);
+    flow_events += frame.debug.event_count;
+    for (float amplitude : frame.spatial.summary.ch) driven += amplitude > 0.0f;
+    if (i == 799) deposited = frame;
+    level = frame;
+  }
+  TEST_ASSERT_LESS_THAN_FLOAT(-0.10f, deposited.mass.pos_norm.x);
+  TEST_ASSERT_FLOAT_WITHIN(0.015f, deposited.mass.pos_norm.x, level.mass.pos_norm.x);
+  TEST_ASSERT_FLOAT_WITHIN(0.025f, deposited.mass.pile_slope, level.mass.pile_slope);
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, level.mass.granular_flow);
+  TEST_ASSERT_GREATER_THAN_UINT32(0, flow_events);
+  TEST_ASSERT_GREATER_THAN_UINT32(0, driven);
+  core.reset(params);
+  const auto reset = core.step(params, upright(), kDt, context);
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, reset.mass.pile_slope);
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, reset.mass.pos_norm.x);
+  TEST_ASSERT_EQUAL_UINT32(0, reset.events.count);
+}
+
+void test_soda_one_shot_pop_recoil_stop_and_reset_use_one_core_timeline() {
+  auto params = materialDemo(true);
+  // Isolate the pressure reaction from vertical IMU inertia, while retaining
+  // the full motion/Event/Texture/Resonance/Spatial path and actual tilt bounds.
+  params.tilt.k_cm = 0.0f;
+  const auto context = contextFor(params, RunMode::Live);
+  HapticSynthesisCore core;
+  core.reset(params);
+  unsigned pops = 0;
+  bool saw_burst = false;
+  bool checked_stopped = false;
+  SynthesisFrame last{};
+  for (int i = 0; i < 2000; ++i) {
+    auto sample = upright();
+    sample.accel_g.y += 2.5f * std::sin(i * 0.25f);
+    const auto frame = core.step(params, sample, kDt, context);
+    TEST_ASSERT_TRUE(frame.accepted);
+    TEST_ASSERT_EQUAL_UINT32(frame.debug.event_count, frame.events.count);
+    unsigned current_pops = 0;
+    for (std::size_t j = 0; j < frame.events.count; ++j) {
+      current_pops += frame.events.items[j].type == EventType::PressurePop;
+    }
+    pops += current_pops;
+    if (frame.mass.pressure.phase == PressurePhase::Burst) {
+      TEST_ASSERT_LESS_THAN_FLOAT(0.0f, frame.tilt.common_force_n);
+      if (!saw_burst) {
+        TEST_ASSERT_EQUAL_UINT32(1, current_pops);
+        TEST_ASSERT_FLOAT_WITHIN(kDt, 0.0f, frame.mass.pressure.phase_s);
+      }
+      saw_burst = true;
+      if (!checked_stopped) {
+        auto stopped = context;
+        stopped.outputs_allowed = false;
+        const auto quiet = core.step(params, sample, kDt, stopped);
+        TEST_ASSERT_EQUAL(SynthesisTiltAction::Disabled, quiet.tilt_action);
+        TEST_ASSERT_EQUAL_UINT32(0, quiet.events.count);
+        TEST_ASSERT_EQUAL_FLOAT(0.0f, quiet.tilt.common_force_n);
+        for (int j = 0; j < 4; ++j) {
+          TEST_ASSERT_EQUAL_FLOAT(0.0f, quiet.spatial.drive.low[j]);
+          TEST_ASSERT_EQUAL_FLOAT(0.0f, quiet.spatial.drive.high[j]);
+          TEST_ASSERT_EQUAL_FLOAT(0.0f, quiet.spatial.drive.noise[j]);
+        }
+        checked_stopped = true;
+      }
+    } else {
+      TEST_ASSERT_EQUAL_UINT32(0, current_pops);
+      TEST_ASSERT_EQUAL_FLOAT(0.0f, frame.tilt.common_force_n);
+    }
+    TEST_ASSERT_TRUE(std::fabs(frame.tilt.thumb_angle_deg) <= 10.00001f);
+    TEST_ASSERT_TRUE(std::fabs(frame.tilt.index_angle_deg) <= 10.00001f);
+    last = frame;
+  }
+  TEST_ASSERT_TRUE(saw_burst && checked_stopped);
+  TEST_ASSERT_EQUAL_UINT32(1, pops);
+  TEST_ASSERT_EQUAL(PressurePhase::Spent, last.mass.pressure.phase);
+  // The physical Stop owner calls reset after disabling its outputs.
+  core.reset(params);
+  const auto reset = core.step(params, upright(), kDt, context);
+  TEST_ASSERT_EQUAL(PressurePhase::Sealed, reset.mass.pressure.phase);
+  TEST_ASSERT_EQUAL_UINT16(0, reset.mass.pressure.burst_sequence);
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, reset.mass.pressure.charge);
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, reset.tilt.common_force_n);
+  TEST_ASSERT_EQUAL_UINT32(0, reset.events.count);
+  for (float amplitude : reset.spatial.summary.ch) TEST_ASSERT_EQUAL_FLOAT(0.0f, amplitude);
+}
 }  // namespace
 
 void setUp() {}
@@ -378,6 +520,9 @@ int main() {
   RUN_TEST(test_unsupported_dynamics_request_neutral_fault_instead_of_hold);
   RUN_TEST(test_stopped_and_feature_disabled_contexts_produce_no_output);
   RUN_TEST(test_manual_override_leaves_normal_tilt_model_unadvanced);
+  RUN_TEST(test_pile_and_soda_composition_match_retained_pre_extraction_orchestration);
+  RUN_TEST(test_pile_retention_events_and_tilt_share_the_core_mass_then_reset);
+  RUN_TEST(test_soda_one_shot_pop_recoil_stop_and_reset_use_one_core_timeline);
   std::printf("Compared %u complete frames, field-by-field, including float bits.\n",
               static_cast<unsigned>(compared_frames));
   return UNITY_END();

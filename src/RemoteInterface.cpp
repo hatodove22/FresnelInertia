@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include "haptics/DemoTelemetryJson.hpp"
 #include <cstdio>
 
 #ifndef HAPTICS_ENABLE_REMOTE_BACKEND
@@ -50,6 +51,8 @@ const char* eventTypeToString(EventType type) {
       return "RoofSlap";
     case EventType::Scrape:
       return "Scrape";
+    case EventType::PressurePop:
+      return "PressurePop";
     case EventType::None:
     default:
       return "None";
@@ -328,6 +331,7 @@ void populateTelemetryDocument(TDoc& doc, const TelemetrySnapshot& telemetry, bo
   vel.add(telemetry.mass.vel_norm_s.y);
   mass["energy"] = telemetry.mass.energy;
   mass["fill"] = telemetry.mass.fill;
+  appendDemoTelemetryJson(mass, telemetry.mass);
   JsonArray contacts = mass.createNestedArray("wall_contact");
   JsonArray impacts = mass.createNestedArray("wall_impact_speed_norm_s");
   for (std::size_t wall = 0; wall < 4; ++wall) {

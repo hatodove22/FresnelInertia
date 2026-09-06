@@ -75,14 +75,16 @@ and distinguish rejection, timeout and stale state from success.
 
 | Contract | Bytes |
 |---|---:|
+| [Telemetry v4: opt-in pile/pressure state](../schemas/espnow_telemetry_wire_v4.json) | 250 |
 | [Telemetry v3](../schemas/espnow_telemetry_wire_v3.json) | 230 |
 | [Telemetry v2 compatibility](../schemas/espnow_telemetry_wire_v2.json) | 200 |
 | [Telemetry v1 compatibility](../schemas/espnow_telemetry_wire_v1.json) | 164 |
 | [Command / execution response](../schemas/espnow_control_wire_v1.json) | 140 / 88 |
 
 These are CRC-protected ESP-NOW frames within 250 bytes on channel 6.
-The updated bridge decodes all three telemetry versions; an old bridge cannot
-decode v3, so update StampC5 before using a v3 sender. Callbacks queue
+The updated bridge decodes all four telemetry versions. Normal content still
+sends v3; active granular-pile or pressure effects send v4. Update StampC5
+before selecting these new presets: an older bridge cannot decode v4. Callbacks queue
 data; the main loop executes commands and serializes output. Pairing isolates a
 bench session but is not cryptographic authentication. Product security is
 deferred, not a new demo requirement.
@@ -105,6 +107,16 @@ device configuration, not browser preset guesses. Fill reuses the snapshot's
 existing `mass.fill`. V1/v2 omit `resolved`; dimensions/model then remain
 unknown. The extension is deliberately not a full parameter dump or CFD state.
 
+V4 adds optional `mass.demo`: `pile_slope` (surface dy/dx), `granular_flow`
+(0..1), `granular_pile_active`, and `pressure` with `enabled`,
+`phase` (`sealed`, `burst`, `spent`), `charge` (0..1), `phase_s`, `remaining`
+(0..1 of initial content), and `burst_sequence`. The 20-byte extension follows
+the unchanged v3 prefix; phase time is quantized to milliseconds (saturates at
+65.535 s), remaining content to 1/65535. V1-v3 omit this object. Full JSON and
+recordings use the same names. `PressurePop` is event type 7; a sequence edge
+creates one pop, not one pop per low-rate snapshot. Radio observation can miss
+the short burst onset; the model owns the event and output scheduling.
+
 Immediate command snapshots refresh preset, run mode, idle fill and output
 metadata before publication. They retain the last IMU timestamp/frame counter;
 an execution result does not pretend that a new motion sample was measured.
@@ -114,7 +126,7 @@ Full local USB/remote JSON and recordings also expose
 Front, Back, Top, Bottom. Contact is 0..1; impact is positive pre-bounce approach
 speed in normalized distances/s for the current integration step. Low-rate
 snapshots can miss brief impacts; event counters remain the occurrence record.
-These contact arrays are not included in the compact radio v1/v2/v3 subsets.
+These contact arrays are not included in the compact radio v1-v4 subsets.
 
 Canonical JSON contracts are
 [control](../schemas/control_message.schema.json) and
@@ -147,12 +159,16 @@ roll/pitch, not absolute yaw. The view is a lightweight visualization of the
 shared state, not a second physical haptic solver. Phone tilt, stimulus scripts
 and preview-only tuning do not drive connected hardware.
 
-Android camera/marker AR is planned, not implemented. Tracking the hand-held
-device requires its own visual position/heading reference; WebXR plane placement
-does not follow a moving container. The candidate uses a device-mounted marker
-and the actual IMU tilt, with marker/device and camera-frame alignment. It does
-not assume the phone is fixed to the haptic device. Android USB transfer and
-simultaneous camera/AR operation with StampC5 remain unverified; see the
+The planned Android presentation need not use AR: ordinary-screen rendering
+shares this same applied-state/command contract and still needs target-phone
+USB verification. Optional hand-tracked camera AR remains unimplemented.
+For that extension, MediaPipe-style hand landmarks are the primary position
+reference; device IMU owns tilt. Hand-centered landmarks are not absolute AR
+anchors, so camera/hand/device alignment and scale still need implementation.
+A marker, including the AtomS3 screen, is an optional alignment aid, not a
+continuous-tracking requirement. The phone is not assumed fixed to the haptic
+device. Simultaneous camera/AR operation with StampC5 would require a separate
+check only when that optional mode is added; see the
 [platform references](reference/10_REFERENCES.md).
 
 Disconnected/stale state holds the last view and labels output as unconfirmed;
@@ -170,8 +186,18 @@ the unfinished Quest rehearsal is deferred, not passed. The existing USB probe
 helps diagnose a target-host interface failure; see
 [USB reference](reference/19_WEBUSB_QUEST_PROBE.md).
 `trigger_event` has a reserved opcode but currently returns unsupported.
-External collision/cracker effects can later enter the existing event pipeline;
-they do not require waveform streaming or a second haptic engine.
+The new soda preset internally generates `PressurePop` through the existing
+event pipeline; this does not implement external `trigger_event` commands.
+
+## Offline production-engine lab
+
+`?lab=1` or **実機なしラボを開く** selects a separate, explicitly output-free
+route. It compiles the production C++ model layers to a lazy-loaded Wasm module;
+synthetic body-frame tilt/shake drives Mass through Spatial4 and the tilt model.
+The scene consumes the returned state. It neither opens USB nor sends commands,
+and cannot run alongside a connected device or an XR session. The ordinary
+legacy JS preview remains separate. Displayed channel envelopes and servo
+commands are computed values, not measured output or a tactile test.
 
 ## Stop and diagnostics
 

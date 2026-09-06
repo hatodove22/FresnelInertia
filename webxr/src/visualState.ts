@@ -10,6 +10,18 @@ export interface DeviceContentState {
   energy: number;
   fill: number;
   slosh?: number;
+  /** Retained body-x/y pile and flow from the production model. */
+  pileSlope?: number;
+  granularFlow?: number;
+  /** Source snapshot time; never replaced with the rendering clock. */
+  phaseS?: number;
+  pressure?: {
+    charge: number;
+    phase: "sealed" | "burst" | "spent";
+    phaseS: number;
+    remaining: number;
+    burstSequence: number;
+  };
 }
 
 /** THREE XYZ-compatible, gravity-referenced angles; there is no absolute yaw. */
@@ -55,7 +67,16 @@ export function sanitizeDeviceContent(state: DeviceContentState): DeviceContentS
     massX: clamp(finite(state.massX), -1, 1), massY: clamp(finite(state.massY), -1, 1),
     velocityX: finite(state.velocityX), velocityY: finite(state.velocityY),
     energy: clamp(finite(state.energy), 0, 1), fill: clamp(finite(state.fill), 0, 1),
-    slosh: state.slosh === undefined ? undefined : clamp(finite(state.slosh), 0, 1)
+    slosh: state.slosh === undefined ? undefined : clamp(finite(state.slosh), 0, 1),
+    ...(state.pileSlope === undefined ? {} : { pileSlope: clamp(finite(state.pileSlope), -8, 8) }),
+    ...(state.granularFlow === undefined ? {} : { granularFlow: clamp(finite(state.granularFlow), 0, 1) }),
+    ...(state.phaseS === undefined || !Number.isFinite(state.phaseS) ? {} : { phaseS: state.phaseS }),
+    ...(state.pressure && ["sealed", "burst", "spent"].includes(state.pressure.phase) ? { pressure: {
+      charge: clamp(finite(state.pressure.charge), 0, 1), phase: state.pressure.phase,
+      phaseS: Math.max(0, finite(state.pressure.phaseS)),
+      remaining: clamp(finite(state.pressure.remaining), 0, 1),
+      burstSequence: Math.max(0, Math.floor(finite(state.pressure.burstSequence)))
+    } } : {})
   };
 }
 
@@ -66,7 +87,15 @@ export function contentFromSnapshot(snapshot: DeviceSnapshot, appliedFill: numbe
   return sanitizeDeviceContent({
     massX: mass.pos_norm[0], massY: mass.pos_norm[1],
     velocityX: mass.vel_norm_s[0], velocityY: mass.vel_norm_s[1],
-    energy: mass.energy ?? 0, fill: mass.fill ?? appliedFill
+    energy: mass.energy ?? 0, fill: mass.fill ?? appliedFill,
+    phaseS: Number.isFinite(snapshot.timestamp_ms) ? snapshot.timestamp_ms / 1000 : undefined,
+    pileSlope: mass.demo?.granular_pile_active ? mass.demo.pile_slope : undefined,
+    granularFlow: mass.demo?.granular_pile_active ? mass.demo.granular_flow : undefined,
+    pressure: mass.demo?.pressure?.enabled ? {
+      charge: mass.demo.pressure.charge, phase: mass.demo.pressure.phase,
+      phaseS: mass.demo.pressure.phase_s, remaining: mass.demo.pressure.remaining,
+      burstSequence: mass.demo.pressure.burst_sequence
+    } : undefined
   });
 }
 

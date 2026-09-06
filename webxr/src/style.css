@@ -27,6 +27,37 @@ button.stop { border-color: #d18b77; color: #ffd7c8; }
 details > summary { padding: 9px 0; color: #afc3ca; font-size: 12px; cursor: pointer; }
 .device-connected .preview-controls { display: none; }
 
+[hidden] { display: none !important; }
+#lab-open { width: 100%; margin-bottom: 12px; }
+.device-connected #lab-open { display: none; }
+.offline-lab-active .device-panel, .offline-lab-active .xr-actions,
+.offline-lab-active .preview-controls, .offline-lab-active .trial-details,
+.offline-lab-active #lab-open, .offline-lab-active .readout { display: none; }
+.lab-source { font-size: 11px; line-height: 1.5; color: #a5bbc3; margin: 5px 0 10px; }
+.lab-materials { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.lab-materials button { font-size: 13px; }
+.lab-materials button[aria-pressed="true"] { background: #85e0d1; color: #102b28; border-color: #85e0d1; }
+#lab-description { font-size: 13px; line-height: 1.65; min-height: 42px; color: #d9e7e7; }
+#lab-status { font-size: 12px; line-height: 1.5; color: #9de4d6; min-height: 18px; }
+#lab-sand-option { display: flex; gap: 6px; align-items: center; font-size: 12px; margin-top: 10px; flex-wrap: wrap; }
+#lab-sand-option input { min-height: 20px; accent-color: #85e0d1; }
+#lab-sand-option small { color: #a5bbc3; }
+.lab-channel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 15px; }
+.lab-channel-grid label, #lab-pressure { font-size: 11px; color: #c4d9dd; }
+.lab-channel-grid meter { display: block; width: 100%; height: 15px; accent-color: #85e0d1; }
+#lab-pressure { margin: 8px 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#lab-pressure meter { width: 100px; vertical-align: middle; accent-color: #efc476; }
+.lab-servo { display: flex; justify-content: space-between; margin: 8px 0; font-size: 12px; }
+.lab-servo output { font-variant-numeric: tabular-nums; color: #b1ecdc; }
+.lab-playback { display: flex; align-items: center; gap: 7px; font-size: 11px; color: #a5bbc3; margin: 0 0 8px; }
+.lab-playback input { min-height: 20px; accent-color: #85e0d1; }
+.offline-lab-active .hud { top: 18px; bottom: auto; }
+@media (max-width: 520px) {
+  .offline-lab-active .hud { top: auto; bottom: 10px; max-height: 49vh; }
+  .offline-lab-active .title-row { margin-bottom: 8px; }
+  .offline-lab-active h1 { font-size: 20px; }
+}
+
 * {
   box-sizing: border-box;
 }

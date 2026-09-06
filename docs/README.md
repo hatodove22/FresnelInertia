@@ -4,8 +4,10 @@ Start with [the concept](00_DESIGN_SPECIFICATION.md),
 [current facts](16_PROGRESS_STATUS.md), and [next work](08_IMPLEMENTATION_PLAN.md).
 These are the normal context for continuing the project.
 
-The active direction is PC/shared Web tuning and presentation, with Android AR
-planned and VR/Quest on hold. Planned functionality and target-host validation
+The active direction is preserving the accepted desktop experience and focused
+parameter tuning. Rich WebGL/Lab and reusable-core work are integrated;
+further model refinement and Android presentation are optional follow-ons. AR is optional
+later work, not a prerequisite; VR/Quest is on hold. Planned functionality and target-host validation
 are distinct from the implemented demo; follow 08 for scope and 16 for evidence.
 
 ## Active documents

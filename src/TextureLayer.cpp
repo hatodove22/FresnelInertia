@@ -205,6 +205,13 @@ void TextureLayer::spawnVoice(const HapticEvent& event) {
                     0.0f,
                     false);
       break;
+    case EventType::PressurePop:
+      if (!params_.features.enable_pressurized_demo) break;
+      activateVoice(*acquireVoice(), event, TextureAtomKind::HardPing,
+                    0.018f, 1.0f, 0.0f, false, 1.0f);
+      activateVoice(*acquireVoice(), event, TextureAtomKind::WetBurst,
+                    0.060f, 18.0f, 0.012f, true, 0.65f);
+      break;
     case EventType::Scrape:
       activateVoice(*acquireVoice(),
                     event,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "haptics/Parameters.hpp"
+#include "haptics/PressurizedContentModel.hpp"
 #include "haptics/Types.hpp"
 
 namespace haptics {
@@ -19,6 +20,7 @@ class MassMotionLayer {
   MassState updateCoherent(const ImuSample& raw_sample,
                            const ImuSample& activity_sample,
                            float dt_s);
+  MassState updateGranularPile(const ImuSample& sample, float dt_s);
   MassState updateImpl(const ImuSample& raw_sample,
                        const ImuSample& activity_sample,
                        float dt_s,
@@ -26,11 +28,14 @@ class MassMotionLayer {
 
   SystemParams params_{};
   MassState state_{};
+  PressurizedContentModel pressure_model_{};
   Vec2f filtered_drive_{};
   Vec2f convective_bias_{};
   Vec2f agitation_bias_{};
   float agitation_phase_rad_ = 0.0f;
   bool coherent_initialized_ = false;
+  float pile_angle_rad_ = 0.0f;
+  float pile_velocity_rad_s_ = 0.0f;
 };
 
 }  // namespace haptics

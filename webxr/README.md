@@ -1,16 +1,20 @@
 # Container Haptics Web Client
 
 Visual client for the parametric container haptics project, with an optional
-StampC5-connected demo and a separate browser-local preview.
+StampC5-connected demo, an output-free production-C++ Lab and a retained simple
+browser-local preview.
 
 The connected desktop UI, USB/radio command path and device-driven rendering are
 implemented; desktop handling and visual/felt agreement have been demonstrated.
-The next direction is a PC/shared Web tuning studio and visual refinement, then
-Android AR. The first visual pass adds contained liquid, rotation-aware tabletop
-clearance, bounded acceleration translation and revised vessel/material styling.
-A/B comparison, saved applied settings and granular accumulation/avalanche
-rendering are not implemented yet. The Android device and simultaneous
-USB/AR operation are unverified. VR/Quest development is on hold; its retained
+The Lab, retained sand pile, rich liquid/soda visuals, rotation-aware tabletop
+clearance, bounded acceleration translation and reusable material renderers
+are implemented. Prior physical feedback belongs to the tested revision;
+the later soda tilt kick was flashed but not handled. Preserve the accepted
+experience and tune concrete mismatches first. A/B persistence, saved applied
+settings and Android presentation are follow-on options, not prerequisites.
+Android can reuse this WebGL renderer without AR or a separate 2D engine;
+actual phone USB/rendering and optional hand tracking remain unverified.
+VR/Quest development is on hold; its retained
 implementation and initial USB/MR-entry evidence are not a completed MR demo.
 See [current status](../docs/16_PROGRESS_STATUS.md) for evidence,
 [active plan](../docs/08_IMPLEMENTATION_PLAN.md) for priorities and
@@ -22,17 +26,71 @@ For reuse and extension, see [the visual architecture](../docs/reference/31_REUS
 `visualState.ts` adapts accepted snapshots without THREE or DOM;
 `ContainerScene` composes owned geometry and liquid/particle renderers.
 `DeviceDemo` keeps connection and command authority. `npm test` runs state,
-transport, renderer, resource-lifecycle and framing regressions.
+transport, renderer, resource-lifecycle and framing regressions serially, so
+heavy geometry tests do not contend with short wall-clock transport fixtures.
 The independent [concept atlas](../explainer/README.md) is an explanatory
 artifact; its sketches do not drive this connected scene.
 
 ## Modes
 
 - Connected desktop demo: Web Serial to StampC5; AtomS3 owns motion/content, applied configuration and physical output. A WebUSB transport also exists, with target-host compatibility tracked in 16.
+- C++ Lab: production C++ layers compiled to Wasm, with synthetic tilt/shake, shared-state visuals and model-output meters. No hardware link, output or hand tracking.
 - Preview: touch drag or optional phone-orientation tilt drives a local approximation, with no hardware output.
 - Retained Quest MR (paused): automatic hand-position following and an in-scene panel. Connected mode mirrors device controls; preview retains experiment controls. This is not an Android AR implementation.
 - Desktop development: normal browser view plus IWSDK/IWER emulation.
 - WebUSB probe: separate `/webusb.html` diagnostics for the actual StampC5 interface on the intended host.
+
+## C++ Lab — no device required
+
+Open **実機なしラボ** or append `?lab=1` to the app URL. Loading is asynchronous;
+the Lab cannot take over an active device view or XR session. Closing it returns
+to the simple preview without connecting, disconnecting or sending Stop/Start
+to hardware.
+
+1. Choose marble, sand, water or soda. The engine loads actual C++ presets;
+   the renderer uses their resolved dimensions and the returned content state.
+2. Move the left/right and front/back sliders, or use the automatic tilt sweep.
+   The same synthetic body-frame input drives visible state and model outputs.
+   Fore/aft display tilt is not independent 3D haptic content dynamics.
+   Water now adds visual lag, overshoot and settling waves in both directions;
+   **Shake** uses a slower, wider motion for water so its slosh is easier to see.
+3. For sand, compare the pile checkbox ON/OFF with the same sweep. The new
+   model yields under sufficient tilt, retains a deposit after returning level,
+   and flows again under reverse tilt or shaking. Reset preserves that checkbox;
+   selecting sand anew explicitly opts back into the new model.
+4. For soda, **Shake** supplies a short input sequence: charge builds, one pop
+   triggers a burst, contents diminish and settle. Reset reseals the model.
+5. Optional **スロー再生** slows the complete input/model/display timeline to
+   quarter speed, useful for examining the short soda burst. It is Lab-only and
+   OFF by default; it is not a device-output speed control.
+6. Pause holds both model and display; manual angle input resumes exploration.
+   A model error stays visible with the last successful pose until reset.
+
+Liquid optics use a procedural studio environment, refractive material, wet
+contact lip and approximate caustics restricted to the submerged floor. Bounded
+presentation-only water dynamics add bulk lag and damped secondary waves, with
+smooth normals and optical flow that settle with the surface. Soda
+adds a connected foamy jet and asymmetric liquid sheets with fine satellite
+spray. Moving detail is driven by source state/time; its visual response can be
+richer than firmware motion without changing haptic output or claiming full
+fluid simulation. No external HDR/image assets or
+WebGPU dependency are required. Mobile layout reserves room for the jet, but
+actual Android performance and USB operation still need a device check.
+
+The Lab executes the same `HapticSynthesisCore` as the device runtime, including
+production Mass/Event/Texture/Resonance/Spatial4 and tilt calculation, not another
+JS haptics model. The four channel meters use
+a display-only peak hold. They and the servo-angle readouts are calculated
+commands, not measured force, PCM playback or actuator feedback.
+
+Sand's `enable_granular_pile_demo` gate is normally OFF. The Lab enables it
+explicitly for its sand comparison; firmware has a separate
+`granular_sand_pile_box` preset. Ordinary `granular_sand_box`, generic defaults
+and the accepted marble behavior remain unchanged. Soda's charge is an authored
+effect value, **not thermodynamic pressure**; its foam/spray visualizes the same
+sealed/burst/spent state that produces events. Neither reduced model is CFD or
+particle DEM. A full A/B/save tuning studio and Android hand following remain
+future work.
 
 ## Connected demo
 
@@ -40,6 +98,13 @@ artifact; its sketches do not drive this connected scene.
    The demo image starts in Idle with both outputs OFF and enables ESP-NOW
    automatically; let the dongle pair. Other radio builds and older images
    require local Idle followed by `espnow link on`. Neither path arms outputs.
+   The new pile/soda presets additionally need the new firmware on **both**
+   AtomS3 and StampC5. Their optional v4 snapshot is 250 bytes and carries shared
+   pile/pressure state; ordinary operation remains resolved-state v3 (230 bytes).
+   The bridge still decodes v1-v3. The pre-kick images were uploaded and physical
+   output-OFF v4 transport was checked; see 16 for revision-specific handling
+   and the later AtomS3-only recoil upload. This is not proof that a newly built
+   merged image is installed or physically validated.
 2. Select PC Serial or phone/Quest WebUSB, then **StampC5に接続**. Connect only
    observes status and requests device state. Do not leave another application
    holding the same USB interface.
@@ -118,6 +183,9 @@ webxr/
 |   |-- xr/WebXrBridge.ts
 |   |-- experimentRecorder.ts
 |   |-- deviceDemo.ts
+|   |-- offlineLab.ts
+|   |-- lab/PreviewEngine.ts
+|   |-- lab/generated/preview-engine.js
 |   |-- main.ts
 |   |-- presets.ts
 |   |-- simulator.ts
@@ -131,16 +199,33 @@ webxr/
 ## Visual model and state ownership
 
 In connected mode, `DeviceDemo` passes device-reported mass position, velocity,
-activity and fill to `ContainerScene`. The box uses resolved dimensions without
+activity, fill and optional v4 pile/pressure state to `ContainerScene`. The box uses resolved dimensions without
 7 cm normalization. Raw accelerometer values plus the reported mounting-frame
 flag provide gravity-referenced roll/pitch, not absolute yaw. No browser servo
 or vibration waveform is sent. This is a lightweight view of the on-device
 reduced model, not a full fluid/particle CFD simulation.
 
 The connected single-marble/fine-grain/liquid/hybrid scenes use that shared
-state. Preview-only bottle/cup geometry and scripted motion do not override the
-connected box or drive physical output. Improving liquid first, then sand,
-is planned visual work; it must retain this device-state ownership.
+state. Liquid volume and free surface stay inside the box; the new dense sand
+bed uses its reported retained slope and a matching volume-preserving cut.
+Individual foam/grain/spray particles are visual detail, not another physical
+state owner. Absent or inactive v4 fields retain ordinary sand/liquid behavior;
+a preset name alone never invents pile or carbonation state. The visual water
+response does not require v4 pile/pressure fields. Preview-only bottle/cup
+geometry and scripted motion do not override the connected box or drive output.
+
+`LiquidSlosh` adds presentation-only two-axis lag and six damped wave modes from
+orientation/content changes. It uses resolved dimensions, fill and viscosity,
+preserves the contained volume and can respond to pitch without corresponding
+firmware activity. The snapshot clock is its only time source: repeated times
+freeze it, rewind/long gaps rebase quietly, and missing time uses a static view.
+Its deformed surface and visual centroid are not telemetry or haptic-model state.
+
+The geometric pile centroid and the existing material-scaled/filtered tilt cue
+CG are intentionally distinct quantities; this iteration preserves accepted
+servo authority. The positive baseline handling report does not itemize every
+new material or include the later soda kick. The Lab uses this same renderer
+with its own explicitly offline state.
 
 The retained offline preview includes:
 
@@ -170,6 +255,12 @@ Open the URL printed by Vite in the desktop browser. The development server uses
 HTTPS and includes IWSDK/IWER support; Android AR is not yet implemented by
 running this server or opening the same URL on a phone.
 
+Ordinary client builds need no C++ SDK: the Wasm module is checked in. After
+editing shared C++ model code, regenerate from the repository root with
+`& .\tools\build_preview_engine.ps1` using the existing Unity WebGL SDK, then
+re-run the focused checks below. Setup and SDK selection are documented in
+[development setup](../docs/reference/19_DEVELOPMENT_SETUP.md).
+
 Use this mode for active desktop/mobile development. It includes Vite HMR and IWSDK/IWER dev support, but HMR is not the most reliable path through public tunnels.
 
 The retained experimental Quest tunnel helper can be used when that work resumes:
@@ -197,6 +288,8 @@ npm.cmd run typecheck
 npm.cmd run build
 node --test test/haptic-link.test.mjs
 node --test tests/device-demo.test.mjs tests/container-scene.test.mjs tests/spatial-control-panel.test.mjs tests/webxr-bridge.test.mjs
+node --test tests/preview-engine.test.mjs tests/offline-lab.test.mjs
+node --test --test-concurrency=1 tests/liquid-slosh.test.mjs tests/contained-volume.test.mjs tests/water-dynamics.test.mjs
 ```
 
 These are software checks; mocked browser/USB tests do not establish hardware
@@ -207,8 +300,11 @@ reported configuration, deliberate Start, handled visual/haptic agreement and
 Stop. Reuse the established desktop evidence; repeat only the changed behavior.
 The owning [acceptance document](../docs/07_TEST_AND_VALIDATION.md) defines the
 necessary check, and [16](../docs/16_PROGRESS_STATUS.md) records actual results.
-Desktop success does not establish Android USB+AR or the paused Quest handling
-and recovery flow. A/B persistence and new rendering cannot pass until implemented.
+Desktop success does not establish Android USB/rendering or the paused Quest
+handling and recovery flow. Camera/hand following needs an additional check
+only if optional Android AR is implemented. Lab tests execute the shipped Wasm;
+they do not prove new tactile quality. A/B persistence and Android hand tracking
+remain unimplemented.
 
 For a browser-only edit, no firmware rebuild is required. Protocol or shared
 behavior changes additionally need the affected firmware targets and fixtures

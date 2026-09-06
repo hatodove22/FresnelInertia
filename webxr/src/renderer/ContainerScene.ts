@@ -1,4 +1,4 @@
-﻿import * as THREE from "three";
+import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { ContainerPreset, LocalContentState, TiltState } from "../types";
 import { sanitizeDeviceContent, type DeviceContentState, type DeviceOrientation } from "../visualState";

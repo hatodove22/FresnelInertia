@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { NoColorSpace, LinearFilter, LinearMipmapLinearFilter } from "three";
 
 const previousDocument = globalThis.document;
 const context = new Proxy({}, {
@@ -33,7 +34,8 @@ const preset = (overrides = {}) => ({
 });
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} != ${expected}`);
 const tick = (scene, elapsed = 0, dt = 0.016) => scene.update({ x: 0.6, y: -0.3 }, content, elapsed, dt);
-const particles = (scene) => scene.group.getObjectByName("content-particles");
+const particles = (scene) => scene.group.getObjectByName("content-sand-pile")?.visible
+  ? scene.group.getObjectByName("content-sand-grains") : scene.group.getObjectByName("content-particles");
 const particlePositions = (scene) => {
   const mesh = particles(scene);
   return Array.from({ length: mesh.count }, (_, i) => Array.from(mesh.instanceMatrix.array.slice(i * 16 + 12, i * 16 + 15)));
@@ -100,7 +102,7 @@ test("sparse hard descriptor also selects a single marble", () => {
 
 test("illustrative grains keep their centroid on reported x/y, including walls", () => {
   const scene = new ContainerScene();
-  scene.setPreset(preset(), true);
+  scene.setPreset(preset({ preset: "granular_beads" }), true);
   const radius = 0.05 * 0.025;
   for (const mass of [[0.6, -0.7], [-1, 1], [0, 0]]) {
     scene.setDeviceState({ ...state, massX: mass[0], massY: mass[1] });
@@ -384,4 +386,110 @@ test('quiet positional cue recenters gently over seconds at different sample rat
     scene.dispose();
   }
   recovered.forEach(value=>close(value,recovered[0]));
+});
+
+test("dense grains sit on a volume-filled bed and retain the reported pile slope", () => {
+  const scene = new ContainerScene();
+  scene.setPreset(preset(), true);
+  for (const slope of [0, 0.65, -0.65]) {
+    scene.setDeviceState({ ...state, pileSlope: slope, granularFlow: 0, phaseS: 1 });
+    tick(scene);
+    const body = scene.group.getObjectByName("content-sand-body");
+    const surface = scene.group.getObjectByName("content-sand-surface");
+    assert.ok(body && surface, "sand is a filled solid, not a floating grain cloud");
+    const sand = scene.group.getObjectByName('content-sand-grains');
+    const positions = Array.from({ length: sand.count }, (_, i) => Array.from(sand.instanceMatrix.array.slice(i * 16 + 12, i * 16 + 15)));
+    assert.ok(positions.length > 1);
+    if (slope === 0) close(body.userData.centroid[0], 0);
+    else assert.equal(Math.sign(body.userData.centroid[0]), Math.sign(slope));
+    assert.ok(body.userData.centroid[1] < 0);
+    for (const p of positions) {
+      assert.ok(Math.abs(p[0]) <= 0.08 / 2 + 1e-7);
+      assert.ok(Math.abs(p[1]) <= 0.12 / 2 + 1e-7);
+      assert.ok(Math.abs(p[2]) <= 0.05 / 2 + 1e-7);
+    }
+    const bed = Array.from(surface.geometry.attributes.position.array);
+    tick(scene, 99, 3);
+    assert.deepEqual(Array.from({ length: sand.count }, (_, i) => Array.from(sand.instanceMatrix.array.slice(i * 16 + 12, i * 16 + 15))), positions);
+    assert.deepEqual(Array.from(surface.geometry.attributes.position.array), bed);
+  }
+});
+
+test("continuous soda jet consumes the pressure snapshot and freezes independently of render elapsed time", () => {
+  const scene = new ContainerScene();
+  scene.setPreset(preset({ preset: "liquid_soda_bottle", family: "Liquid" }), true);
+  const pressure = { phase: "burst", phaseS: 0.37, charge: 0.62, remaining: 0.58, burstSequence: 17 };
+  scene.setDeviceState({ ...state, phaseS: 12.9, pressure });
+  tick(scene);
+  const jet = scene.group.getObjectByName("content-soda-jet");
+  assert.equal(jet.visible, true);
+  assert.equal(jet.userData.sharedPhaseS, 0.37, "the burst clock, not the general model clock, controls the jet");
+  assert.equal(jet.userData.burstSequence, 17);
+  const geometry = () => jet.children.map(mesh => Array.from(mesh.geometry.attributes.position.array));
+  const before = geometry();
+  const versions = jet.children.map(mesh => mesh.geometry.attributes.position.version);
+  pressure.phaseS = 1.2; // Caller-owned objects cannot change a held snapshot.
+  tick(scene, 1200, 60);
+  assert.deepEqual(geometry(), before);
+  assert.deepEqual(jet.children.map(mesh => mesh.geometry.attributes.position.version), versions);
+  scene.setDeviceState({ ...state, phaseS: 12.9, pressure: { ...pressure, phaseS: 0.55 } });
+  tick(scene);
+  assert.notDeepEqual(geometry(), before);
+
+  for (const reset of [{ ...pressure, phase: "sealed", phaseS: 0, burstSequence: 0, remaining: 1 },
+    { ...pressure, phase: "spent", phaseS: 2.8, remaining: 0.25 }, undefined]) {
+    scene.setDeviceState({ ...state, pressure: reset });
+    tick(scene);
+    assert.equal(jet.visible, false);
+    assert.equal(scene.group.getObjectByName("content-soda-spray").visible, false);
+  }
+});
+
+test("empty water and exhausted soda hide the optical contact and floor as well as the liquid", () => {
+  const scene = new ContainerScene();
+  scene.setPreset(preset({ preset: "liquid", family: "Liquid" }), true);
+  scene.setDeviceState({ ...state, phaseS: 2 });
+  tick(scene);
+  const contact = scene.group.getObjectByName("content-liquid-contact");
+  const floor = scene.group.getObjectByName("content-liquid-caustics");
+  assert.equal(contact.visible, true);
+  assert.equal(floor.visible, true);
+  for (const empty of [{ ...state, fill: 0 },
+    { ...state, pressure: { phase: "spent", phaseS: 3, charge: 0, remaining: 0, burstSequence: 1 } }]) {
+    scene.setDeviceState(empty);
+    tick(scene);
+    assert.equal(contact.visible, false);
+    assert.equal(floor.visible, false);
+    assert.equal(scene.group.getObjectByName("content-liquid").visible, false);
+    assert.equal(scene.group.getObjectByName("content-liquid-surface").visible, false);
+    assert.equal(scene.group.getObjectByName("content-soda-jet").visible, false);
+  }
+});
+
+test("contained water uses refractive coverage and an unbiased linear normal-data texture", () => {
+  const scene = new ContainerScene();
+  scene.setPreset(preset({ preset: "liquid", family: "Liquid" }), true);
+  scene.setDeviceState(state);
+  tick(scene);
+  for (const name of ["content-liquid", "content-liquid-surface"]) {
+    const material = scene.group.getObjectByName(name).material;
+    assert.equal(material.type, "MeshPhysicalMaterial");
+    assert.equal(material.opacity, 1, "optical transmission, not faded alpha, carries water transparency");
+    assert.ok(material.transmission > 0.8);
+    assert.equal(material.ior, 1.333);
+    assert.ok(material.thickness > 0);
+    assert.ok(material.attenuationDistance > 0);
+  }
+  const normalMap = scene.group.getObjectByName("content-liquid-surface").material.normalMap;
+  assert.equal(normalMap.isDataTexture, true);
+  assert.equal(normalMap.colorSpace, NoColorSpace);
+  assert.equal(normalMap.magFilter, LinearFilter);
+  assert.equal(normalMap.minFilter, LinearMipmapLinearFilter);
+  assert.equal(normalMap.generateMipmaps, true);
+  const pixels = normalMap.image.data;
+  for (const component of [0, 1]) {
+    let sum = 0;
+    for (let at = component; at < pixels.length; at += 4) sum += pixels[at];
+    assert.ok(Math.abs(sum / (pixels.length / 4) - 127.5) < 0.15, "both normal axes remain centered rather than biased");
+  }
 });

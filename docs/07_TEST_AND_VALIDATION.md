@@ -52,10 +52,11 @@ See [hardware setup](04_HARDWARE_AND_PIN_SPEC.md) and
 
 A laptop run establishes laptop support only. Mobile USB selection,
 read/write, and reconnect must pass on each host claimed as supported.
-A visual-only preview must be identifiable as a preview. Android marker AR is
-not implemented; platform support for AR and USB separately does not establish
-their simultaneous operation with this dongle. Quest-specific checks are not
-current tuning prerequisites.
+A visual-only preview must be identifiable as a preview. The planned Android
+demo can use ordinary-screen rendering without AR. Hand-tracked AR remains an
+optional, unimplemented extension; if added, platform support for AR and USB
+separately does not establish their simultaneous operation with this dongle.
+Camera/AR and Quest-specific checks are not prerequisites for the non-AR demo.
 
 For the connected run, display a preset as applied only after device execution
 is confirmed. Check matching material, dimensions/fill, and coordinate mapping;
@@ -123,6 +124,26 @@ telemetry. Their tests prove explanatory behavior, not perceptual feasibility.
 
 The legacy environment matrix, exhaustive static poses, strict evidence hashes,
 fault-injection campaigns, and long soaks are not routine demo prerequisites.
+
+## Material/model changes and the output-free Lab
+
+When the operator is away, do not connect, upload or actuate. Use the explicit
+C++ Lab to check material switching, tilt/return, shake, pause/reset and old/new
+sand comparison. Require contained liquid volume, retained sand slope and CG,
+one soda pop followed by decaying spray/remaining content, and display state
+that freezes with its model. Inspect actual browser rendering as well as tests.
+V4 encode/decode, invalid-field rejection and old-version compatibility are
+software requirements for the new shared state.
+
+These checks establish model/visual implementation only. The pre-kick baseline
+deployment, physical output-OFF v4 transport and positive overall handling
+report are already recorded in 16; do not repeat them merely to satisfy this
+section. Their exact per-material coverage was not itemized. The later recoil
+was flashed but not handled, and the integrated source revision has not been
+flashed. For a changed felt behavior, deliberately update only affected device
+images when needed, then make one short simultaneous tilt/vibration/view
+comparison. Judge pile direction or pop versus subsequent flow when that
+behavior is the subject of the change; do not restart general bring-up.
 
 ## Deferred, not passed
 

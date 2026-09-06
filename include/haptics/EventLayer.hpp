@@ -43,6 +43,8 @@ class EventLayer {
   std::size_t output_limit_ = kMaxEventsPerFrame;
   float coherent_flow_phase_ = 0.0f;
   WallId coherent_flow_wall_ = WallId::None;
+  uint16_t pressure_burst_seen_ = 0;
+  float pressure_flow_phase_ = 0.0f;
 };
 
 }  // namespace haptics

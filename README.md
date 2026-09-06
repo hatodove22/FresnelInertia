@@ -10,11 +10,20 @@ client without a USB cable on the held device.
 
 The prototype has demonstrated simultaneous tilt/vibration through its radio
 dongle and operator-confirmed visual/felt agreement on desktop. Current work
-centers on the PC/shared Web experience. The first desktop visual refinement
-pass is implemented; the tuning studio and Android AR remain planned. VR/Quest work is
-on hold, and target Android hardware and simultaneous USB/AR operation are
-unverified. See [current status](docs/16_PROGRESS_STATUS.md) and
+centers on preserving that accepted experience and fine parameter tuning.
+The shared synthesis core, output-free production-C++ Lab, reusable material
+renderers, retained sand pile, rich liquid/soda visuals and desktop placement
+cues are implemented. Their two development lines are integrated;
+earlier handling evidence is revision-specific, and the later flashed soda
+tilt kick has not been handled. The full tuning studio and ordinary-screen
+Android presentation are follow-on options; hand-tracked AR is not required.
+VR/Quest work is on hold and actual Android hardware/USB operation is unverified.
+See [current status](docs/16_PROGRESS_STATUS.md) and
 [next work](docs/08_IMPLEMENTATION_PLAN.md).
+
+For a hardware-free comparison, launch the [Web client](webxr/README.md) and
+choose **実機なしラボを開く**, or append `?lab=1` to its URL. Tilt, return,
+shake and compare computed haptic commands without connecting any device.
 
 ## Start here
 

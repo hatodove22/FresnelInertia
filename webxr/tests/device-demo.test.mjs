@@ -246,6 +246,106 @@ test("resolved metadata before first mass sample keeps the actual scene out of p
   scene.dispose();
 });
 
+const demoState = (overrides = {}) => ({
+  granular_pile_active: false, pile_slope: 0, granular_flow: 0,
+  pressure: { enabled: false, phase: "sealed", charge: 0, phase_s: 0, remaining: 1, burst_sequence: 0 },
+  ...overrides
+});
+
+test("v4 material dynamics and positional recovery consume one shared fresh snapshot", () => {
+  const { demo, link, states, accelerations, accelerationIntervals } = fixture();
+  const value = liquid();
+  value.preset = "liquid_soda_bottle";
+  value.mass.demo = demoState({ pressure: {
+    enabled: true, phase: "burst", charge: 0.9, phase_s: 0.08, remaining: 0.95, burst_sequence: 1
+  } });
+  link.publish(value); demo.update(0.016);
+  assert.equal(states.at(-1).phaseS, value.timestamp_ms / 1000);
+  assert.equal(states.at(-1).pressure.phaseS, 0.08);
+  const acceptedStates = states.length, acceptedAccelerations = accelerations.length;
+  for (let i = 0; i < 30; ++i) demo.update(1 / 60);
+  link.patch({ stale: true }); demo.update(0.2);
+  assert.equal(states.length, acceptedStates, "render/stale frames cannot advance the burst or water clock");
+  assert.equal(accelerations.length, acceptedAccelerations, "position recovery also holds with no fresh sample");
+  const next = structuredClone(value);
+  next.timestamp_ms += 100;
+  next.mass.demo.pressure.phase_s += 0.1;
+  link.publish(next); demo.update(0.016);
+  assert.equal(states.at(-1).phaseS, 1.1);
+  close(states.at(-1).pressure.phaseS, 0.18);
+  close(accelerationIntervals.at(-1), 0.1);
+  assert.deepEqual(link.calls, [], "reading a shared state never commands hardware");
+});
+
+test("v4 shared pile slope and flow reach the scene without deriving another surface from CG", () => {
+  const { demo, link, states } = fixture();
+  const value = snapshot({ preset: "granular_sand_pile_box", timestamp_ms: 12450 });
+  value.mass.pos_norm = [-0.12, -0.6];
+  value.mass.demo = demoState({ granular_pile_active: true, pile_slope: -0.37, granular_flow: 0.65 });
+  link.publish(value); demo.update(0.016);
+  assert.equal(states.at(-1).massX, -0.12);
+  assert.equal(states.at(-1).pileSlope, -0.37);
+  assert.equal(states.at(-1).granularFlow, 0.65);
+  assert.equal(states.at(-1).phaseS, 12.45);
+  assert.equal(states.at(-1).pressure, undefined);
+  const held = structuredClone(value);
+  held.mass.demo.granular_flow = 0;
+  link.publish(held); demo.update(0.016);
+  assert.equal(states.at(-1).pileSlope, -0.37);
+  assert.equal(states.at(-1).granularFlow, 0, "same-frame state publications can settle flow without inventing motion");
+  assert.deepEqual(link.calls, []);
+});
+
+test("v4 pressure phase, charge, remaining content and burst clock are mapped from one snapshot", () => {
+  const { demo, link, states } = fixture();
+  for (const [phase, charge, remaining, phaseS] of [
+    ["sealed", 0.72, 1, 1.2], ["burst", 0.91, 0.6, 0.33], ["spent", 0, 0.25, 2.4]
+  ]) {
+    const value = liquid();
+    value.preset = "liquid_soda_bottle";
+    value.mass.demo = demoState({ pressure: {
+      enabled: true, phase, charge, remaining, phase_s: phaseS, burst_sequence: phase === "sealed" ? 0 : 1
+    } });
+    link.publish(value); demo.update(0.016);
+    const rendered = states.at(-1);
+    assert.equal(rendered.fill, value.mass.fill, "renderer receives original fill plus the shared remaining fraction");
+    assert.equal(rendered.pressure.phase, phase);
+    assert.equal(rendered.pressure.charge, charge);
+    assert.equal(rendered.pressure.remaining, remaining);
+    assert.equal(rendered.pressure.phaseS, phaseS);
+    assert.equal(rendered.pressure.burstSequence, phase === "sealed" ? 0 : 1);
+    assert.equal(rendered.pileSlope, undefined);
+  }
+  assert.deepEqual(link.calls, []);
+});
+
+test("inactive v4 and absent legacy demo state clear enhanced visuals regardless of preset name", () => {
+  const { demo, link, states } = fixture();
+  const enhanced = liquid();
+  enhanced.preset = "liquid_soda_bottle";
+  enhanced.mass.demo = demoState({ granular_pile_active: true, pile_slope: 0.4, granular_flow: 0.5,
+    pressure: { enabled: true, phase: "burst", charge: 0.8, phase_s: 0.2, remaining: 0.7, burst_sequence: 1 } });
+  link.publish(enhanced); demo.update(0.016);
+  assert.ok(states.at(-1).pressure);
+  for (const present of [true, false]) {
+    const value = structuredClone(enhanced);
+    if (present) {
+      // Disabled fields may retain numbers; activity flags are authoritative.
+      value.mass.demo.granular_pile_active = false;
+      value.mass.demo.pressure.enabled = false;
+    } else delete value.mass.demo;
+    link.publish(value); demo.update(0.016);
+    assert.equal(states.at(-1).pileSlope, undefined);
+    assert.equal(states.at(-1).granularFlow, undefined);
+    assert.equal(states.at(-1).pressure, undefined);
+    assert.equal(states.at(-1).massX, value.mass.pos_norm[0]);
+  }
+  const legacySand = snapshot({ preset: "granular_sand_pile_box" });
+  link.publish(legacySand); demo.update(0.016);
+  assert.equal(states.at(-1).pileSlope, undefined, "a preset label is not evidence of a shared pile state");
+  assert.deepEqual(link.calls, []);
+});
+
 test("preset request and ACK alone do not claim a new visible material", async () => {
   const { demo, link, element, hookPresets } = fixture();
   link.publish(snapshot());

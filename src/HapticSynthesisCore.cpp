@@ -169,6 +169,7 @@ SynthesisFrame HapticSynthesisCore::step(const SystemParams& params,
 
   result.accepted = true;
   result.mass = mass;
+  result.events = events;
   result.last_event = last_event;
   result.spatial = spatial;
   result.debug.event_count = static_cast<uint16_t>(events.count);

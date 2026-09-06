@@ -6,6 +6,9 @@
 
 #include "haptics/EspNowTelemetryProtocol.hpp"
 #include "haptics/Parameters.hpp"
+#ifdef HAPTICS_TEST_DEMO_JSON
+#include "haptics/DemoTelemetryJson.hpp"
+#endif
 
 using namespace haptics;
 
@@ -188,6 +191,123 @@ void testInheritedValidation() {
   value = packet(); value.imu_accel_g[0] = std::numeric_limits<float>::quiet_NaN(); expectInvalid(value);
 }
 
+EspNowTelemetryPacketV4 demoPacket() {
+  auto source = snapshot();
+  source.last_event.type = EventType::PressurePop;
+  source.mass.pile_slope = -0.625f;
+  source.mass.granular_flow = 0.375f;
+  source.mass.granular_pile_active = true;
+  source.mass.pressure.enabled = true;
+  source.mass.pressure.phase = PressurePhase::Burst;
+  source.mass.pressure.charge = 0.875f;
+  source.mass.pressure.phase_s = 1.234f;
+  source.mass.pressure.remaining = 0.25f;
+  source.mass.pressure.burst_sequence = 412U;
+  return encodeEspNowTelemetryPacketV4(source, 77U, makeEspNowResolvedState(params()));
+}
+
+void seal(EspNowTelemetryPacketV4& value) {
+  value.crc32 = espNowTelemetryCrc32(&value, offsetof(EspNowTelemetryPacketV4, crc32));
+}
+
+void expectInvalid(EspNowTelemetryPacketV4 value) {
+  seal(value);
+  CHECK(!validateEspNowTelemetryPacketV4(&value, sizeof(value)));
+}
+
+void testV4PrefixAndRoundTrip() {
+  auto source = snapshot();
+  source.last_event.type = EventType::PressurePop;
+  const auto v3 = encodeEspNowTelemetryPacketV3(source, 77U, makeEspNowResolvedState(params()));
+  const auto v4 = demoPacket();
+  CHECK(sizeof(v4) == 250U && v4.version == 4U);
+  CHECK(validateEspNowTelemetryPacketV3(&v3, sizeof(v3)));
+  CHECK(validateEspNowTelemetryPacketV4(&v4, sizeof(v4)));
+  CHECK(!validateEspNowTelemetryPacketV3(&v4, sizeof(v4)));
+  CHECK(!validateEspNowTelemetryPacketV4(&v3, sizeof(v3)));
+  const auto* before = reinterpret_cast<const unsigned char*>(&v3);
+  const auto* after = reinterpret_cast<const unsigned char*>(&v4);
+  CHECK(std::memcmp(before, after, 4U) == 0);
+  CHECK(std::memcmp(before + 7U, after + 7U, 219U) == 0);
+  CHECK(v4.last_event_type == 7U && v4.demo.flags == 3U);
+  CHECK(after[238] == 0xD2U && after[239] == 0x04U); // 1234 ms
+  CHECK(after[240] == 0x9CU && after[241] == 0x01U); // sequence 412
+  CHECK(after[242] == 1U && after[243] == 3U);
+  CHECK(after[244] == 0U && after[245] == 0x40U); // 16384 / 65535
+  const auto decoded = decodeEspNowDemoState(v4.demo);
+  CHECK(decoded.granular_pile_active && decoded.pressure.enabled);
+  CHECK(decoded.pile_slope == -0.625f && decoded.granular_flow == 0.375f);
+  CHECK(decoded.pressure.phase == PressurePhase::Burst && decoded.pressure.charge == 0.875f);
+  CHECK(std::abs(decoded.pressure.phase_s - 1.234f) < 0.00001f);
+  CHECK(std::abs(decoded.pressure.remaining - 0.25f) <= 0.5f / 65535.0f);
+  CHECK(decoded.pressure.burst_sequence == 412U);
+}
+
+void testV4ValidationAndSaturation() {
+  auto v4 = demoPacket();
+  CHECK(!validateEspNowTelemetryPacketV4(nullptr, sizeof(v4)));
+  CHECK(!validateEspNowTelemetryPacketV4(&v4, sizeof(v4) - 1U));
+  v4.demo.pressure_charge -= 0.1f;
+  CHECK(!validateEspNowTelemetryPacketV4(&v4, sizeof(v4)));
+  v4 = demoPacket(); v4.version = 3U; expectInvalid(v4);
+  v4 = demoPacket(); v4.packet_size = 230U; expectInvalid(v4);
+  v4 = demoPacket(); v4.magic = 0U; expectInvalid(v4);
+  v4 = demoPacket(); v4.last_event_type = 8U; expectInvalid(v4);
+  v4 = demoPacket(); v4.tilt_reserved = 1U; expectInvalid(v4);
+  v4 = demoPacket(); v4.resolved.span_x_m = 0.0f; expectInvalid(v4);
+  v4 = demoPacket(); v4.demo.pressure_phase = 3U; expectInvalid(v4);
+  for (unsigned bit = 2U; bit < 8U; ++bit) {
+    v4 = demoPacket(); v4.demo.flags = 1U << bit; expectInvalid(v4);
+  }
+  for (float invalid : {-0.01f, 1.01f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()}) {
+    v4 = demoPacket(); v4.demo.pressure_charge = invalid; expectInvalid(v4);
+    v4 = demoPacket(); v4.demo.granular_flow = invalid; expectInvalid(v4);
+  }
+  v4 = demoPacket(); v4.demo.pile_slope = std::numeric_limits<float>::quiet_NaN(); expectInvalid(v4);
+  auto source = snapshot();
+  source.mass.pressure.enabled = true;
+  source.mass.pressure.phase_s = 100.0f;
+  source.mass.pressure.remaining = 1.0f;
+  source.mass.pressure.phase = PressurePhase::Spent;
+  v4 = encodeEspNowTelemetryPacketV4(source, 1U, makeEspNowResolvedState(params()));
+  CHECK(v4.demo.pressure_phase_ms == 65535U && v4.demo.pressure_remaining == 65535U);
+  CHECK(v4.demo.flags == kEspNowDemoPressure && validateEspNowTelemetryPacketV4(&v4, sizeof(v4)));
+  CHECK(decodeEspNowDemoState(v4.demo).pressure.phase == PressurePhase::Spent);
+  source.mass.pressure.phase_s = 0.0f; source.mass.pressure.remaining = 0.0f;
+  v4 = encodeEspNowTelemetryPacketV4(source, 1U, makeEspNowResolvedState(params()));
+  CHECK(v4.demo.pressure_phase_ms == 0U && v4.demo.pressure_remaining == 0U);
+}
+
+#ifdef HAPTICS_TEST_DEMO_JSON
+void testCanonicalDemoJson() {
+  StaticJsonDocument<3072> doc;
+  auto mass = doc.createNestedObject("mass");
+  appendDemoTelemetryJson(mass, MassState{});
+  CHECK(!mass.containsKey("demo"));
+  const auto value = decodeEspNowDemoState(demoPacket().demo);
+  appendDemoTelemetryJson(mass, value);
+  CHECK(!doc.overflowed());
+  CHECK(mass["demo"]["pile_slope"].as<float>() == value.pile_slope);
+  CHECK(mass["demo"]["granular_flow"].as<float>() == value.granular_flow);
+  CHECK(mass["demo"]["granular_pile_active"].as<bool>());
+  const auto pressure = mass["demo"]["pressure"].as<JsonObjectConst>();
+  CHECK(pressure.size() == 6U && pressure["enabled"].as<bool>());
+  CHECK(std::strcmp(pressure["phase"].as<const char*>(), "burst") == 0);
+  CHECK(pressure["charge"].as<float>() == value.pressure.charge);
+  CHECK(pressure["phase_s"].as<float>() == value.pressure.phase_s);
+  CHECK(pressure["remaining"].as<float>() == value.pressure.remaining);
+  CHECK(pressure["burst_sequence"].as<uint16_t>() == value.pressure.burst_sequence);
+  char json[512]{};
+  CHECK(serializeJson(doc, json, sizeof(json)) < sizeof(json) - 1U);
+  CHECK(std::strstr(json, "\"burst_sequence\":412") != nullptr);
+  doc.clear(); // Same reuse policy as the bridge when the next packet is v3.
+  mass = doc.createNestedObject("mass");
+  appendDemoTelemetryJson(mass, MassState{});
+  CHECK(!mass.containsKey("demo"));
+  std::puts("Canonical demo JSON: optional state, names, values and reuse passed.");
+}
+#endif
+
 }  // namespace
 
 int main() {
@@ -196,6 +316,11 @@ int main() {
   testEnvelopeAndCrc();
   testNumericValidation();
   testInheritedValidation();
-  std::puts("ESP-NOW resolved v3: 5 regression groups passed (v1/v2 compatibility retained).");
+  testV4PrefixAndRoundTrip();
+  testV4ValidationAndSaturation();
+#ifdef HAPTICS_TEST_DEMO_JSON
+  testCanonicalDemoJson();
+#endif
+  std::puts("ESP-NOW v3/v4: 7 regression groups passed (v1/v2/v3 compatibility retained).");
   return 0;
 }

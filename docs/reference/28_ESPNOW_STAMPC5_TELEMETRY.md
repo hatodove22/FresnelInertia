@@ -61,6 +61,7 @@ All frames are packed, little-endian, CRC-32 protected, and within the
 
 | Frame | Direction | Magic | Bytes | Contract |
 |---|---|---:|---:|---|
+| telemetry v4, active pile/pressure | AtomS3 -> StampC5 broadcast | `FHT1` | 250 | `schemas/espnow_telemetry_wire_v4.json` |
 | telemetry v3 | AtomS3 -> StampC5 broadcast | `FHT1` | 230 | `schemas/espnow_telemetry_wire_v3.json` |
 | telemetry v2 compatibility | AtomS3 -> StampC5 broadcast | `FHT1` | 200 | `schemas/espnow_telemetry_wire_v2.json` |
 | telemetry v1 compatibility | AtomS3 -> StampC5 broadcast | `FHT1` | 164 | `schemas/espnow_telemetry_wire_v1.json` |
@@ -80,6 +81,11 @@ Wire v3 preserves v2 offsets through byte 195, adds 30 bytes of applied
 configuration, and places its CRC at byte 226. Upgrade StampC5 before using a
 v3 AtomS3 sender: the updated bridge accepts v1/v2/v3, but older receivers do
 not understand v3. Commands and execution responses are unchanged.
+The current bridge also accepts v4: it appends 20 bytes of optional pile/pressure
+state to the v3 prefix, moving CRC to byte 246. Ordinary materials continue
+to send v3. New active effects require the updated bridge; the owning
+[interface contract](../05_INTERFACE_SPEC.md) defines `mass.demo` and its
+quantization. This extension has software tests, not a new physical link result.
 
 ## 4. Implemented command policy
 

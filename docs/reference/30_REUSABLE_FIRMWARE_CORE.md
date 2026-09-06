@@ -5,7 +5,9 @@ serial ports, audio hardware or servo hardware. The production
 [HapticSynthesisCore](../../include/haptics/HapticSynthesisCore.hpp) owns the
 motion filter, Mass, Event, Texture, Resonance, Spatial4 and parallel tilt model.
 [HapticPipeline](../../src/HapticPipeline.cpp) remains the device runtime and
-calls that same core. There is no second simulation engine.
+calls that same core. The [offline Lab wrapper](../../src/preview_engine_main.cpp)
+uses it as well, preserving the C ABI consumed by the checked-in Wasm module.
+There is no second production simulation engine.
 
 The reason for this extraction is concrete: the previous runtime mixed about
 150 lines of deterministic per-frame composition with wall-clock safety,
@@ -15,8 +17,11 @@ composition required reconstructing that wiring outside the runtime. The core
 now owns its sequencing and reset semantics once, and returns a compact frame
 that can be checked or consumed by another application.
 
-This changes code ownership, not the content algorithms, applied parameter
-defaults, control protocol or remote parameter allowlist. Current experience
+The extraction changed code ownership, not the content algorithms, applied
+parameter defaults, control protocol or remote parameter allowlist. The merged
+material work extends the owning leaf models with opt-in pile/pressure state
+and a soda recoil cue; these do not create another runtime authority.
+Current experience
 and physical limitations remain in [00](../00_DESIGN_SPECIFICATION.md); current
 evidence belongs in [16](../16_PROGRESS_STATUS.md).
 
@@ -29,9 +34,9 @@ evidence belongs in [16](../16_PROGRESS_STATUS.md).
 | Time integration and content contact | Core, existing Mass/Event layers | Pass raw elapsed seconds. Keep the body x/y model and common content state. |
 | Event envelopes and four output channels | Core, existing Texture/Resonance/Spatial4 layers | `SynthesisFrame::spatial` contains transport-independent `DriveFrame4` and display summary. |
 | Parallel normal tilt model | Core, existing `TiltPseudoForceModel` | Tilt consumes exactly the MassState returned for that frame. |
-| Per-frame intent | `SynthesisFrame` | Accepted/rejected, mass, last event, stage counts, four-channel output, and explicit tilt action. |
+| Per-frame intent | `SynthesisFrame` | Accepted/rejected, mass, bounded frame events and last event, stage counts, four-channel output, and explicit tilt action. |
 | Physical output and authority | Runtime and existing backends | Arming, Stop, IMU-stale deadlines, fault latching, bounded manual tests, calibration override and output submission remain here. |
-| External observation | Runtime telemetry | Existing counters, schemas, resolved state and device/client agreement remain unchanged. |
+| External observation | Runtime telemetry | Runtime publishes the core state through existing counters/resolved state and optional v4 pile/pressure fields; see 05 for the wire contract. |
 
 The core uses fixed-size layer state and frame arrays. Processing performs no
 dynamic allocation, reads no clock, acquires no sensor and writes no actuator.
@@ -114,7 +119,8 @@ inactive-by-default feature gate. Event-driven application effects can reuse
 the existing Event/Texture/Resonance/Spatial interfaces, but direct external
 event injection is not a new core or protocol capability. Desktop playback,
 parameter search and additional demonstrations are opportunities enabled by
-this boundary, not delivered applications or evidence of Android support.
+this boundary. The output-free production-C++ Lab is delivered; a complete
+tuning studio, recorded playback and Android support are not implied.
 
 ## Equivalence and verification
 

@@ -1,11 +1,13 @@
 # Reusable visual state and material rendering
 
-Implemented 2026-09-06. This is the extension reference for the shared Web
+Implemented 2026-09-06; integrated with the material/Lab work 2026-09-07.
+This is the extension reference for the shared Web
 renderer. The experience is defined in [00](../00_DESIGN_SPECIFICATION.md),
 the active work in [08](../08_IMPLEMENTATION_PLAN.md), and hardware evidence in
 [16](../16_PROGRESS_STATUS.md). A subsequent visual pass replaces the old liquid
-profile and decorative assets and adds desktop placement/motion cues. The tuning
-studio, granular accumulation model and Android tracking remain planned.
+profile and decorative assets and adds desktop placement/motion cues. The
+material work adds retained sand, source-clock liquid dynamics/optics and soda
+spray. A complete tuning studio and Android tracking remain planned.
 
 ## Boundaries with current consumers
 
@@ -14,22 +16,27 @@ studio, granular accumulation model and Android tracking remain planned.
 | [visualState.ts](../../webxr/src/visualState.ts) | Pure snapshot adapters, applied descriptor, body-x/y particle layout and acceleration residual; no DOM, THREE runtime, transport implementation or clock | DeviceDemo, liquid renderer, particle renderer; pure contract tests |
 | [DeviceDemo](../../webxr/src/deviceDemo.ts) | Accept snapshots, hold stale/missing state, filter gravity once per accepted sample, display actual applied configuration and coordinate explicit commands | Desktop HUD and the retained spatial panel |
 | [VisualSimulator](../../webxr/src/simulator.ts) | Browser-local approximate motion from preview tilt and `PreviewMotionTuning` | Existing touch/phone/scripted preview selected in main.ts |
+| [PreviewEngine](../../webxr/src/lab/PreviewEngine.ts) | Production C++ model via Wasm with synthetic body-frame input; no hardware link or output | Explicit output-free Lab, separate from the approximate preview |
 | [ContainerScene](../../webxr/src/renderer/ContainerScene.ts) | Shell, desktop placement/motion, explicit source selection and composition of material ingredients | Desktop and retained XR use the same scene instance |
 | [ContainerGeometry](../../webxr/src/renderer/ContainerGeometry.ts) | One shape/dimension definition and geometric constraints | Shell, liquid volume/surface and particle travel limits |
 | [desktopView](../../webxr/src/renderer/desktopView.ts) | Camera framing from rendered size; retain desktop close-up and fit narrow viewports above the HUD | main.ts desktop/narrow presentation; projected-corner tests |
-| [LiquidContentRenderer](../../webxr/src/renderer/LiquidContentRenderer.ts) | Contained volume, gravity-referenced free surface and normal-map detail | Liquid and Hybrid |
+| [LiquidContentRenderer](../../webxr/src/renderer/LiquidContentRenderer.ts) | Contained volume, bounded visual slosh, source-clock optical detail and pressure-driven soda presentation | Liquid and Hybrid |
 | [ParticleContentRenderer](../../webxr/src/renderer/ParticleContentRenderer.ts) | Solid instances; local integration only in preview, deterministic projection for connected state | Granular and Hybrid, including the accepted single marble |
 
 `main.ts` still owns animation timing, placement and input selection. It already
-chooses the device frame when DeviceDemo is active and otherwise advances
-VisualSimulator. The renderer does not need a second application stack or a
+chooses accepted device state, explicit production-model Lab state or the
+approximate VisualSimulator preview. The renderer does not need a second application stack or a
 general plugin registry. The existing `ContainerScene` entry points and type
 re-exports remain compatible; `SpatialPanelState` remains an alias for the
 presentation-independent preview tuning fields.
 
 Hybrid composes the same two ingredients used by the standalone families.
-Improving one ingredient therefore reaches both consumers. Device projection
-receives neither `dt` nor elapsed time. Clock-based texture motion and grain integration exist only in local preview.
+Improving one ingredient therefore reaches both consumers. Pure device-state
+projection does not advance a physics model. Bounded presentation-only liquid
+response uses accepted source timestamps, never free-running wall time; repeated
+or stale snapshots freeze it. It may enrich visible motion without creating
+firmware events, haptic CG or actuator commands. Grain integration remains
+preview-only; the pile and soda effects use reported aggregate state.
 
 ## Source authority and the pure adapter
 
@@ -55,7 +62,9 @@ or protocol change is not needed merely to change a view.
 - [ContainedVolume](../../webxr/src/renderer/ContainedVolume.ts) clips the inner
   vessel against a plane and solves its height for the requested volume fraction.
   LiquidContentRenderer projects accepted orientation and body-x/y motion into
-  this surface; the obsolete floating-block profile and preview foam are removed.
+  this surface. The rich liquid path adds bounded, mean-corrected wave detail;
+  the pile bed instead uses its retained reported slope. The obsolete floating
+  liquid block is not a fallback for connected contents.
 
 For example, a non-THREE explanatory or analytical view can consume the same
 particle projection without loading browser rendering or the Haptic Link
@@ -125,8 +134,9 @@ that point rather than silently disposing another scene's resources.
    Android tracking supplies placement; it must not become a second content
    simulator or command sender.
 2. For a material improvement, edit the owning ingredient. Keep the connected
-   method dependent only on accepted state and geometry. Put any purely visual
-   preview integration in the preview method. Hybrid automatically receives
+   method dependent on accepted state, geometry and source time. Keep bounded
+   presentation dynamics separate from the physical state projection, and
+   approximate preview physics in the preview method. Hybrid automatically receives
    the ingredient change. Preserve the single-marble reference.
 3. For a new combined material, first compose the existing liquid/solid
    ingredients. Add a new ingredient only when it has different rendering or
@@ -138,7 +148,10 @@ that point rather than silently disposing another scene's resources.
    For appearance changes, inspect the actual rendered view; for changed felt
    behavior, use the relevant handling acceptance in [07](../07_TEST_AND_VALIDATION.md).
 
-## Verification of this change
+## Verification of the original extraction
+
+The results below describe the remote pre-integration revision, not a rerun of
+the merged material implementation. Current merge checks belong in 16.
 
 Run from `webxr/`:
 
@@ -180,10 +193,15 @@ The temporary harness, screenshots, before-framing captures and JSON report
 are local ignored files under `output/playwright/`. The harness intercepts the
 HapticLink module in the browser and rejects every hardware operation; no
 public test route was added. These are WebGL and synthetic-state checks, not
-new hardware, USB, tactile or Android AR evidence. The visual pass below supersedes the floating-liquid limitation; granular
-accumulation still needs a richer model.
+new hardware, USB, tactile or Android AR evidence. The visual pass below
+superseded the floating-liquid limitation; the later integration also adds the
+opt-in reduced pile model, not individual-grain simulation.
 
 ## Desktop visual pass, 2026-09-06
+
+This records the remote pass. Placement, recovery and vessel styling are
+retained in the integrated renderer; liquid/sand/soda detail is extended by
+the material work described below.
 
 - **Placement:** cache the vessel vertices, including cap/rims, and place its
   lowest rotated point 0.8 mm above the stage. The camera looks at a stable
@@ -206,6 +224,10 @@ accumulation still needs a richer model.
   can mix rapid tilt with acceleration and depends on telemetry cadence: it is
   a tunable display cue, not measured translation or a new firmware parameter.
   Local preview instead derives a smaller bounded cue from preview velocity.
+  The production-C++ Lab feeds its synthetic body acceleration through the same
+  bounded cue after applying orientation, using model elapsed time. It does not
+  write container position behind the desktop placement owner; quarter-speed
+  scales that timeline and pause submits no advancing updates.
 - **Liquid:** the inner cavity reserves 2% per side for walls/base. Box, 40-sided
   bottle body and tapered cup are clipped against the same surface plane;
   18 bisection steps retain fill fraction through sideways/inverted poses.
@@ -214,7 +236,8 @@ accumulation still needs a richer model.
   The plane follows gravity plus bounded body-x/y mass/velocity bias; it is an
   illustrative response to aggregate state, not an exact reconstruction of FW
   center of mass or additional fore/aft content dynamics. Normal-map activity
-  and phase also come from device state. Preview alone advances texture phase.
+  and phase also come from device state. The merged optical/slosh path advances
+  only with new accepted source time; stale or paused state holds it.
 - **Appearance:** the old wood/grid/cables and large front label are removed.
   Vessel edges are beveled; bottle shoulder/neck/cap now fit their nominal
   height, cups have narrow rims, and a sparse stage provides spatial references.
@@ -227,7 +250,29 @@ accumulation still needs a richer model.
   unchanged; scene lighting around it is improved.
 
 Bottle preview fill still refers to the body below the neck. Full cups retain
-volume, with no spilling; particle packing, granular avalanches, independent
-ice buoyancy and exact mixture reconstruction remain unimplemented. These are
+volume, with no general spilling; particle packing, individual-grain avalanches,
+independent ice buoyancy and exact mixture reconstruction remain unimplemented. These are
 explicit model limits, not physical validation results. No protocol or actuator
 parameter changed. Validation and local browser evidence belong to [16](../16_PROGRESS_STATUS.md).
+
+## Integrated material presentation
+
+`LiquidSlosh` adds two-axis bulk lag and six damped visual modes, using resolved
+dimensions, fill and viscosity. Snapshot time is its clock: repeated samples
+hold, missing time has a static fallback, and rewind/long gaps rebase quietly.
+Wave mean correction and compression preserve contained volume and wall bounds.
+Pitch-only visual waves do not add a body-z haptic model or reported CoG.
+
+`MaterialStudio`, `LiquidContactLine` and `LiquidCaustics` provide procedural
+reflections, transmission/absorption, a matching wet lip and approximate
+submerged-floor lighting. `SodaJet` supplies a connected foam jet, sheets and
+fine spray from reported phase, age, charge and remaining content. These are
+authored optics and presentation, not CFD or independent pressure physics.
+
+The opt-in dense sand bed follows the reported constant-volume pile slope,
+with flowing grains as detail. Missing/inactive v4 state leaves ordinary
+material behavior intact; a preset name alone must not invent pile or pressure.
+The production-C++ Lab uses these same visual ingredients without hardware
+access. Its optional quarter-speed mode slows input, model and display together;
+it is not an actuator-speed control. Resource ownership and source transitions
+must preserve the same disposal and stale-state guarantees above.

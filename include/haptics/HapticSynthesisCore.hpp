@@ -30,6 +30,9 @@ struct SynthesisContext {
 struct SynthesisFrame {
   bool accepted = false;
   MassState mass{};
+  // Current-frame events are also exposed to output-free model consumers.
+  // They are not transport messages or permission to submit actuator output.
+  EventFrame<kMaxEventsPerFrame> events{};
   HapticEvent last_event{};
   SpatialFrame4 spatial{};
   TiltPlaneCommand tilt{};  // meaningful for Submit with use_tilt_model=true
