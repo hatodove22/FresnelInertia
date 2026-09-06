@@ -17,6 +17,37 @@
           </div>
           <span id="mode-badge" class="badge">Phone</span>
         </div>
+        <button id="lab-open" class="primary" type="button">実機なしラボを開く</button>
+        <section id="offline-lab" aria-label="実機なし素材ラボ" hidden>
+          <div class="panel-header"><h2>Material lab</h2><button id="lab-close" class="small-button" type="button">閉じる</button></div>
+          <p class="lab-source">本番 C++ エンジン · 実機への接続／出力なし</p>
+          <div class="lab-materials" role="group" aria-label="ラボの素材">
+            <button type="button" data-lab-preset="granular_single_marble_box">ビー玉</button>
+            <button type="button" data-lab-preset="granular_sand_box">砂</button>
+            <button type="button" data-lab-preset="liquid_small_box">水</button>
+            <button type="button" data-lab-preset="liquid_soda_bottle">炭酸</button>
+          </div>
+          <p id="lab-description"></p>
+          <label class="lab-playback"><input id="lab-slow" type="checkbox" /> スロー再生（¼速度・モデルごと）</label>
+          <label class="range-control"><span>左右</span><input id="lab-roll" type="range" min="-60" max="60" step="1" value="0" /><output id="lab-roll-value">0°</output></label>
+          <label class="range-control"><span>前後</span><input id="lab-pitch" type="range" min="-35" max="35" step="1" value="0" /><output id="lab-pitch-value">0°</output></label>
+          <div class="actions"><button id="lab-sweep" type="button">傾ける → 戻す</button><button id="lab-shake" type="button">振ってみる</button></div>
+          <div class="actions secondary-actions"><button id="lab-reset" type="button">リセット</button><button id="lab-pause" type="button">一時停止</button></div>
+          <label id="lab-sand-option"><input id="lab-pile" type="checkbox" checked /> 堆積・静止摩擦を使う <small>OFFで従来モデルと比較</small></label>
+          <p id="lab-status" role="status">C++モデルを準備しています…</p>
+          <div id="lab-pressure" hidden><label>蓄積（演出値） <meter id="lab-charge" min="0" max="1" value="0"></meter></label><output id="lab-pressure-label">密封</output></div>
+          <details class="lab-signals" open><summary>同じ状態から計算した触覚指令</summary>
+            <div class="lab-channel-grid" aria-label="4チャンネル振動の計算値">
+              <label>右 +X <meter data-lab-channel="0" min="0" max="1" value="0"></meter></label>
+              <label>左 −X <meter data-lab-channel="1" min="0" max="1" value="0"></meter></label>
+              <label>上 +Y <meter data-lab-channel="2" min="0" max="1" value="0"></meter></label>
+              <label>下 −Y <meter data-lab-channel="3" min="0" max="1" value="0"></meter></label>
+            </div>
+            <div class="lab-servo"><span>親指 <output id="lab-thumb">0.0°</output></span><span>人差し指 <output id="lab-index">0.0°</output></span></div>
+            <p id="lab-model-state" class="lab-source"></p>
+            <p class="lab-source">表示は振動包絡・サーボ指令の計算値です。触感や実モータ位置の検証ではありません。</p>
+          </details>
+        </section>
         <section class="device-panel" aria-label="実機デモ">
           <p id="device-status" role="status">プレビュー — 実機出力なし</p>
           <p id="device-detail" class="device-detail"></p>

@@ -11,6 +11,8 @@ import type { DemoUiElements, SpatialPanelState, TiltState } from "./types";
 import { WebXrBridge } from "./xr/WebXrBridge";
 import { iwsdkIntegrationNotes } from "./iwsdkNotes";
 import { DeviceDemo } from "./deviceDemo";
+import { OfflineLab } from "./offlineLab";
+import { makeMaterialBackdrop, makeMaterialEnvironment } from "./renderer/MaterialStudio";
 import "./style.css";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#scene");
@@ -51,11 +53,16 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.06;
 
 const scene = new THREE.Scene();
+const materialEnvironment = makeMaterialEnvironment(renderer);
+scene.environment = materialEnvironment.texture;
+scene.environmentIntensity = 0.7;
+const materialBackdrop = makeMaterialBackdrop();
+scene.add(materialBackdrop);
 const worldRoot = new THREE.Group();
 worldRoot.name = "demo-world-root";
 scene.add(worldRoot);
@@ -147,6 +154,11 @@ const deviceDemo = new DeviceDemo(container, {
   onPreview: () => applyPreviewPreset("liquid_small_box"),
   onPanel: (state, callbacks) => spatialPanel.setDeviceMode(state, callbacks)
 });
+const offlineLab = new OfflineLab(container, {
+  canEnter: () => !deviceDemo.active && !renderer.xr.isPresenting,
+  onPreset: preset => { activePreset = preset; },
+  onClose: () => { container.group.position.x = 0; applyPreviewPreset("liquid_small_box"); }
+});
 
 console.info("IWSDK integration", iwsdkIntegrationNotes);
 
@@ -231,6 +243,7 @@ xrBridge.installButton(ui.xrButton);
 container.setPreset(activePreset);
 setPanelState(panelState);
 updateReadout(phoneInput.tilt);
+if (new URLSearchParams(window.location.search).get("lab") === "1") void offlineLab.open();
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -243,7 +256,8 @@ renderer.setAnimationLoop((time) => {
   lastTime = time;
   xrBridge.update();
 
-  const deviceFrame = deviceDemo.update(dt);
+  const labFrame = offlineLab.update(dt);
+  const deviceFrame = labFrame ?? deviceDemo.update(dt);
   const liveTilt = renderer.xr.isPresenting ? xrBridge.tilt : phoneInput.tilt;
   const tilt = deviceFrame?.tilt ??
     (activeStimulus === "manual" ? liveTilt : scriptedTilt(activeStimulus, (performance.now() - stimulusStartedAt) / 1000));
@@ -255,16 +269,37 @@ renderer.setAnimationLoop((time) => {
   if (!renderer.xr.isPresenting) {
     const target = container.group.getWorldPosition(desktopViewTarget);
     const extent = Math.max(activePreset.container.span_x_m, activePreset.container.span_y_m, activePreset.container.span_z_m);
-    const distance = Math.max(0.18, extent * 2.8);
+    // Reserve the soda jet's known visual envelope even while sealed, so the
+    // burst does not force an artificial camera zoom or clip on a phone.
+    const burstHeadroom = offlineLab.active && activePreset.preset === "liquid_soda_bottle"
+      ? Math.min(activePreset.container.span_x_m, activePreset.container.span_y_m, activePreset.container.span_z_m) * 1.1 : 0;
+    target.y += burstHeadroom * 0.44;
+    const mobile = window.innerWidth <= 520;
+    const baseDistance = offlineLab.active ? Math.max(0.15, extent * 2.2) : Math.max(0.18, extent * 2.8);
+    // Fit the rotated body in the free canvas, not underneath the controls.
+    const freeWidth = mobile ? window.innerWidth - 32 : Math.max(160, window.innerWidth - 470);
+    const fitDistance = extent * 1.6 * window.innerHeight / (freeWidth * 2 * Math.tan(26 * Math.PI / 180));
+    const verticalDistance = (extent * 1.2 + burstHeadroom) * 1.05 / ((mobile ? 0.45 : 0.84) * 2 * Math.tan(26 * Math.PI / 180));
+    const distance = offlineLab.active ? Math.max(baseDistance, fitDistance, verticalDistance) : baseDistance;
     camera.position.set(target.x, target.y + distance * 0.38, target.z + distance);
     camera.lookAt(target.x, target.y, target.z);
-    const mobile = window.innerWidth <= 520;
     camera.setViewOffset(window.innerWidth, window.innerHeight,
-      mobile ? 0 : -Math.min(215, window.innerWidth * 0.17),
+      mobile ? 0 : offlineLab.active ? -224 : -Math.min(215, window.innerWidth * 0.17),
       mobile ? window.innerHeight * 0.23 : 0,
       window.innerWidth, window.innerHeight);
   }
   spatialPanel.group.visible = renderer.xr.isPresenting;
+  environment.group.visible = !offlineLab.active;
+  floor.visible = !offlineLab.active;
+  materialBackdrop.visible = offlineLab.active && !renderer.xr.isPresenting;
+  if (materialBackdrop.visible) {
+    // Keep the background behind the whole container, while making its optical
+    // pattern large enough to read through water at every resolved box size.
+    materialBackdrop.position.copy(container.group.position);
+    materialBackdrop.position.z -= Math.max(0.14, activePreset.container.span_z_m * 2);
+    const extent = Math.max(activePreset.container.span_x_m, activePreset.container.span_y_m, activePreset.container.span_z_m);
+    materialBackdrop.scale.setScalar(Math.max(0.8, extent * 12));
+  }
   spatialPanel.update();
   recorder.sample(makeTrialSnapshot());
   updateTrialElapsed();

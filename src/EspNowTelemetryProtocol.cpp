@@ -118,7 +118,7 @@ bool validateEspNowTelemetryPacketV1(const void* data, std::size_t length) {
   }
   if (packet.active_preset[sizeof(packet.active_preset) - 1U] != '\0' ||
       packet.run_mode > static_cast<uint8_t>(RunMode::Replay) ||
-      packet.last_event_type > static_cast<uint8_t>(EventType::Scrape) ||
+      packet.last_event_type > static_cast<uint8_t>(EventType::PressurePop) ||
       !isWall(packet.last_event_primary_wall) ||
       packet.audio_transport > static_cast<uint8_t>(AudioTransport::Tdm8Slot) ||
       packet.audio_output_layout >
@@ -309,6 +309,65 @@ bool validateEspNowTelemetryPacketV3(const void* data, std::size_t length) {
   common.crc32 = espNowTelemetryCrc32(
       &common, offsetof(EspNowTelemetryPacketV2, crc32));
   return validateEspNowTelemetryPacketV2(&common, sizeof(common));
+}
+
+EspNowTelemetryPacketV4 encodeEspNowTelemetryPacketV4(
+    const TelemetrySnapshot& snapshot, uint32_t sequence,
+    const EspNowResolvedState& resolved) {
+  const auto v3 = encodeEspNowTelemetryPacketV3(snapshot, sequence, resolved);
+  EspNowTelemetryPacketV4 packet{};
+  std::memcpy(&packet, &v3, offsetof(EspNowTelemetryPacketV3, crc32));
+  packet.packet_size = static_cast<uint16_t>(sizeof(packet));
+  packet.version = kEspNowTelemetryVersionV4;
+  const auto& mass = snapshot.mass;
+  packet.demo.pile_slope = mass.pile_slope;
+  packet.demo.granular_flow = mass.granular_flow;
+  packet.demo.pressure_charge = mass.pressure.charge;
+  packet.demo.pressure_phase_ms = static_cast<uint16_t>(std::round(
+      std::max(0.0f, std::min(65535.0f, mass.pressure.phase_s * 1000.0f))));
+  packet.demo.burst_sequence = mass.pressure.burst_sequence;
+  packet.demo.pressure_phase = static_cast<uint8_t>(mass.pressure.phase);
+  packet.demo.flags = (mass.granular_pile_active ? kEspNowDemoGranularPile : 0U) |
+                      (mass.pressure.enabled ? kEspNowDemoPressure : 0U);
+  packet.demo.pressure_remaining = static_cast<uint16_t>(std::round(
+      std::max(0.0f, std::min(1.0f, mass.pressure.remaining)) * 65535.0f));
+  packet.crc32 = espNowTelemetryCrc32(&packet, offsetof(EspNowTelemetryPacketV4, crc32));
+  return packet;
+}
+
+bool validateEspNowTelemetryPacketV4(const void* data, std::size_t length) {
+  if (data == nullptr || length != sizeof(EspNowTelemetryPacketV4)) return false;
+  EspNowTelemetryPacketV4 packet{};
+  std::memcpy(&packet, data, sizeof(packet));
+  if (packet.packet_size != sizeof(packet) || packet.version != kEspNowTelemetryVersionV4 ||
+      packet.crc32 != espNowTelemetryCrc32(&packet, offsetof(EspNowTelemetryPacketV4, crc32)) ||
+      (packet.demo.flags & 0xFCU) != 0U ||
+      packet.demo.pressure_phase > static_cast<uint8_t>(PressurePhase::Spent) ||
+      !std::isfinite(packet.demo.pile_slope) ||
+      !std::isfinite(packet.demo.granular_flow) || packet.demo.granular_flow < 0.0f || packet.demo.granular_flow > 1.0f ||
+      !std::isfinite(packet.demo.pressure_charge) || packet.demo.pressure_charge < 0.0f || packet.demo.pressure_charge > 1.0f) {
+    return false;
+  }
+  EspNowTelemetryPacketV3 common{};
+  std::memcpy(&common, &packet, offsetof(EspNowTelemetryPacketV3, crc32));
+  common.packet_size = static_cast<uint16_t>(sizeof(common));
+  common.version = kEspNowTelemetryVersionV3;
+  common.crc32 = espNowTelemetryCrc32(&common, offsetof(EspNowTelemetryPacketV3, crc32));
+  return validateEspNowTelemetryPacketV3(&common, sizeof(common));
+}
+
+MassState decodeEspNowDemoState(const EspNowDemoState& demo) {
+  MassState mass{};
+  mass.pile_slope = demo.pile_slope;
+  mass.granular_flow = demo.granular_flow;
+  mass.granular_pile_active = (demo.flags & kEspNowDemoGranularPile) != 0U;
+  mass.pressure.enabled = (demo.flags & kEspNowDemoPressure) != 0U;
+  mass.pressure.phase = static_cast<PressurePhase>(demo.pressure_phase);
+  mass.pressure.charge = demo.pressure_charge;
+  mass.pressure.phase_s = demo.pressure_phase_ms * 0.001f;
+  mass.pressure.remaining = demo.pressure_remaining / 65535.0f;
+  mass.pressure.burst_sequence = demo.burst_sequence;
+  return mass;
 }
 
 }  // namespace haptics

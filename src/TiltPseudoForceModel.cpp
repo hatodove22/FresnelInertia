@@ -42,6 +42,33 @@ float rateLimit(float target, float current, float slew_deg_s, float dt_s) {
   return clampf(target, current - max_step, current + max_step);
 }
 
+// Authored common-force cue opposite the soda's body +Y outlet. Use the same
+// burst age as vibration/visuals: enabling tilt partway through venting must
+// not start another opening kick. These are tactile gains, not fluid thrust.
+float sodaRecoilForceN(const SystemParams& params, const MassState& mass) {
+  if (!params.features.enable_coherent_container_demo ||
+      !params.features.enable_pressurized_demo || !mass.pressure.enabled ||
+      mass.family != MaterialFamily::Liquid ||
+      mass.pressure.phase != PressurePhase::Burst ||
+      !std::isfinite(mass.fill) || mass.fill <= 0.0f ||
+      !std::isfinite(mass.pressure.phase_s) || mass.pressure.phase_s < 0.0f ||
+      !std::isfinite(mass.pressure.charge)) {
+    return 0.0f;
+  }
+
+  constexpr float kick_force_n = 0.042f;
+  constexpr float vent_force_n = 0.007f;
+  constexpr float kick_hold_s = 0.080f;
+  constexpr float kick_end_s = 0.220f;
+  const float age_s = mass.pressure.phase_s;
+  const float release = clamp01((age_s - kick_hold_s) / (kick_end_s - kick_hold_s));
+  const float kick = age_s >= kick_end_s ? 0.0f :
+      0.5f * (1.0f + std::cos(kPi * release));
+  const float amount = clamp01(mass.fill / 0.62f);
+  return -amount * (kick_force_n * kick +
+                    vent_force_n * clamp01(mass.pressure.charge) * (1.0f - kick));
+}
+
 }  // namespace
 
 void TiltPseudoForceModel::configure(const SystemParams& params) {
@@ -84,8 +111,11 @@ TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const Mas
   dt_s = clampf(dt_s, 0.0f, 0.050f);
 
   TiltPlaneCommand cmd{};
+  const float content_fill = clamp01(mass.fill) *
+      (params_.features.enable_pressurized_demo && mass.pressure.enabled
+           ? clamp01(mass.pressure.remaining) : 1.0f);
   const float content_gain = coherent_demo
-      ? clamp01(std::max(0.0f, params_.container.content_mass_full_kg) * clamp01(mass.fill) / 0.005f)
+      ? clamp01(std::max(0.0f, params_.container.content_mass_full_kg) * content_fill / 0.005f)
       : 1.0f;
   const float base_thumb_deg = content_gain * clampf(mass.pos_norm.x, -1.0f, 1.0f) * params_.tilt.max_tilt_deg;
   // In the integrated demo, position is the common contact-plane cue;
@@ -140,7 +170,7 @@ TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const Mas
   }
 
   const float m_shell = std::max(0.0f, params_.container.shell_mass_kg);
-  const float m_content_eff = std::max(0.0f, params_.container.content_mass_full_kg) * clamp01(mass.fill);
+  const float m_content_eff = std::max(0.0f, params_.container.content_mass_full_kg) * content_fill;
   const float m_app = m_shell + m_content_eff;
 
   const float r_cg_x =
@@ -151,7 +181,8 @@ TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const Mas
   const float f_app_x = m_app * (g_qs_ms2_.x - a_dyn_ms2_.x);
   const float f_app_y = m_app * (g_qs_ms2_.y - a_dyn_ms2_.y);
   const float tau_z = r_cg_x * f_app_y - r_cg_y * f_app_x;
-  const float f_cm = params_.tilt.k_cm * (-m_app * a_dyn_ms2_.y);
+  const float f_cm = params_.tilt.k_cm * (-m_app * a_dyn_ms2_.y) +
+                     sodaRecoilForceN(params_, mass);
   const float t_df = params_.tilt.k_tau * tau_z;
 
   const float phi_cm_thumb_rad = std::atan(params_.tilt.k_phi * (0.5f * f_cm) / (params_.tilt.Ft_nom_thumb_N + eps));

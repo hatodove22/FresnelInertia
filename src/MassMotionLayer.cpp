@@ -65,6 +65,91 @@ float stableAxisStepS(float natural_freq_hz,
   return std::min(0.004f, 0.75f * root / omega);
 }
 
+struct PileSection {
+  Vec2f centroid{};
+  float fill = 0.0f;
+  float intercept = 0.0f;
+};
+
+// Clip a normalized [-1,1]^2 box below y = intercept + slope*x.
+// Its polygon moments give the SAME filled-volume centroid as the renderer,
+// without particles, a second moving point mass, or heap allocation.
+PileSection pileSection(float slope, float intercept) {
+  Vec2f corners[4]{};
+  corners[0].x = -1.0f; corners[0].y = -1.0f;
+  corners[1].x = 1.0f; corners[1].y = -1.0f;
+  corners[2].x = 1.0f; corners[2].y = 1.0f;
+  corners[3].x = -1.0f; corners[3].y = 1.0f;
+  Vec2f polygon[6]{};
+  unsigned count = 0U;
+  Vec2f previous = corners[3];
+  float previous_distance = previous.y - intercept - slope * previous.x;
+  for (const auto& current : corners) {
+    const float distance = current.y - intercept - slope * current.x;
+    if ((distance <= 0.0f) != (previous_distance <= 0.0f)) {
+      const float t = previous_distance / (previous_distance - distance);
+      polygon[count].x = previous.x + t * (current.x - previous.x);
+      polygon[count].y = previous.y + t * (current.y - previous.y);
+      ++count;
+    }
+    if (distance <= 0.0f) {
+      polygon[count++] = current;
+    }
+    previous = current;
+    previous_distance = distance;
+  }
+  float twice_area = 0.0f;
+  Vec2f moment{};
+  for (unsigned index = 0U; index < count; ++index) {
+    const Vec2f& a = polygon[index];
+    const Vec2f& b = polygon[(index + 1U) % count];
+    const float cross = a.x * b.y - b.x * a.y;
+    twice_area += cross;
+    moment.x += (a.x + b.x) * cross;
+    moment.y += (a.y + b.y) * cross;
+  }
+  PileSection section{};
+  section.fill = 0.125f * twice_area;
+  section.intercept = intercept;
+  if (twice_area > 1.0e-7f) {
+    section.centroid.x = moment.x / (3.0f * twice_area);
+    section.centroid.y = moment.y / (3.0f * twice_area);
+  } else {
+    section.centroid.y = -1.0f;
+  }
+  return section;
+}
+
+PileSection filledPileSection(float slope, float fill) {
+  if (std::fabs(slope) < 1.0e-6f) {
+    PileSection section{};
+    section.fill = fill;
+    section.intercept = -1.0f + 2.0f * fill;
+    section.centroid.y = -1.0f + fill;
+    return section;
+  }
+  float lo = -1.0f - std::fabs(slope);
+  float hi = 1.0f + std::fabs(slope);
+  for (unsigned iteration = 0U; iteration < 22U; ++iteration) {
+    const float middle = 0.5f * (lo + hi);
+    if (pileSection(slope, middle).fill < fill) {
+      lo = middle;
+    } else {
+      hi = middle;
+    }
+  }
+  return pileSection(slope, 0.5f * (lo + hi));
+}
+
+float supportedWidth(float slope, float intercept, float height) {
+  if (std::fabs(slope) < 1.0e-6f) {
+    return intercept >= height ? 1.0f : 0.0f;
+  }
+  const float crossing = (height - intercept) / slope;
+  return clampf(0.5f * (1.0f - std::copysign(1.0f, slope) * crossing),
+                0.0f, 1.0f);
+}
+
 }  // namespace
 
 void MassMotionLayer::configure(const SystemParams& params) {
@@ -75,6 +160,9 @@ void MassMotionLayer::configure(const SystemParams& params) {
   agitation_bias_ = {};
   agitation_phase_rad_ = 0.0f;
   coherent_initialized_ = false;
+  pile_angle_rad_ = 0.0f;
+  pile_velocity_rad_s_ = 0.0f;
+  pressure_model_.configure(params);
   state_.container_x_m = params.container.span_x_m;
   state_.container_y_m = params.container.span_y_m;
   state_.container_z_m = params.container.span_z_m;
@@ -118,7 +206,10 @@ MassState MassMotionLayer::updateImpl(const ImuSample& raw_sample,
                                       float dt_s,
                                       bool gravity_separated_activity) {
   if (params_.features.enable_coherent_container_demo) {
-    return updateCoherent(raw_sample, activity_sample, dt_s);
+    updateCoherent(raw_sample, activity_sample, dt_s);
+    pressure_model_.update(raw_sample, activity_sample, dt_s, state_,
+                           gravity_separated_activity);
+    return state_;
   }
   const float span_x_m = safeSpan(params_.container.span_x_m);
   const float span_y_m = safeSpan(params_.container.span_y_m);
@@ -341,6 +432,13 @@ MassState MassMotionLayer::updateCoherent(const ImuSample& raw_sample,
   const bool detented = params_.container.family == MaterialFamily::Detented;
   const float fill = clampf(params_.container.fill, 0.0f, 1.0f);
   const float headspace = clampf(params_.container.headspace, 0.0f, 1.0f);
+  // Sand/bead-like bulk only. In particular, the accepted single-marble and
+  // sparse hard inclusion trajectories must remain byte-for-byte unchanged.
+  if (params_.features.enable_granular_pile_demo &&
+      params_.container.family == MaterialFamily::Granular &&
+      particles >= 0.50f && hardness < 0.80f) {
+    return updateGranularPile(raw_sample, dt_s);
+  }
   if (!detented && (fill <= 0.0f || params_.container.content_mass_full_kg <= 0.0f)) {
     state_.pos_norm = {};
     state_.vel_norm_s = {};
@@ -468,6 +566,114 @@ MassState MassMotionLayer::updateCoherent(const ImuSample& raw_sample,
                              (wall < 2U ? half_x : half_y);
     state_.energy = std::max(state_.energy, clampf(impact_m_s / 0.60f, 0.0f, 1.0f));
   }
+  return state_;
+}
+
+MassState MassMotionLayer::updateGranularPile(const ImuSample& sample, float dt_s) {
+  constexpr float gravity_ms2 = 9.80665f;
+  const float span_x = safeSpan(params_.container.span_x_m);
+  const float span_y = safeSpan(params_.container.span_y_m);
+  const float fill = clampf(params_.container.fill, 0.0f, 1.0f);
+  state_.container_x_m = span_x;
+  state_.container_y_m = span_y;
+  state_.container_z_m = safeSpan(params_.container.span_z_m);
+  state_.family = MaterialFamily::Granular;
+  state_.fill = fill;
+  state_.headspace = clampf(params_.container.headspace, 0.0f, 1.0f);
+  state_.granular_pile_active = fill > 0.0f &&
+                                params_.container.content_mass_full_kg > 0.0f;
+  state_.granular_flow = 0.0f;
+  state_.vel_norm_s = {};
+  if (!state_.granular_pile_active || fill >= 1.0f) {
+    state_.pos_norm = {};
+    state_.pile_slope = 0.0f;
+    state_.energy = 0.0f;
+    state_.wall_contact.fill(state_.granular_pile_active ? 1.0f : 0.0f);
+    pile_angle_rad_ = 0.0f;
+    pile_velocity_rad_s_ = 0.0f;
+    coherent_initialized_ = false;
+    return state_;
+  }
+
+  const float mu_static = std::isfinite(params_.mass.granular_static_friction)
+                              ? clampf(params_.mass.granular_static_friction, 0.0f, 2.0f)
+                              : 0.55f;
+  const float mu_dynamic = std::isfinite(params_.mass.granular_dynamic_friction)
+                               ? clampf(params_.mass.granular_dynamic_friction, 0.0f, mu_static)
+                               : std::min(0.35f, mu_static);
+  const float max_angle = std::atan(4.0f);
+  const bool initialize = !coherent_initialized_;
+  if (initialize) {
+    // A first, already-tilted sample establishes a supported pile, not a
+    // fictitious startup avalanche. Subsequent tilt changes preserve history.
+    const float tilt = std::atan2(sample.accel_g.x, sample.accel_g.y);
+    if (std::fabs(tilt) > std::atan(mu_static)) {
+      pile_angle_rad_ = clampf(-tilt + std::copysign(std::atan(mu_dynamic), tilt),
+                               -max_angle, max_angle);
+    }
+    pile_velocity_rad_s_ = 0.0f;
+    coherent_initialized_ = true;
+  } else if (dt_s > 0.25f) {
+    // A missing-time discontinuity is not hundreds of unseen avalanches.
+    // Retain the deposit and discard motion; ordinary dt uses bounded 2 ms steps.
+    pile_velocity_rad_s_ = 0.0f;
+    state_.energy = 0.0f;
+    return state_;
+  }
+
+  const Vec2f previous_position = state_.pos_norm;
+  const float previous_angle = pile_angle_rad_;
+  if (!initialize) {
+    const unsigned steps = std::max(1U, static_cast<unsigned>(std::ceil(dt_s / 0.002f)));
+    const float step_s = dt_s / steps;
+    const float acceleration_scale = 0.36f * gravity_ms2 / span_x;
+    const float drag = 12.0f + 8.0f * clampf(params_.container.particle_count, 0.0f, 1.0f);
+    // Capture a sub-millimetre/s creep into static friction. Waiting for an
+    // asymptotic viscous velocity to become exactly zero would erase history.
+    const float sticking_speed = 0.001f / span_x;
+    for (unsigned step = 0U; step < steps; ++step) {
+      const float sine = std::sin(pile_angle_rad_);
+      const float cosine = std::cos(pile_angle_rad_);
+      const float tangent = sample.accel_g.x * cosine + sample.accel_g.y * sine;
+      const float normal = std::max(0.0f, -sample.accel_g.x * sine + sample.accel_g.y * cosine);
+      if (std::fabs(pile_velocity_rad_s_) <= sticking_speed &&
+          std::fabs(tangent) <= mu_static * normal + 1.0e-6f) {
+        pile_velocity_rad_s_ = 0.0f;
+        continue;
+      }
+      float velocity = (pile_velocity_rad_s_ - tangent * acceleration_scale * step_s) *
+                        std::exp(-drag * step_s);
+      const float friction_step = mu_dynamic * normal * acceleration_scale * step_s;
+      velocity = std::copysign(std::max(0.0f, std::fabs(velocity) - friction_step), velocity);
+      const float next_angle = pile_angle_rad_ + velocity * step_s;
+      pile_angle_rad_ = clampf(next_angle, -max_angle, max_angle);
+      pile_velocity_rad_s_ = next_angle == pile_angle_rad_ ? velocity : 0.0f;
+    }
+  }
+
+  state_.pile_slope = std::tan(pile_angle_rad_);
+  const float normalized_slope = state_.pile_slope * span_x / span_y;
+  const auto section = filledPileSection(normalized_slope, fill);
+  state_.pos_norm = section.centroid;
+  state_.wall_contact[0] = clampf(0.5f * (section.intercept + normalized_slope + 1.0f), 0.0f, 1.0f);
+  state_.wall_contact[1] = clampf(0.5f * (section.intercept - normalized_slope + 1.0f), 0.0f, 1.0f);
+  state_.wall_contact[2] = supportedWidth(normalized_slope, section.intercept, 1.0f);
+  state_.wall_contact[3] = supportedWidth(normalized_slope, section.intercept, -1.0f);
+  if (initialize) {
+    state_.energy = 0.0f;
+    return state_;
+  }
+  state_.vel_norm_s.x = (state_.pos_norm.x - previous_position.x) / dt_s;
+  state_.vel_norm_s.y = (state_.pos_norm.y - previous_position.y) / dt_s;
+  // Only real surface/centroid travel generates activity. A retained slope
+  // under steady gravity is silent even though its center of mass is eccentric.
+  const float surface_speed = std::fabs(pile_angle_rad_ - previous_angle) * span_x / dt_s;
+  state_.granular_flow = clampf(surface_speed / 0.10f, 0.0f, 1.0f);
+  const float speed = length2(state_.vel_norm_s.x * 0.5f * span_x,
+                              state_.vel_norm_s.y * 0.5f * span_y);
+  const float energy_target = clampf(speed / 0.20f + 0.15f * state_.granular_flow, 0.0f, 1.0f);
+  const float tau = energy_target > state_.energy ? 0.035f : std::max(0.04f, params_.mass.energy_decay_s);
+  state_.energy += (energy_target - state_.energy) * (1.0f - std::exp(-dt_s / tau));
   return state_;
 }
 

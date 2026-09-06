@@ -15,6 +15,7 @@
 
 #include "haptics/EspNowControlProtocol.hpp"
 #include "haptics/EspNowTelemetryProtocol.hpp"
+#include "haptics/DemoTelemetryJson.hpp"
 
 namespace {
 
@@ -117,6 +118,8 @@ const char* eventTypeToString(uint8_t value) {
       return "RoofSlap";
     case haptics::EventType::Scrape:
       return "Scrape";
+    case haptics::EventType::PressurePop:
+      return "PressurePop";
     case haptics::EventType::None:
     default:
       return "None";
@@ -142,6 +145,7 @@ void receiveCallback(const esp_now_recv_info_t* info,
       (length != static_cast<int>(sizeof(haptics::EspNowTelemetryPacketV1)) &&
        length != static_cast<int>(sizeof(haptics::EspNowTelemetryPacketV2)) &&
        length != static_cast<int>(sizeof(haptics::EspNowTelemetryPacketV3)) &&
+       length != static_cast<int>(sizeof(haptics::EspNowTelemetryPacketV4)) &&
        length != static_cast<int>(sizeof(haptics::EspNowControlResponseV1)))) {
     g_callback_length_errors.fetch_add(1U, std::memory_order_relaxed);
     return;
@@ -255,7 +259,7 @@ enum class JsonEmitResult : uint8_t {
 template <typename TPacket>
 JsonEmitResult emitCanonicalJson(const TPacket& packet) {
   auto& doc = g_json_document;
-  doc.clear();  // Also removes v3-only fields before a following v1/v2 frame.
+  doc.clear();  // Remove optional fields before a following older frame.
   doc["timestamp_ms"] = packet.timestamp_ms;
   doc["frame_counter"] = packet.frame_counter;
   doc["new_evt"] = packet.new_evt;
@@ -281,6 +285,9 @@ JsonEmitResult emitCanonicalJson(const TPacket& packet) {
   }
   mass["energy"] = packet.mass_energy;
   mass["fill"] = packet.mass_fill;
+  if constexpr (std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV4>) {
+    haptics::appendDemoTelemetryJson(mass, haptics::decodeEspNowDemoState(packet.demo));
+  }
 
   JsonObject last_event = doc.createNestedObject("last_event");
   last_event["type"] = eventTypeToString(packet.last_event_type);
@@ -314,7 +321,8 @@ JsonEmitResult emitCanonicalJson(const TPacket& packet) {
   safety["tilt_disarmed"] = packet.safety_tilt_disarmed != 0U;
 
   if constexpr (std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV2> ||
-                std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV3>) {
+                std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV3> ||
+                std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV4>) {
     JsonObject tilt_servo = doc.createNestedObject("tilt_servo");
     tilt_servo["state"] = packet.tilt_servo_state;
     tilt_servo["fault"] = packet.tilt_servo_fault;
@@ -341,7 +349,8 @@ JsonEmitResult emitCanonicalJson(const TPacket& packet) {
     }
   }
 
-  if constexpr (std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV3>) {
+  if constexpr (std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV3> ||
+                std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV4>) {
     JsonObject resolved = doc.createNestedObject("resolved");
     resolved["family"] = familyToString(packet.resolved.family);
     JsonObject container = resolved.createNestedObject("container");
@@ -473,7 +482,16 @@ void loop() {
   ReceivedFrame received{};
   while (g_receive_queue != nullptr &&
          xQueueReceive(g_receive_queue, &received, 0U) == pdTRUE) {
-    if (received.length == sizeof(haptics::EspNowTelemetryPacketV3)) {
+    if (received.length == sizeof(haptics::EspNowTelemetryPacketV4)) {
+      haptics::EspNowTelemetryPacketV4 packet{};
+      std::memcpy(&packet, received.data, sizeof(packet));
+      if (!haptics::validateEspNowTelemetryPacketV4(&packet, sizeof(packet))) {
+        ++g_invalid_packets;
+        continue;
+      }
+      processTelemetryPacket(packet, received.source);
+      continue;
+    } else if (received.length == sizeof(haptics::EspNowTelemetryPacketV3)) {
       haptics::EspNowTelemetryPacketV3 packet{};
       std::memcpy(&packet, received.data, sizeof(packet));
       if (!haptics::validateEspNowTelemetryPacketV3(&packet, sizeof(packet))) {

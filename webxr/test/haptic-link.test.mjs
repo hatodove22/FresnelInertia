@@ -69,6 +69,49 @@ test("parser preserves full v3 telemetry and accepts legacy unknown config", () 
   assert.equal(parseHapticLinkLine(jsonLine(snapshot({ resolved: { model: { coherent_container_demo: 1 } } }))).kind, "diagnostic");
 });
 
+test("v4 demo state and PressurePop are retained without inferring them for v3", () => {
+  const frame = snapshot();
+  frame.mass.demo = {
+    pile_slope: -0.35, granular_flow: 0.25, granular_pile_active: true,
+    pressure: { enabled: true, phase: "burst", charge: 0.9, phase_s: 1.234, remaining: 0.75, burst_sequence: 7 }
+  };
+  frame.last_event = { type: "PressurePop", primary_wall: "Top", amplitude: 0.8 };
+  assert.deepEqual(parseHapticLinkLine(jsonLine(frame)), { kind: "telemetry", snapshot: frame });
+  assert.equal(parseHapticLinkLine(jsonLine(snapshot())).snapshot.mass.demo, undefined);
+  for (const phase of ["sealed", "burst", "spent"]) {
+    frame.mass.demo.pressure.phase = phase;
+    assert.equal(parseHapticLinkLine(jsonLine(frame)).kind, "telemetry");
+  }
+});
+
+test("malformed optional demo fields are rejected without replacing latest state", async t => {
+  const { link, wire } = await fixture(t);
+  const initialWrites = [...wire.writes];
+  wire.send(jsonLine());
+  const demo = {
+    pile_slope: 0.2, granular_flow: 0.1, granular_pile_active: true,
+    pressure: { enabled: false, phase: "sealed", charge: 0, phase_s: 0, remaining: 1, burst_sequence: 0 }
+  };
+  const invalid = [
+    d => { d.pile_slope = null; }, d => { delete d.granular_flow; },
+    d => { d.granular_flow = 1.01; }, d => { d.granular_flow = -0.01; },
+    d => { d.granular_pile_active = 1; }, d => { d.pressure = null; },
+    d => { d.pressure.enabled = 0; }, d => { d.pressure.phase = "open"; },
+    d => { d.pressure.phase = ["sealed"]; }, d => { d.pressure.charge = 1.1; },
+    d => { d.pressure.phase_s = -1; }, d => { d.pressure.remaining = -0.01; },
+    d => { d.pressure.burst_sequence = 1.5; }, d => { d.pressure.burst_sequence = 65536; }
+  ];
+  for (const mutate of invalid) {
+    const frame = snapshot({ frame_counter: 999 });
+    frame.mass.demo = structuredClone(demo);
+    mutate(frame.mass.demo);
+    assert.equal(parseHapticLinkLine(jsonLine(frame)).kind, "diagnostic");
+    wire.send(jsonLine(frame));
+    assert.equal(link.state.telemetry.frame_counter, 120);
+  }
+  assert.deepEqual(wire.writes, initialWrites);
+});
+
 test("mixed lines and byte-split UTF-8 survive buffering; huge junk recovers", async t => {
   const { link, wire } = await fixture(t);
   const states = [];

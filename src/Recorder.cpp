@@ -3,6 +3,7 @@
 #include "haptics/DebugFlags.hpp"
 
 #include <ArduinoJson.h>
+#include "haptics/DemoTelemetryJson.hpp"
 #include <LittleFS.h>
 
 #include <algorithm>
@@ -41,6 +42,8 @@ const char* eventTypeToString(EventType type) {
       return "RoofSlap";
     case EventType::Scrape:
       return "Scrape";
+    case EventType::PressurePop:
+      return "PressurePop";
     case EventType::None:
     default:
       return "None";
@@ -208,6 +211,7 @@ void Recorder::append(const TelemetrySnapshot& snapshot) {
   vel.add(snapshot.mass.vel_norm_s.y);
   mass["energy"] = snapshot.mass.energy;
   mass["fill"] = snapshot.mass.fill;
+  appendDemoTelemetryJson(mass, snapshot.mass);
   JsonArray contacts = mass.createNestedArray("wall_contact");
   JsonArray impacts = mass.createNestedArray("wall_impact_speed_norm_s");
   for (std::size_t wall = 0; wall < 4; ++wall) {

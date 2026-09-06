@@ -47,7 +47,8 @@ preserves the delayed neighbor's complete envelope, not just one update frame.
 
 `features.enable_coherent_container_demo` is false generically and true in the
 as-built AtomS3 profile. Changing it through the backend handler requires Idle;
-it is not exposed by the dongle's numeric allowlist. Preset loads preserve it.
+it is not exposed by the dongle's numeric allowlist. Ordinary preset loads preserve
+it; explicit new pile/pressure presets require and enable the coherent path.
 
 - Acceleration is converted from g to normalized distance/s² using half-span.
   Liquids use a damped slosh mode; rigid/granular content has no center spring.
@@ -61,6 +62,38 @@ it is not exposed by the dongle's numeric allowlist. Preset loads preserve it.
 - Legacy energy-driven event-rate/threshold fields remain for compatibility;
   they do not schedule coherent collisions. `energy_decay_s` still shapes the
   reported activity tail. Do not tune an inactive field expecting a new effect.
+
+## Opt-in material demonstrations
+
+Generic defaults and the existing marble/sand presets are unchanged. Built-ins
+`granular_sand_pile_box` and `liquid_soda_bottle` select new behavior explicitly.
+Their material-owned feature flags are applied on preset load, unlike preserved
+hardware/session gates; loading an ordinary preset clears these two flags.
+Both need updated AtomS3 and StampC5 firmware for connected use (v4 state).
+
+- `features.enable_granular_pile_demo`: coherent dense, softer granular material
+  (`particle_count >= 0.5`, `particle_hardness < 0.8`). A constant-volume x/y pile
+  uses `mass.granular_static_friction=0.55` and dynamic friction `0.35`.
+  Static friction retains the free-surface slope after returning to level;
+  sufficient opposite tilt or agitation releases it. Clipped-section area and
+  first moments supply `mass.pos_norm`; the renderer uses that same slope and
+  fill. This is a reduced pile, not full 3D grain simulation or an inversion model.
+- `features.enable_pressurized_demo`: coherent liquid only. Motion charges a
+  stylized sealed state, which emits one `PressurePop`, then a roughly 2.8 s
+  decaying spray and a spent state. Reset/reload reseals. Charge is an authored
+  effect value, not measured or physically simulated gas pressure. Remaining
+  content scales visible fill, event voicing and effective tilt content mass;
+  the underlying slosh fill remains the initial configured amount. It is not a
+  mass-conserving multiphase fluid solver.
+
+The offline Lab enables the pile flag explicitly for its sand comparison and
+lets the user switch it OFF against the old model. This does not change the
+firmware's existing `granular_sand_box`. Its API exposes selected model fields
+for offline use only; it does not widen the dongle parameter allowlist.
+
+The mass-layer pile centroid is geometric; the tilt branch still applies its
+accepted material voicing, CG span and filtering. Do not label that filtered
+tilt-model CG as the exact visible pile centroid or a measured force.
 
 ## Motion input and coordinates
 
@@ -131,6 +164,17 @@ then low-passes and slew-limits the complete command using the smaller of
 `max_velocity_deg_s` and `pseudoforce_slew_deg_s`. The assembled value is 80
 degrees/s. No hard correction deadband is applied in this path. Generic legacy
 behavior still filters only the correction and uses a differential position base.
+
+The opt-in coherent liquid pressure effect adds an authored negative-body-Y
+recoil to the common-force term during `Burst`, opposite the body +Y outlet.
+In [TiltPseudoForceModel.cpp](../src/TiltPseudoForceModel.cpp), the cue holds
+`-0.042 N` for 80 ms, then cosine-blends to `-0.007 N * charge` by 220 ms;
+the whole cue scales by `clamp(fill / 0.62, 0, 1)`. These are fixed tactile
+coefficients, not measured thrust or new remotely adjustable parameters.
+It uses shared `pressure.phase_s`, not a timer restarted when tilt is enabled.
+The existing `common_force_n` now includes this term after `k_cm` inertia
+scaling; the existing signs, common-angle cap, full-command filter and slew
+still apply. CG, pressure evolution, wire fields and other materials are unchanged.
 
 `sign_thumb/sign_index` calibrate the complete coherent command (only the
 correction in legacy mode). The

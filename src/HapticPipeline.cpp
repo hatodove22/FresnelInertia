@@ -202,6 +202,8 @@ const char* eventTypeToString(EventType type) {
       return "RoofSlap";
     case EventType::Scrape:
       return "Scrape";
+    case EventType::PressurePop:
+      return "PressurePop";
     case EventType::None:
     default:
       return "None";
@@ -650,7 +652,14 @@ void HapticPipeline::restoreRuntimeConfig(SystemParams& params, const RuntimeCon
 }
 
 void HapticPipeline::commitPresetParams(SystemParams next_params, const RuntimeConfigSnapshot& snapshot) {
+  // These flags describe the selected material effect, not device wiring or
+  // output ownership. Loading an ordinary preset must clear the optional effect.
+  const bool pile = next_params.features.enable_granular_pile_demo;
+  const bool pressure = next_params.features.enable_pressurized_demo;
   restoreRuntimeConfig(next_params, snapshot);
+  next_params.features.enable_granular_pile_demo = pile;
+  next_params.features.enable_pressurized_demo = pressure;
+  if (pile || pressure) next_params.features.enable_coherent_container_demo = true;
   params_ = next_params;
   current_family_ = params_.container.family;
   reconfigurePipeline();

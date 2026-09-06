@@ -6,7 +6,9 @@ import type { ContainerPreset, LocalContentState, MaterialFamily, TiltState } fr
 const devicePresets = [
   ["granular_single_marble_box", "ひと粒のビー玉"],
   ["granular_sand_box", "細かい砂"],
+  ["granular_sand_pile_box", "堆積する砂（新FW）"],
   ["liquid_small_box", "水の容器"],
+  ["liquid_soda_bottle", "炭酸ボトル（新FW）"],
   ["hybrid_ice_water", "氷と水"],
   ["granular_bead_box", "ビーズ"],
   ["granular_coin_box", "コイン"],
@@ -230,7 +232,14 @@ export class DeviceDemo {
         this.container.setDeviceState({
           massX: mass.pos_norm[0], massY: mass.pos_norm[1],
           velocityX: mass.vel_norm_s[0], velocityY: mass.vel_norm_s[1],
-          energy: mass.energy ?? 0, fill: mass.fill ?? this.applied.container.fill
+          energy: mass.energy ?? 0, fill: mass.fill ?? this.applied.container.fill,
+          pileSlope: mass.demo?.granular_pile_active ? mass.demo.pile_slope : undefined,
+          granularFlow: mass.demo?.granular_pile_active ? mass.demo.granular_flow : undefined,
+          phaseS: snapshot.timestamp_ms / 1000,
+          pressure: mass.demo?.pressure.enabled ? {
+            ...mass.demo.pressure, phaseS: mass.demo.pressure.phase_s,
+            burstSequence: mass.demo.pressure.burst_sequence
+          } : undefined
         });
       }
       const raw = snapshot.imu?.valid && snapshot.imu.accel_g;

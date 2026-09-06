@@ -45,4 +45,35 @@ assert.deepEqual(offsets, {
 // The small repository validator ignores exclusiveMinimum; wire C++ tests
 // cover zero/NaN spans. Keep the full JSON Schema contract strictly positive.
 assert.equal(schema.properties.resolved.properties.container.properties.span_x_m.exclusiveMinimum, 0);
-console.log("OK resolved telemetry: legacy + v3 accepted, 9 invalid cases rejected, wire offsets checked.");
+const wire4 = JSON.parse(fs.readFileSync(new URL("../../schemas/espnow_telemetry_wire_v4.json", import.meta.url), "utf8"));
+const v4 = structuredClone(frame);
+v4.mass.demo = {
+  pile_slope: -0.625, granular_flow: 0.375, granular_pile_active: true,
+  pressure: { enabled: true, phase: "burst", charge: 0.875, phase_s: 1.234, remaining: 0.25, burst_sequence: 412 }
+};
+v4.last_event = { type: "PressurePop", primary_wall: "Top", amplitude: 0.9 };
+assert.deepEqual(validateSchemaSubset(schema, v4), []);
+for (const phase of ["sealed", "burst", "spent"]) {
+  v4.mass.demo.pressure.phase = phase;
+  assert.deepEqual(validateSchemaSubset(schema, v4), []);
+}
+for (const mutate of [
+  d => { d.pile_slope = null; }, d => { d.granular_flow = 1.01; },
+  d => { d.granular_pile_active = 1; }, d => { delete d.pressure; },
+  d => { d.pressure.enabled = 1; }, d => { d.pressure.phase = "open"; },
+  d => { d.pressure.charge = -1; }, d => { d.pressure.remaining = 2; },
+  d => { d.pressure.phase_s = -0.1; }, d => { d.pressure.burst_sequence = 65536; },
+  d => { d.pressure.burst_sequence = 0.5; }, d => { delete d.pressure.remaining; }
+]) {
+  const changed = structuredClone(v4);
+  mutate(changed.mass.demo);
+  assert.notEqual(validateSchemaSubset(schema, changed).length, 0);
+}
+assert.equal(wire4.version, 4);
+assert.equal(wire4.packet_size_bytes, 250);
+assert.equal(wire4.crc.covered_byte_count, 246);
+assert.deepEqual(Object.fromEntries(wire4.demo_extension.fields.map(f => [f.name, f.offset])), {
+  pile_slope: 226, granular_flow: 230, pressure_charge: 234, pressure_phase_ms: 238,
+  burst_sequence: 240, pressure_phase: 242, flags: 243, pressure_remaining: 244, crc32: 246
+});
+console.log("OK telemetry v1/v2/v3/v4; 21 malformed config/demo cases rejected; v3/v4 wire offsets checked.");

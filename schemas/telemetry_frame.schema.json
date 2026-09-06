@@ -34,7 +34,7 @@
       "additionalProperties": false
     },
     "resolved": {
-      "description": "Applied device configuration from ESP-NOW wire v3. Absent on v1/v2; absence means geometry/model are unknown, not preset defaults.",
+      "description": "Applied device configuration from ESP-NOW wire v3/v4. Absent on v1/v2; absence means geometry/model are unknown, not preset defaults.",
       "type": "object",
       "required": ["family", "container", "model"],
       "properties": {
@@ -69,6 +69,30 @@
     "mass": {
       "type": "object",
       "properties": {
+        "demo": {
+          "description": "Optional production-model demo state (wire v4 or direct JSON). Absent on v1/v2/v3. Pressure is an effect state, not a physical pressure measurement.",
+          "type": "object",
+          "required": ["pile_slope", "granular_flow", "granular_pile_active", "pressure"],
+          "properties": {
+            "pile_slope": {"type": "number"},
+            "granular_flow": {"type": "number", "minimum": 0, "maximum": 1},
+            "granular_pile_active": {"type": "boolean"},
+            "pressure": {
+              "type": "object",
+              "required": ["enabled", "phase", "charge", "phase_s", "remaining", "burst_sequence"],
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "phase": {"type": "string", "enum": ["sealed", "burst", "spent"]},
+                "charge": {"type": "number", "minimum": 0, "maximum": 1},
+                "phase_s": {"type": "number", "minimum": 0},
+                "remaining": {"type": "number", "minimum": 0, "maximum": 1},
+                "burst_sequence": {"type": "integer", "minimum": 0, "maximum": 65535}
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
         "pos_norm": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
         "vel_norm_s": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
         "energy": {"type": "number"},
@@ -82,7 +106,7 @@
     "last_event": {
       "type": "object",
       "properties": {
-        "type": {"type": "string"},
+        "type": {"type": "string", "enum": ["None", "WallHit", "RollTrain", "ImpactCluster", "DropletCluster", "RoofSlap", "Scrape", "PressurePop"]},
         "primary_wall": {"type": "string"},
         "amplitude": {"type": "number"}
       },

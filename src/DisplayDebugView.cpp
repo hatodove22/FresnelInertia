@@ -42,6 +42,8 @@ const char* eventTypeToString(EventType type) {
       return "roof";
     case EventType::Scrape:
       return "scrape";
+    case EventType::PressurePop:
+      return "pop";
     case EventType::None:
     default:
       return "-";

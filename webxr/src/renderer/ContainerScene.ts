@@ -2,6 +2,47 @@ import * as THREE from "three";
 import type { ContainerPreset, LocalContentState, TiltState, VisualContainerShape } from "../types";
 import { makeLabelTexture, makeLiquidNormalTexture } from "./ProceduralAssets";
 import { GripProxy } from "./GripProxy";
+import { ContainedVolume } from "./ContainedVolume";
+import { LiquidContactLine } from "./LiquidContactLine";
+import { SodaJet } from "./SodaJet";
+import { LiquidCaustics } from "./LiquidCaustics";
+import { LiquidSlosh } from "./LiquidSlosh";
+
+/** Object-locked grain on every face; vertex colors alias into broad diagonal
+ * bands on the clipped box's sparse wall triangles. No time-driven shimmer. */
+function makeSandMaterial(color: string, grainSize: number) {
+  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.97, side: THREE.DoubleSide });
+  material.onBeforeCompile = shader => {
+    shader.uniforms.sandGrainSize = { value: grainSize };
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vSandPosition;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvSandPosition = position;");
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `#include <common>
+      varying vec3 vSandPosition;
+      uniform float sandGrainSize;
+      float sandHash(vec3 p) {
+        p = fract(p * 0.1031);
+        p += dot(p, p.yzx + 33.33);
+        return fract((p.x + p.y) * p.z);
+      }
+      float sandNoise(vec3 p) {
+        vec3 i = floor(p), f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(sandHash(i), sandHash(i + vec3(1,0,0)), f.x),
+                       mix(sandHash(i + vec3(0,1,0)), sandHash(i + vec3(1,1,0)), f.x), f.y),
+                   mix(mix(sandHash(i + vec3(0,0,1)), sandHash(i + vec3(1,0,1)), f.x),
+                       mix(sandHash(i + vec3(0,1,1)), sandHash(i + vec3(1,1,1)), f.x), f.y), f.z);
+      }`)
+      .replace("#include <color_fragment>", `#include <color_fragment>
+        vec3 grainPosition = vSandPosition / sandGrainSize;
+        float detail = 1.0 - smoothstep(0.7, 1.8, max(length(dFdx(grainPosition)), length(dFdy(grainPosition))));
+        float grain = (sandNoise(grainPosition) - 0.5) * detail;
+        float mottling = sandNoise(grainPosition * 0.071 + vec3(7.1, 2.7, 4.9)) - 0.5;
+        diffuseColor.rgb *= 1.0 + grain * 0.55 + mottling * 0.10;
+      `);
+  };
+  material.customProgramCacheKey = () => "contained-sand-grain-v1";
+  return material;
+}
 
 const wallMaterial = new THREE.MeshPhysicalMaterial({
   color: "#e8f8fb",
@@ -81,12 +122,24 @@ export interface DeviceContentState {
   energy: number;
   fill: number;
   slosh?: number;
+  /** Retained granular free-surface gradient dy/dx from the shared mass model. */
+  pileSlope?: number;
+  granularFlow?: number;
+  /** Model time, never substituted with the rendering clock for device state. */
+  phaseS?: number;
+  pressure?: {
+    charge: number;
+    phase: "sealed" | "burst" | "spent";
+    phaseS: number;
+    remaining: number;
+    burstSequence: number;
+  };
 }
 
 export interface DeviceOrientation {
-  /** atan2(bodyGravity.z, hypot(bodyGravity.x, bodyGravity.y)) */
+  /** -atan2(bodyGravity.z, hypot(bodyGravity.x, bodyGravity.y)) */
   pitchRad: number;
-  /** -atan2(bodyGravity.x, bodyGravity.y) */
+  /** atan2(bodyGravity.x, bodyGravity.y) */
   rollRad: number;
 }
 
@@ -126,6 +179,17 @@ export class ContainerScene {
   private deviceOrientation?: DeviceOrientation;
   private liquidGeometryHeight = 1;
   private liquidRestPositions?: Float32Array;
+  private liquidVolume?: ContainedVolume;
+  private sandVolume?: ContainedVolume;
+  private sandBody?: THREE.Mesh;
+  private sandSurface?: THREE.Mesh;
+  private sodaBubbles?: THREE.InstancedMesh;
+  private sodaSpray?: THREE.InstancedMesh;
+  private sodaJet?: SodaJet;
+  private liquidContact?: LiquidContactLine;
+  private liquidCaustics?: LiquidCaustics;
+  private liquidSlosh?: LiquidSlosh;
+  private readonly surfaceNormal = new THREE.Vector3();
 
   constructor() {
     this.group.name = "haptics-container";
@@ -167,7 +231,17 @@ export class ContainerScene {
       velocityY: finite(state.velocityY),
       energy: THREE.MathUtils.clamp(finite(state.energy), 0, 1),
       fill: THREE.MathUtils.clamp(finite(state.fill), 0, 1),
-      slosh: state.slosh === undefined ? undefined : THREE.MathUtils.clamp(finite(state.slosh), 0, 1)
+      slosh: state.slosh === undefined ? undefined : THREE.MathUtils.clamp(finite(state.slosh), 0, 1),
+      pileSlope: state.pileSlope === undefined ? undefined : THREE.MathUtils.clamp(finite(state.pileSlope), -8, 8),
+      granularFlow: state.granularFlow === undefined ? undefined : THREE.MathUtils.clamp(finite(state.granularFlow), 0, 1),
+      phaseS: state.phaseS === undefined ? undefined : finite(state.phaseS),
+      pressure: state.pressure ? {
+        charge: THREE.MathUtils.clamp(finite(state.pressure.charge), 0, 1),
+        phase: state.pressure.phase,
+        phaseS: Math.max(0, finite(state.pressure.phaseS)),
+        remaining: THREE.MathUtils.clamp(finite(state.pressure.remaining), 0, 1),
+        burstSequence: finite(state.pressure.burstSequence)
+      } : undefined
     } : undefined;
     if (!state) this.deviceOrientation = undefined;
     if (wasConnected !== (this.deviceState !== undefined) && this.preset) this.rebuild();
@@ -199,6 +273,19 @@ export class ContainerScene {
     this.group.rotation.x = THREE.MathUtils.lerp(this.group.rotation.x, tilt.y * 0.62, 0.16);
     this.group.rotation.z = THREE.MathUtils.lerp(this.group.rotation.z, -tilt.x * 0.62, 0.16);
 
+    if ((this.liquidVolume || this.sandVolume) && this.preset) {
+      // The retained offline preview uses the same geometry with its explicitly
+      // local visual input. Connected/production-Wasm state takes the path above.
+      this.updateDeviceContent({
+        massX: content.surfaceOffsetX, massY: -1 + this.preset.container.fill,
+        velocityX: content.surfaceVelocityX, velocityY: content.surfaceVelocityY,
+        energy: content.agitation, slosh: content.agitation,
+        fill: this.preset.container.fill, phaseS: elapsed,
+        granularFlow: content.agitation
+      });
+      return;
+    }
+
     if (this.liquid && this.preset) {
       const height = this.liquidHeight() * Math.max(0.04, this.preset.container.fill);
       const offsetLimitX = this.dimensions.x * (0.5 - this.liquidInset * 0.5) * 0.82;
@@ -222,6 +309,44 @@ export class ContainerScene {
   }
 
   private rebuild() {
+    this.sodaJet?.group.removeFromParent();
+    this.sodaJet?.dispose();
+    this.liquidContact?.dispose();
+    this.liquidCaustics?.dispose();
+    this.sodaJet = undefined;
+    this.liquidContact = undefined;
+    this.liquidCaustics = undefined;
+    this.liquidSlosh = undefined;
+    // Preset comparisons replace these meshes often. Release per-instance
+    // optics/buffers, but keep the grip and shared baseline materials alive.
+    const shared = new Set<THREE.Material>([wallMaterial, plasticCupMaterial, edgeMaterial,
+      liquidMaterial, liquidSurfaceMaterial, foamMaterial, granularMaterial,
+      hybridMaterial, labelMaterial, capMaterial]);
+    const geometries = new Set<THREE.BufferGeometry>();
+    const materials = new Set<THREE.Material>();
+    this.gripProxy.group.removeFromParent();
+    this.group.traverse(object => {
+      if (!(object instanceof THREE.Mesh || object instanceof THREE.LineSegments)) return;
+      if (object instanceof THREE.InstancedMesh) object.dispose();
+      geometries.add(object.geometry);
+      for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+        if (!shared.has(material)) materials.add(material);
+      }
+    });
+    for (const geometry of geometries) geometry.dispose();
+    for (const material of materials) {
+      if (material instanceof THREE.MeshStandardMaterial) {
+        material.map?.dispose();
+        if (material.normalMap !== liquidSurfaceMaterial.normalMap) material.normalMap?.dispose();
+      }
+      material.dispose();
+    }
+    this.liquidVolume = undefined;
+    this.sandVolume = undefined;
+    this.sandBody = undefined;
+    this.sandSurface = undefined;
+    this.sodaBubbles = undefined;
+    this.sodaSpray = undefined;
     this.group.clear();
     this.gripProxy.setVisible(false);
     if (!this.preset) {
@@ -230,6 +355,16 @@ export class ContainerScene {
 
     const geometry = this.makeShellGeometry();
     this.shell = new THREE.Mesh(geometry, this.shape === "tumbler_cup" ? plasticCupMaterial : wallMaterial);
+    if (this.shape === "box" && (this.preset.family === "Liquid" || this.preset.family === "Hybrid")) {
+      // A thin transparent vessel, not another nested screen-space refraction
+      // layer masking the liquid. Retain the accepted marble/sand shell.
+      this.shell.material = wallMaterial.clone();
+      const vessel = this.shell.material as THREE.MeshPhysicalMaterial;
+      vessel.opacity = 0.075;
+      vessel.transmission = 0;
+      vessel.roughness = 0.08;
+      vessel.envMapIntensity = 0.5;
+    }
     this.shell.renderOrder = 4;
     this.shell.castShadow = true;
     this.shell.receiveShadow = true;
@@ -239,6 +374,10 @@ export class ContainerScene {
     this.group.add(this.shell);
 
     this.edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edgeMaterial);
+    if (this.shape === "box" && (this.preset.family === "Liquid" || this.preset.family === "Hybrid")) {
+      this.edges.material = edgeMaterial.clone();
+      this.edges.material.opacity = 0.42;
+    }
     this.edges.renderOrder = 5;
     this.edges.position.copy(this.shell.position);
     this.group.add(this.edges);
@@ -298,6 +437,49 @@ export class ContainerScene {
       this.foam = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), foamMaterial, this.foamCount);
       this.foam.renderOrder = 3;
       this.group.add(this.foam);
+      if (this.shape === "box") {
+        this.liquid.geometry.dispose();
+        this.liquidSurface.geometry.dispose();
+        this.liquidVolume = new ContainedVolume(this.dimensions.clone());
+        this.liquid.geometry = this.liquidVolume.body;
+        this.liquidSurface.geometry = this.liquidVolume.surface;
+        this.liquid.material = new THREE.MeshPhysicalMaterial({
+          color: "#c7f3f0", roughness: 0.075, metalness: 0,
+          opacity: 1, transmission: 0.94, ior: 1.333,
+          attenuationColor: "#3299a5", attenuationDistance: this.dimensions.z * 1.4,
+          thickness: this.dimensions.z, envMapIntensity: 0.85,
+          side: THREE.FrontSide, depthWrite: false
+        });
+        this.liquidSurface.material = liquidSurfaceMaterial.clone();
+        this.liquidSurface.material.normalMap = liquidSurfaceMaterial.normalMap?.clone() ?? null;
+        Object.assign(this.liquidSurface.material, {
+          transparent: false, opacity: 1, transmission: 0.92, ior: 1.333,
+          roughness: 0.07, thickness: this.dimensions.y * this.preset.container.fill,
+          attenuationDistance: this.dimensions.y * 2, envMapIntensity: 1.1,
+          clearcoat: 0, depthWrite: false
+        });
+        this.liquidSurface.material.color.set("#d1f7f3");
+        this.liquidSurface.material.attenuationColor.set("#58b1b7");
+        this.liquidSurface.material.normalScale.set(0.075, 0.075);
+        const bubbleMaterial = new THREE.MeshPhysicalMaterial({ color: "#efffff", transparent: true, opacity: 0.68, roughness: 0.1, clearcoat: 1, depthWrite: false });
+        this.sodaBubbles = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), bubbleMaterial, 72);
+        this.sodaBubbles.name = "content-soda-bubbles";
+        this.sodaBubbles.renderOrder = 3;
+        this.sodaBubbles.visible = false;
+        const sprayMaterial = new THREE.MeshStandardMaterial({ color: "#efffff", emissive: "#87d7dc",
+          emissiveIntensity: 0.22, transparent: true, opacity: 0.9, roughness: 0.24, depthWrite: false });
+        this.sodaSpray = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 7, 5), sprayMaterial, 96);
+        this.sodaSpray.name = "content-soda-spray";
+        this.sodaSpray.renderOrder = 7;
+        this.sodaSpray.visible = false;
+        this.group.add(this.sodaBubbles, this.sodaSpray);
+        this.sodaJet = new SodaJet(this.dimensions);
+        this.liquidContact = new LiquidContactLine(this.dimensions);
+        this.group.add(this.sodaJet.group, this.liquidContact.group);
+        this.liquidCaustics = new LiquidCaustics(this.dimensions);
+        this.group.add(this.liquidCaustics.mesh);
+        this.liquidSlosh = new LiquidSlosh(this.dimensions);
+      }
     } else {
       this.liquid = undefined;
       this.liquidRestPositions = undefined;
@@ -307,14 +489,16 @@ export class ContainerScene {
     }
 
     if (this.preset.family === "Granular" || this.preset.family === "Hybrid") {
+      const sand = this.isSandPile();
       this.particleCount = this.resolvedDimensions
         ? this.isSingleMarble() ? 1 : Math.round(16 + THREE.MathUtils.clamp(this.preset.container.particle_count ?? 0.6, 0, 1) * 96)
         : this.preset.family === "Hybrid" ? 26 : 62;
+      if (sand) this.particleCount = 625;
       const particleGeometry =
-        this.preset.family === "Hybrid" ? new THREE.IcosahedronGeometry(1, 0) : new THREE.SphereGeometry(1, 10, 8);
+        this.preset.family === "Hybrid" || sand ? new THREE.IcosahedronGeometry(1, 0) : new THREE.SphereGeometry(1, 10, 8);
       this.particles = new THREE.InstancedMesh(
         particleGeometry,
-        this.preset.family === "Hybrid" ? hybridMaterial : granularMaterial,
+        this.preset.family === "Hybrid" ? hybridMaterial : sand ? new THREE.MeshStandardMaterial({ color: "#f1cf83", roughness: 0.96 }) : granularMaterial,
         this.particleCount
       );
       this.particles.renderOrder = 3;
@@ -323,6 +507,21 @@ export class ContainerScene {
       this.particles.receiveShadow = true;
       this.particleStates = this.createParticleStates();
       this.group.add(this.particles);
+      if (sand) {
+        this.sandVolume = new ContainedVolume(this.dimensions.clone(), true);
+        const grainSize = Math.min(this.dimensions.x, this.dimensions.y, this.dimensions.z) / 110;
+        this.sandBody = new THREE.Mesh(this.sandVolume.body, makeSandMaterial("#bb924e", grainSize));
+        this.sandSurface = new THREE.Mesh(this.sandVolume.surface, makeSandMaterial("#d9b568", grainSize));
+        this.sandBody.name = "content-sand-body";
+        this.sandSurface.name = "content-sand-surface";
+        this.sandBody.receiveShadow = this.sandSurface.receiveShadow = true;
+        this.sandBody.castShadow = this.sandSurface.castShadow = true;
+        this.group.add(this.sandBody, this.sandSurface);
+        for (let i = 0; i < this.particleCount; i++) {
+          const shade = this.hash01(i * 11.19 + 0.73);
+          this.particles.setColorAt(i, new THREE.Color().setHSL(0.095 + shade * 0.025, 0.32 + shade * 0.2, 0.48 + shade * 0.22));
+        }
+      }
     } else {
       this.particles = undefined;
       this.particleCount = 0;
@@ -654,9 +853,15 @@ export class ContainerScene {
          (this.preset.container.particle_hardness ?? 0) >= 0.8));
   }
 
+  private isSandPile() {
+    return this.preset?.family === "Granular" && !this.isSingleMarble() &&
+      (this.deviceState?.pileSlope !== undefined ||
+       ((this.preset.container.particle_count ?? 0) >= 0.5 && (this.preset.container.particle_hardness ?? 1) < 0.8));
+  }
+
   private updateDeviceContent(state: DeviceContentState) {
     const visible = state.fill > 0;
-    if (this.particles) {
+    if (this.particles && !this.sandVolume) {
       this.particles.visible = visible;
       const single = this.isSingleMarble();
       const smallestSpan = Math.min(this.dimensions.x, this.dimensions.y, this.dimensions.z);
@@ -687,8 +892,13 @@ export class ContainerScene {
       }
       this.particles.instanceMatrix.needsUpdate = true;
     }
+    if (this.sandVolume) this.updateSandPile(state);
     if (this.foam) this.foam.visible = false;
     if (!this.liquid || !this.liquidSurface) return;
+    if (this.liquidVolume) {
+      this.updateContainedLiquid(state);
+      return;
+    }
     this.liquid.visible = visible;
     this.liquidSurface.visible = visible;
     const height = this.dimensions.y * Math.max(0.001, state.fill);
@@ -733,5 +943,141 @@ export class ContainerScene {
     this.liquidSurface.geometry.computeVertexNormals();
     // Texture phase is also state-derived, so stale telemetry freezes the view.
     this.liquidSurface.material.normalMap?.offset.set(state.massX * 0.05, state.massY * 0.05);
+  }
+
+  private updateSandPile(state: DeviceContentState) {
+    if (!this.sandVolume || !this.sandBody || !this.sandSurface || !this.particles) return;
+    const visible = state.fill > 0;
+    this.sandBody.visible = this.sandSurface.visible = this.particles.visible = visible;
+    // New firmware supplies the retained plane. Old v3 gets a bounded visual
+    // estimate, not another browser simulation or an assumption of new physics.
+    const slope = state.pileSlope ?? THREE.MathUtils.clamp(state.massX * 1.6, -1.2, 1.2);
+    const span = Math.min(this.dimensions.x, this.dimensions.y, this.dimensions.z);
+    this.sandVolume.update(state.fill, this.surfaceNormal.set(-slope, 1, 0), span * 0.004);
+    this.sandBody.userData.centroid = this.sandVolume.centroid.toArray();
+    const flow = state.granularFlow ?? THREE.MathUtils.clamp(Math.hypot(state.velocityX, state.velocityY) * 0.2, 0, 1);
+    const phase = state.phaseS ?? state.massX * 3 + state.massY;
+    const radius = span * 0.0075;
+    const width = 25;
+    for (let i = 0; i < this.particleCount; i++) {
+      const seed = i * 9.173 + 0.31;
+      const u = (i % width + 0.15 + 0.7 * this.hash01(seed)) / width;
+      const v = (Math.floor(i / width) + 0.15 + 0.7 * this.hash01(seed * 2.3)) / width;
+      // Only a minority of surface grains move during actual flow. Their phase
+      // is supplied by the shared model, so resting/stale slopes remain fixed.
+      const moving = this.hash01(seed * 5.7) < 0.28 ? flow : 0;
+      const travel = Math.sin(phase * 7 + seed) * moving * this.dimensions.x * 0.025;
+      const x = THREE.MathUtils.clamp((u - 0.5) * this.dimensions.x * 0.97 + travel, -this.dimensions.x / 2 + radius, this.dimensions.x / 2 - radius);
+      const z = (v - 0.5) * this.dimensions.z * 0.97;
+      const surfaceY = this.sandVolume.heightAt(x, z);
+      const occupied = surfaceY > -this.dimensions.y / 2 + radius;
+      this.dummy.position.set(x, Math.min(this.dimensions.y / 2 - radius, surfaceY + radius * 0.3), z);
+      const grainSize = occupied && visible ? radius * (0.65 + this.hash01(seed * 3.1) * 0.6) : 0;
+      this.dummy.scale.set(grainSize * 0.8, grainSize * 0.55, grainSize);
+      this.dummy.rotation.set(seed, seed * 0.7, seed * 1.3 + moving * Math.sin(phase * 7 + seed));
+      this.dummy.updateMatrix();
+      this.particles.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.particles.instanceMatrix.needsUpdate = true;
+    this.particles.computeBoundingSphere();
+  }
+
+  private updateContainedLiquid(state: DeviceContentState) {
+    if (!this.liquidVolume || !this.liquid || !this.liquidSurface) return;
+    const pressure = state.pressure;
+    const fill = state.fill * (pressure?.remaining ?? 1);
+    const activity = state.slosh ?? state.energy;
+    const phase = state.phaseS ?? state.massX * 3 + state.massY * 2 + state.velocityY * 0.1;
+    this.surfaceNormal.set(0, 1, 0).applyQuaternion(this.group.quaternion.clone().invert());
+    // A free surface is level in world space at rest. State-driven dynamic
+    // disturbance remains in the device's actual modeled x/y cross-section.
+    this.surfaceNormal.x -= THREE.MathUtils.clamp(state.massX * 0.16 + state.velocityX * 0.025, -0.3, 0.3) * activity;
+    const span = Math.min(this.dimensions.x, this.dimensions.y, this.dimensions.z);
+    // Decorative water modes can be richer than the reduced haptic model. They
+    // consume the source clock/pose but never feed back into content or outputs.
+    // Missing sample times retain the old stateless path instead of inventing a
+    // live clock for legacy input. Repeated samples freeze all visual dynamics.
+    const visual = state.phaseS === undefined ? undefined : this.liquidSlosh?.update({
+      timeS: state.phaseS, normal: this.surfaceNormal,
+      massX: state.massX, massY: state.massY, velocityX: state.velocityX, velocityY: state.velocityY,
+      activity, fill, viscosity: this.preset?.container.viscosity ?? 0.3
+    });
+    const visualActivity = visual?.activity ?? activity;
+    this.liquidVolume.update(fill, visual?.normal ?? this.surfaceNormal,
+      visual ? 0 : span * 0.024 * activity, visual ? 0 : phase, visual);
+    this.liquid.visible = this.liquidSurface.visible = fill > 0;
+    this.liquid.position.set(0, 0, 0);
+    this.liquid.scale.set(1, 1, 1);
+    this.liquid.rotation.set(0, 0, 0);
+    this.liquidSurface.position.set(0, 0, 0);
+    this.liquidSurface.rotation.set(0, 0, 0);
+    this.liquidSurface.scale.set(1, 1, 1);
+    this.liquid.userData.centroid = this.liquidVolume.centroid.toArray();
+    this.liquid.userData.fillVolume = this.liquidVolume.volume;
+    this.liquidSurface.userData.visualDynamics = !!visual;
+    this.liquidSurface.userData.visualActivity = visualActivity;
+    this.liquidSurface.userData.visualNormal = this.liquidVolume.normal.toArray();
+    this.liquidSurface.material.thickness = this.dimensions.y * fill;
+    this.liquidSurface.material.normalScale.setScalar(0.018 + visualActivity * 0.19);
+    const flowX = visual?.flow.x ?? state.massX * 0.035;
+    const flowZ = visual?.flow.y ?? state.massY * 0.02;
+    this.liquidSurface.material.normalMap?.offset.set(flowX, flowZ);
+    this.liquidContact?.update(this.liquidVolume, fill, pressure ? pressure.charge * 0.7 : 0);
+    this.liquidCaustics?.update(fill, visualActivity, flowX * 18 + flowZ * 13, this.liquidVolume);
+    this.sodaJet?.update(pressure);
+    this.updateCarbonation(state);
+  }
+
+  private updateCarbonation(state: DeviceContentState) {
+    if (!this.sodaBubbles || !this.sodaSpray || !this.liquidVolume) return;
+    const pressure = state.pressure;
+    this.sodaBubbles.visible = !!pressure && state.fill * pressure.remaining > 0 && pressure.phase !== "spent";
+    this.sodaSpray.visible = pressure?.phase === "burst" && pressure.phaseS < 2.3;
+    if (!pressure) return;
+    const span = Math.min(this.dimensions.x, this.dimensions.y, this.dimensions.z);
+    const phase = pressure.phaseS;
+    for (let i = 0; i < this.sodaBubbles.count; i++) {
+      const seed = i * 13.73 + pressure.burstSequence * 0.47;
+      const x = (this.hash01(seed + 1.1) - 0.5) * this.dimensions.x * 0.88;
+      const z = (this.hash01(seed + 4.9) - 0.5) * this.dimensions.z * 0.88;
+      const ceiling = this.liquidVolume.heightAt(x, z);
+      const height = Math.max(0, ceiling + this.dimensions.y / 2);
+      const rise = (this.hash01(seed + 9.3) + phase * (0.16 + pressure.charge * 0.28)) % 1;
+      const radius = span * (0.0035 + pressure.charge * 0.006) * (0.7 + this.hash01(seed * 2.1) * 0.6);
+      this.dummy.position.set(x, -this.dimensions.y / 2 + rise * height, z);
+      const inside = this.liquidVolume.normal.dot(this.dummy.position) < this.liquidVolume.offset - radius && height > radius * 2;
+      this.dummy.scale.setScalar(inside ? radius : 0);
+      this.dummy.rotation.set(0, 0, 0);
+      this.dummy.updateMatrix();
+      this.sodaBubbles.setMatrixAt(i, this.dummy.matrix);
+    }
+    for (let i = 0; i < this.sodaSpray.count; i++) {
+      const seed = i * 7.31 + pressure.burstSequence;
+      // A short initial pop followed by a dwindling jet, all on the shared
+      // burst clock. Millimetre-scale droplets remain legible on a phone.
+      const delay = i < 24 ? this.hash01(seed + 0.3) * 0.12 : this.hash01(seed + 0.3) * 1.65;
+      const age = phase - delay;
+      const life = 0.55 + this.hash01(seed * 3.4) * 0.6;
+      const active = pressure.phase === "burst" && age >= 0 && age < life;
+      const angle = seed * 2.4;
+      const velocity = span * (0.4 + this.hash01(seed) * 0.75);
+      this.dummy.position.set(
+        Math.cos(angle) * velocity * age,
+        this.dimensions.y / 2 + span * 2.6 * age - span * 3.1 * age * age,
+        Math.sin(angle) * velocity * age
+      );
+      // Fine elongated satellites around the connected jet, not large beads
+      // standing in for the entire fluid mass.
+      const radius = span * (0.007 + this.hash01(seed * 5) * 0.012) * Math.exp(-delay * 0.45);
+      const size = active ? radius * Math.sqrt(1 - age / life) : 0;
+      this.dummy.scale.set(size * 0.75, size * 1.5, size * 0.75);
+      this.dummy.rotation.set(Math.cos(angle) * 0.55, 0, Math.sin(angle) * 0.55);
+      this.dummy.updateMatrix();
+      this.sodaSpray.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.sodaBubbles.instanceMatrix.needsUpdate = true;
+    this.sodaSpray.instanceMatrix.needsUpdate = true;
+    this.sodaBubbles.computeBoundingSphere();
+    this.sodaSpray.computeBoundingSphere();
   }
 }

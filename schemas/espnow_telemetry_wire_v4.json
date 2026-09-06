@@ -1,0 +1,38 @@
+{
+  "protocol": "fresnel-haptic-link-telemetry",
+  "version": 4,
+  "endianness": "little",
+  "packet_size_bytes": 250,
+  "maximum_supported_packet_bytes": 250,
+  "compatibility": "Retains v3 bytes 0..225 except header packet_size=250/version=4. v1/v2/v3 layouts and reception remain supported. Producer sends v4 only for active granular-pile or pressure demo state; otherwise v3. Older bridges cannot decode v4.",
+  "common_fields": "espnow_telemetry_wire_v3.json through byte 225 (excluding its CRC)",
+  "crc": {
+    "algorithm": "CRC-32/ISO-HDLC",
+    "polynomial_reflected_hex": "0xEDB88320",
+    "initial_value_hex": "0xFFFFFFFF",
+    "final_xor_hex": "0xFFFFFFFF",
+    "covered_byte_count": 246
+  },
+  "demo_extension": {
+    "offset": 226,
+    "source": "Shared MassState; pressure is a demo effect state, not physical pressure.",
+    "fields": [
+      {"name": "pile_slope", "offset": 226, "type": "float32", "finite": true, "unit": "body dy/dx"},
+      {"name": "granular_flow", "offset": 230, "type": "float32", "finite": true, "range": [0, 1]},
+      {"name": "pressure_charge", "offset": 234, "type": "float32", "finite": true, "range": [0, 1]},
+      {"name": "pressure_phase_ms", "offset": 238, "type": "uint16", "encoding": "round(phase_s*1000), saturated to 65535"},
+      {"name": "burst_sequence", "offset": 240, "type": "uint16"},
+      {"name": "pressure_phase", "offset": 242, "type": "uint8", "enum": {"0": "sealed", "1": "burst", "2": "spent"}},
+      {"name": "flags", "offset": 243, "type": "uint8", "bits": {"0": "granular_pile_active", "1": "pressure.enabled"}, "reserved_bits_zero": [2, 3, 4, 5, 6, 7]},
+      {"name": "pressure_remaining", "offset": 244, "type": "uint16", "encoding": "round(clamp(remaining,0,1)*65535); decode /65535"},
+      {"name": "crc32", "offset": 246, "type": "uint32"}
+    ]
+  },
+  "event_extension": {"last_event_type": {"7": "PressurePop"}},
+  "canonical_json": {
+    "mass.demo": ["pile_slope", "granular_flow", "granular_pile_active", "pressure"],
+    "mass.demo.pressure": ["enabled", "phase", "charge", "phase_s", "remaining", "burst_sequence"],
+    "legacy": "v1/v2/v3 omit mass.demo; it is never inferred from preset names."
+  },
+  "validation": "v3 semantic checks plus finite slope, finite [0,1] flow/charge, known pressure phase, and zero reserved demo flag bits. PressurePop is event 7; unknown larger event values are rejected."
+}

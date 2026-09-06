@@ -6,8 +6,9 @@ Deliver a compelling, fully working handheld container-content demo aligned
 with the user's concept: fingertip-plane tilt conveys sustained direction,
 center-of-mass shift and inertia; four transducers convey collisions, flow and
 material texture. Both derive from the same on-device state. The shared Web
-client presents that state through Haptic Link. The next direction is desktop
-tuning followed by Android AR; Quest/VR work is deferred. Planned features and
+client presents that state through Haptic Link. The next direction is richer
+ordinary-screen visuals and desktop tuning, then Android presentation without
+requiring AR; hand-tracked AR is optional later work. Quest/VR work is deferred. Planned features and
 physical checks remain distinct from implemented behavior and verified results.
 
 Read docs/00_DESIGN_SPECIFICATION.md for the experience,

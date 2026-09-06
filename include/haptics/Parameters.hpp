@@ -35,6 +35,8 @@ struct FeatureFlags {
   // Coherent content motion/contact + complete contact-plane trajectories.
   // Opted into by the assembled demo; generic presets retain the legacy path.
   bool enable_coherent_container_demo = false;
+  bool enable_granular_pile_demo = false;
+  bool enable_pressurized_demo = false;
   bool allow_remote_tilt_arm = false;
 };
 
@@ -82,6 +84,8 @@ struct MassLayerParams {
   float accel_to_energy_gain = 0.40f;
   float gyro_to_energy_gain = 0.02f;
   float rebound = 0.25f;
+  float granular_static_friction = 0.55f;
+  float granular_dynamic_friction = 0.35f;
 };
 
 struct MotionActivityFilterParams {
@@ -434,6 +438,29 @@ inline SystemParams makeDefaultDetentedPreset() {
   params.texture.hard_ping_high_ms = 6.0f;
   params.texture.default_high_bias = 0.78f;
   params.resonance.master_gain = 0.82f;
+  return params;
+}
+
+// Explicit demo selection only: this does not change any existing preset.
+inline SystemParams makeDefaultSodaPreset() {
+  SystemParams params = makeDefaultLiquidPreset();
+  std::strncpy(params.preset_name, "liquid_soda_bottle", sizeof(params.preset_name) - 1);
+  params.container.span_x_m = 0.055f;
+  params.container.span_y_m = 0.100f;
+  params.container.span_z_m = 0.055f;
+  params.container.fill = 0.62f;
+  params.container.headspace = 0.38f;
+  params.container.viscosity = 0.16f;
+  params.features.enable_coherent_container_demo = true;
+  params.features.enable_pressurized_demo = true;
+  return params;
+}
+
+inline SystemParams makeDefaultGranularPilePreset() {
+  SystemParams params = makeDefaultGranularSandPreset();
+  std::strncpy(params.preset_name, "granular_sand_pile_box", sizeof(params.preset_name) - 1);
+  params.features.enable_coherent_container_demo = true;
+  params.features.enable_granular_pile_demo = true;
   return params;
 }
 

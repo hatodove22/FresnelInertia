@@ -76,7 +76,9 @@ fitting can follow that demonstration.
 
 The client owns presentation and any host-side tracking. AtomS3 owns physical
 motion, content response and applied material parameters. PC/shared Web is the
-current focus; Android AR is planned. VR/Quest integration is retained but paused.
+current focus, followed by rich ordinary-screen Android presentation. A flat
+screen may still use the shared WebGL renderer; a separate 2D engine is not
+implied. Android AR is optional later work. VR/Quest integration is retained but paused.
 
 - Selecting a preset updates the visible object only after device acceptance.
 - Displayed fill and dimensions correspond to the physical model. The existing
@@ -84,21 +86,46 @@ current focus; Android AR is planned. VR/Quest integration is retained but pause
   uses actual resolved dimensions and the camera provides the close view.
 - Use reported motion/content state to inform the view. Do not present an
   unrelated scripted animation as live device behavior.
+- Presentation can be richer than the reduced firmware model. Bounded liquid
+  lag, overshoot and secondary waves may respond to reported orientation and
+  content changes, including pitch, while preserving fill and container bounds.
+  These visual dynamics are not reported physical state, a replacement haptic
+  model or a source of actuator commands. Their source-snapshot clock freezes
+  with stale telemetry or Lab pause; visual CoG is not the device's voiced CoG.
 - Distinguish physical input, visual-only preview, pending changes and
   disconnected state.
-- Android operation needs validation on the chosen device, including USB and
-  AR running together. Neither its hardware/browser compatibility nor that
-  combined flow is established by desktop or earlier Quest checks.
+- The offline Lab runs the production C++ content/tilt/vibration layers as
+  WebAssembly with synthetic motion input and the shared renderer. Its model
+  output is not measured actuator output or evidence of a new physical feel.
+- If Android hand-following AR is pursued, MediaPipe hand tracking is the primary
+  approach and device IMU tilt supplying the container angle. A marker, including
+  the AtomS3 screen, is optional for alignment, not a prerequisite for following
+  the hand. Hand-relative landmarks alone are not absolute AR placement.
+- Ordinary-screen Android operation needs validation on the chosen device,
+  including USB and rendering performance. Camera/AR concurrency is relevant
+  only if that optional presentation is added; it is not a gate for a non-AR
+  demo. Desktop or earlier Quest checks establish neither Android flow.
 
 ## Scope discipline
 
 Build on the demonstrated shared-state, simultaneous-output desktop experience.
-The next iteration is a PC/shared Web tuning studio with A/B comparison, saved
-settings and explicit device-applied values, plus clearer liquid and granular
-visuals. These are planned improvements, not capabilities of the current
-preview trial recorder. Organize and tune the existing dynamic-CG servo mapping;
-do not describe it as an absent subsystem or replace it without a concrete need.
-Detailed priorities and the Android AR work belong in [08](08_IMPLEMENTATION_PLAN.md).
+The current software adds container-constrained liquid, a granular accumulation
+surface and an offline production-model Lab. The gated sand-pile model holds
+residual slope/CoG through static and dynamic friction; the gated carbonation
+effect progresses from sealed charge through a pop/burst to spent contents.
+Visuals use those model states with the presentation-only detail described above.
+The explicit sand-pile preset is additional;
+the existing normal-sand preset and accepted marble behavior are preserved.
+These additions are now flashed; output-OFF v4 checks and the subsequent positive
+overall handling report are recorded in [16](16_PROGRESS_STATUS.md). Preserve
+the current tested experience as the exhibition baseline; fine tuning takes
+priority over new subsystems. The report does not itemize every material.
+
+Use short offline/handled comparisons for a specific parameter change.
+The fuller tuning studio (A/B, saved settings and applied
+values) and Android hand tracking remain planned, not current Lab capabilities.
+Organize the existing dynamic-CG mapping rather than calling it an absent
+subsystem. Detailed priorities belong in [08](08_IMPLEMENTATION_PLAN.md).
 
 Preserve the existing preview and diagnostic tools. Add a narrowly scoped effect
 or adjustment when it materially improves the demonstration; no architecture
@@ -106,8 +133,8 @@ expansion is needed merely to expose controls.
 
 Formal localization/psychophysics, grip sensing, automatic resonance fitting,
 recorder/replay recovery, OTA, product security, multi-client sessions, new
-transports and publication assets remain later work. Collision/cracker effects
-remain possible application extensions, not erased from the concept.
+transports and publication assets remain later work. Additional collision/cracker
+applications remain possible extensions beyond the current carbonation effect.
 
 Current facts: [16](16_PROGRESS_STATUS.md).
 Next work: [08](08_IMPLEMENTATION_PLAN.md).

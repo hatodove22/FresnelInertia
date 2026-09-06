@@ -71,6 +71,7 @@ npm.cmd ci
 npm.cmd run typecheck
 npm.cmd run build
 node --test test/haptic-link.test.mjs tests/device-demo.test.mjs tests/container-scene.test.mjs tests/spatial-control-panel.test.mjs tests/webxr-bridge.test.mjs
+node --test tests/preview-engine.test.mjs tests/offline-lab.test.mjs
 ```
 
 Use `npm.cmd run dev` for HTTPS development or `npm.cmd run quest` for the
@@ -79,6 +80,57 @@ for documentation cleanup. Details are in [webxr README](../../webxr/README.md).
 
 The visual application and its separate `/webusb.html` probe have different
 roles. The preview build does not establish actual phone/Quest USB support.
+
+## Output-free C++ Lab
+
+Open the ordinary Vite URL with `?lab=1`, or choose **実機なしラボ**. The Lab
+uses the production C++ motion/event/texture/resonance/spatial/tilt layers as
+Wasm, driven by synthetic body-frame input. Its channel meters and tilt angles
+are model outputs, not USB commands, PCM playback or measured actuator output.
+The existing simple JS preview remains separate.
+
+The generated ES module with embedded Wasm is checked in at
+`webxr/src/lab/generated/preview-engine.js`; ordinary `npm ci`, tests and builds
+need no Emscripten installation. After changing the shared C++ layers or
+`src/preview_engine_main.cpp`, regenerate from the repository root:
+
+```powershell
+& .\tools\build_preview_engine.ps1
+```
+
+This finds an existing Unity Editor WebGL SDK, compiles only the browser model,
+and restores its temporary environment settings. It does not build/upload
+firmware or access hardware. `-EmscriptenRoot` can select an existing compatible
+SDK root containing `.emscripten`, `python/python.exe` and `emscripten/em++.py`.
+If no such SDK is available, do not claim the generated module includes newer
+C++ edits; regenerate on a machine with the SDK and retain the generated file.
+
+Run affected browser/model checks from `webxr/` after regeneration:
+
+```powershell
+node --test tests/preview-engine.test.mjs tests/offline-lab.test.mjs tests/container-scene.test.mjs tests/device-demo.test.mjs
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+The first two suites execute the shipped production Wasm without a browser,
+including sand sweep/retained pile and soda charge/pop/spent. Controller tests
+mock DOM/transport boundaries; they do not establish tactile quality. For the
+entire client test set use `node --test test/*.test.mjs tests/*.test.mjs`.
+
+An optional real-browser/mock-transport smoke test also exists. With an app
+server already running and Playwright/Chrome already available, run from
+`webxr/` (set the URL to that server):
+
+```powershell
+$env:FRESNEL_DEMO_URL = "https://localhost:8081"
+node tests/browser-demo.mjs
+```
+
+If Playwright is provided by a host runtime rather than local dependencies,
+set `FRESNEL_PLAYWRIGHT_MODULE` to its existing module path first. This script
+injects a fake serial port and writes ignored screenshots under `tmp/browser/`;
+it is a connected-UI smoke test, not the Lab visual review or real USB access.
 
 ## Focused checks
 
@@ -102,12 +154,17 @@ the production C++ tests as WebAssembly under Node when GCC is unavailable:
 & .\tools\test_cpp_wasm.ps1 -Name coherent-container -TestSource test/coherent_container/test_main.cpp -Source @('src/MassMotionLayer.cpp','src/EventLayer.cpp','src/TextureLayer.cpp')
 & .\tools\test_cpp_wasm.ps1 -Name coherent-tilt -TestSource test/coherent_tilt/test_main.cpp -Source @('src/TiltPseudoForceModel.cpp')
 & .\tools\test_cpp_wasm.ps1 -Name coherent-spatial -TestSource test/coherent_spatial/test_main.cpp -Source @('src/TextureLayer.cpp','src/ResonanceLayer.cpp','src/SpatialRenderer4.cpp')
+& .\tools\test_cpp_wasm.ps1 -Name granular-pile -TestSource test/granular_pile/test_main.cpp -Source @('src/MassMotionLayer.cpp','src/EventLayer.cpp')
+& .\tools\test_cpp_wasm.ps1 -Name pressurized-content -TestSource test/pressurized_content/test_main.cpp -Source @('src/EventLayer.cpp','src/TextureLayer.cpp','src/ResonanceLayer.cpp','src/SpatialRenderer4.cpp','src/TiltPseudoForceModel.cpp') -WithoutUnity
 & .\tools\test_cpp_wasm.ps1 -Name espnow-resolved -TestSource test/espnow_resolved/test_main.cpp -Source @('src/EspNowTelemetryProtocol.cpp') -WithoutUnity
 & .\tools\test_cpp_wasm.ps1 -Name tilt-runtime -TestSource test/tilt_runtime/test_main.cpp -Source @('src/TiltPlaneServoInterface.cpp') -IncludeDirectory @('test/tilt_runtime/stubs') -Define @('HAPTICS_ENABLE_TILT_SERVO=1','HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND=1','HAPTICS_ATOMS3_CUSTOM_BOARD_PROFILE=1') -WithoutUnity
 ```
 
 This reuses the SDK without installation/global configuration changes. Results
 are C++/Wasm evidence, not native Windows execution or physical actuator tests.
+The pile suite covers friction, retained geometry, reversal, fill/dt boundaries
+and unchanged generic/marble behavior. The pressure suite covers quiet rest,
+one-shot burst/vent/spent, reset, disabled/empty contents and shared tilt mass.
 The fake-UART suite in `test/tilt_runtime` tests the production backend with its
 Arduino stub. `tools/bench_console.py` is an optional attended pyserial helper:
 commands are explicit, log creation is exclusive, and `--final-command stop`

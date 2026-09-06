@@ -52,10 +52,11 @@ See [hardware setup](04_HARDWARE_AND_PIN_SPEC.md) and
 
 A laptop run establishes laptop support only. Mobile USB selection,
 read/write, and reconnect must pass on each host claimed as supported.
-A visual-only preview must be identifiable as a preview. Android marker AR is
-not implemented; platform support for AR and USB separately does not establish
-their simultaneous operation with this dongle. Quest-specific checks are not
-current tuning prerequisites.
+A visual-only preview must be identifiable as a preview. The planned Android
+demo can use ordinary-screen rendering without AR. Hand-tracked AR remains an
+optional, unimplemented extension; if added, platform support for AR and USB
+separately does not establish their simultaneous operation with this dongle.
+Camera/AR and Quest-specific checks are not prerequisites for the non-AR demo.
 
 For the connected run, display a preset as applied only after device execution
 is confirmed. Check matching material, dimensions/fill, and coordinate mapping;
@@ -91,6 +92,24 @@ the later successful production run in 16 is not invalidated by this history.
 Run PlatformIO builds sequentially. Reuse valid results for unchanged paths.
 The legacy environment matrix, exhaustive static poses, strict evidence hashes,
 fault-injection campaigns, and long soaks are not routine demo prerequisites.
+
+## Current software-only material iteration
+
+While the operator is away, do not connect, upload or actuate. Use the explicit
+C++ Lab to check material switching, tilt/return, shake, pause/reset and old/new
+sand comparison. Require contained liquid volume, retained sand slope and CG,
+one soda pop followed by decaying spray/remaining content, and display state
+that freezes with its model. Inspect actual browser rendering as well as tests.
+V4 encode/decode, invalid-field rejection and old-version compatibility are
+software requirements for the new shared state.
+
+These checks establish model/visual implementation only. On the operator's
+return, update both firmware images deliberately and perform one short
+representative comparison of the new materials with simultaneous tilt/vibration
+and the connected scene. Confirm the retained pile feels directionally coherent
+and the pop is distinct from the ensuing flow. Reuse unchanged prior hardware
+evidence; do not repeat the entire bring-up campaign. New material tactile
+quality and physical v4 transport remain unverified until that rehearsal.
 
 ## Deferred, not passed
 

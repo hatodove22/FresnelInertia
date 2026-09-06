@@ -22,6 +22,7 @@ enum class EventType : uint8_t {
   DropletCluster,
   RoofSlap,
   Scrape,
+  PressurePop,
 };
 
 enum class TextureAtomKind : uint8_t {
@@ -108,6 +109,18 @@ struct ImuSample {
   bool valid = false;
 };
 
+enum class PressurePhase : uint8_t { Sealed = 0, Burst = 1, Spent = 2 };
+
+// Deliberate soda-demo dramaturgy, not measured or thermodynamic pressure.
+struct PressureState {
+  bool enabled = false;
+  PressurePhase phase = PressurePhase::Sealed;
+  float charge = 0.0f;
+  float phase_s = 0.0f;
+  float remaining = 1.0f;  // fraction of configured fill still in the container
+  uint16_t burst_sequence = 0;
+};
+
 struct MassState {
   Vec2f pos_norm{};      // normalized container coordinates [-1, 1]
   Vec2f vel_norm_s{};    // normalized velocity [1/s]
@@ -122,6 +135,10 @@ struct MassState {
   float container_y_m = 0.06f;
   float container_z_m = 0.06f;
   MaterialFamily family = MaterialFamily::Liquid;
+  bool granular_pile_active = false;
+  float pile_slope = 0.0f;  // body dy/dx, retained when the pile sticks
+  float granular_flow = 0.0f;
+  PressureState pressure{};
 };
 
 struct HapticEvent {
