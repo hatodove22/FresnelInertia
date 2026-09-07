@@ -33,12 +33,14 @@ const { PreviewEngine } = await importBundle({
   entryPoints: [fileURLToPath(new URL("../src/lab/PreviewEngine.ts", import.meta.url))]
 });
 
-const presets = ["granular_single_marble_box", "granular_sand_box", "liquid_small_box", "liquid_soda_bottle"];
+const presets = ["granular_single_marble_box", "granular_sand_box", "liquid_small_box", "liquid_soda_bottle", "granular_coin_box", "granular_single_coin_box"];
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 const near = (actual, expected, tolerance = 1e-7) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`);
 
 class Element {
   disabled = false; hidden = false; value = "0"; checked = true; textContent = "";
+  focused = 0;
+  focus() { this.focused++; }
   dataset = {}; attributes = {};
   setAttribute(name, value) { this.attributes[name] = value; }
   click() { if (!this.disabled) this.onclick?.(); }
@@ -102,17 +104,17 @@ function fixture(factory) {
   }) });
   const engine = new FakeEngine(), creates = [], states = [], orientations = [], accelerations = [], applied = [], hookPresets = [];
   globalThis.__offlineLabEngineFactory = preset => { creates.push(preset); return factory ? factory(preset) : Promise.resolve(engine); };
-  let allowed = true, closed = 0;
+  let allowed = true, closed = 0, silenced = 0;
   const scene = { group: { position: { x: 0, y: 0, z: 0 } },
     setDeviceState: state => states.push(structuredClone(state)),
     setDeviceOrientation: state => orientations.push(structuredClone(state)),
     setDeviceAcceleration: (acceleration, dt) => accelerations.push({ acceleration: acceleration ? [...acceleration] : null, dt }),
     setPreset: (preset, actual) => applied.push({ preset: structuredClone(preset), actual }) };
   const lab = new OfflineLab(scene, { canEnter: () => allowed,
-    onPreset: preset => hookPresets.push(structuredClone(preset)), onClose: () => { closed++; } });
+    onPreset: preset => hookPresets.push(structuredClone(preset)), onClose: () => { closed++; }, onSilence: () => { silenced++; } });
   return { lab, engine, element, creates, states, orientations, accelerations, applied, hookPresets, classes, meters, scene,
     choose: preset => buttons.find(button => button.dataset.labPreset === preset).click(),
-    allow: value => { allowed = value; }, closed: () => closed, hardwareReads: () => hardwareReads };
+    allow: value => { allowed = value; }, closed: () => closed, silenced: () => silenced, hardwareReads: () => hardwareReads };
 }
 
 test("query lab route starts one asynchronous offline open and never touches hardware", async () => {
@@ -134,6 +136,18 @@ test("query lab route starts one asynchronous offline open and never touches har
   assert.equal(f.lab.active, true);
   assert.equal(f.classes.has("offline-lab-active"), true);
   assert.equal(f.element("lab-open").disabled, false);
+  assert.equal(f.hardwareReads(), 0);
+});
+
+test("Lab entry and exit update the mode badge and keyboard focus before any render frame", async () => {
+  const f = fixture();
+  await f.lab.open();
+  assert.equal(f.element("mode-badge").textContent, "C++ Lab");
+  assert.equal(f.element("lab-close").focused, 1);
+  assert.equal(f.engine.snapshot().frameCounter, 0);
+  f.lab.close();
+  assert.equal(f.element("mode-badge").textContent, "Preview");
+  assert.equal(f.element("lab-open").focused, 1);
   assert.equal(f.hardwareReads(), 0);
 });
 
@@ -199,7 +213,13 @@ test("manual angles feed body-frame specific force into the engine exactly once 
 
 test("pause holds model, pressure and visual state; reset restarts without hardware operations", async () => {
   const f = fixture(); await f.lab.open(); f.lab.update(0.02);
+  assert.ok(f.lab.soundFrame);
+  const beforeSilence = f.silenced();
+  assert.equal(f.element("lab-pause").attributes["aria-pressed"], "false");
   f.element("lab-pause").click();
+  assert.equal(f.lab.soundFrame, null);
+  assert.ok(f.silenced() > beforeSilence, "pause signals sound silence synchronously, without waiting for WebGL");
+  assert.equal(f.element("lab-pause").attributes["aria-pressed"], "true");
   const before = f.engine.snapshot(), visual = structuredClone(f.states.at(-1));
   for (let i = 0; i < 20; i++) f.lab.update(0.02);
   assert.deepEqual(f.engine.snapshot(), before);
@@ -209,6 +229,7 @@ test("pause holds model, pressure and visual state; reset restarts without hardw
   assert.equal(f.engine.snapshot().frameCounter, 0);
   assert.equal(f.element("lab-roll").value, "0");
   assert.equal(f.element("lab-pause").textContent, "一時停止");
+  assert.equal(f.element("lab-pause").attributes["aria-pressed"], "false");
   f.lab.update(0.02);
   assert.equal(f.engine.snapshot().frameCounter, 1);
   assert.equal(f.hardwareReads(), 0);
@@ -255,7 +276,7 @@ test("slow playback scales the input and model clocks together and pause freezes
   assert.equal(f.hardwareReads(), 0);
 });
 
-test("water Shake uses a broad sway while other presets retain their shared 5 Hz input and body motion", async () => {
+test("water sway, spatial coin shake and legacy grain/soda shake use the same input in model and presentation", async () => {
   const f = fixture(); await f.lab.open();
   for (const preset of presets) {
     for (const slow of [false, true]) {
@@ -267,11 +288,13 @@ test("water Shake uses a broad sway while other presets retain their shared 5 Hz
       const time = slow ? 0.025 : 0.1;
       const omega = preset === "liquid_small_box" ? Math.PI * 2.7 : Math.PI * 10;
       near(input.dtS, time);
-      near(input.accelG[0], 1.65 * Math.sin(time * omega));
-      near(input.accelG[1], 1 + 0.35 * Math.cos(time * omega));
-      near(input.accelG[2], 0);
+      const coin = /coin/.test(preset);
+      near(input.accelG[0], coin ? 1.44 * Math.sin(2 * Math.PI * 4.6 * time) : 1.65 * Math.sin(time * omega));
+      near(input.accelG[1], 1 + (coin ? 1.68 * Math.sin(2 * Math.PI * 4.7 * time + .7) : .35 * Math.cos(time * omega)));
+      near(input.accelG[2], coin ? 1.14 * Math.sin(2 * Math.PI * 3.2 * time + 1.1) : 0);
       near(f.accelerations.at(-1).acceleration[0], input.accelG[0]);
       near(f.accelerations.at(-1).acceleration[1], input.accelG[1] - 1);
+      near(f.accelerations.at(-1).acceleration[2], input.accelG[2]);
       near(f.accelerations.at(-1).dt, time);
       assert.equal(f.scene.group.position.x, 0, "Lab no longer competes with desktop placement");
       near(f.engine.snapshot().timeS, time);
@@ -296,12 +319,14 @@ test("manual input during pause cannot change displayed orientation while leavin
 
 test("Reset clears positional recovery immediately while Pause holds its last sample", async () => {
   const f = fixture(); await f.lab.open();
+  const beforeSilence = f.silenced();
   f.element("lab-shake").click(); f.lab.update(0.04);
   assert.ok(Math.abs(f.accelerations.at(-1).acceleration[0]) > 0.1);
   const count = f.accelerations.length;
   f.element("lab-pause").click(); f.lab.update(0.1);
   assert.equal(f.accelerations.length, count);
   f.element("lab-reset").click();
+  assert.ok(f.silenced() > beforeSilence + 1);
   assert.equal(f.accelerations.at(-1).acceleration, null, "reset does not leave the old gesture's slow recentering cue");
   f.lab.update(0.02);
   assert.deepEqual(f.accelerations.at(-1).acceleration, [0, 0, 0]);
@@ -397,5 +422,34 @@ test("Shake connects to production pressure charge, one pop and a shared spent s
   f.element("lab-reset").click(); f.lab.update(0.02);
   assert.equal(engine.snapshot().mass.pressure.phase, "sealed");
   assert.equal(engine.snapshot().mass.pressure.burstSequence, 0);
+  assert.equal(f.hardwareReads(), 0);
+});
+
+test("coin and single-coin Lab selections use their named production presets and accepted model state", async () => {
+  let engine;
+  const f = fixture(async preset => (engine = await PreviewEngine.create(preset)));
+  await f.lab.open();
+  for (const [preset, label, particles] of [["granular_coin_box", "コイン", 0.25], ["granular_single_coin_box", "コイン1枚", 0.03]]) {
+    f.choose(preset);
+    assert.match(f.element("lab-description").textContent, new RegExp(label));
+    assert.equal(f.element("lab-sand-option").hidden, true);
+    assert.equal(f.element("lab-pressure").hidden, true);
+    assert.equal(f.applied.at(-1).preset.preset, preset);
+    near(f.applied.at(-1).preset.container.particle_count, particles);
+    assert.deepEqual(f.applied.at(-1).preset.container, engine.snapshot().container);
+    f.lab.update(0.02); // Establish the neutral pose before the deliberate tilt.
+    f.element("lab-roll").input(45);
+    let events = 0, peak = 0;
+    for (let i = 0; i < 100; ++i) {
+      f.lab.update(0.02);
+      const frame = engine.snapshot();
+      assert.equal(frame.preset, preset);
+      assert.equal(f.states.at(-1).massX, frame.mass.posNorm[0]);
+      assert.equal(f.states.at(-1).massY, frame.mass.posNorm[1]);
+      events += frame.events.length;
+      peak = Math.max(peak, ...frame.channels);
+    }
+    assert.ok(events > 0 && peak > 0, "same tilted production state drives contacts and channel envelopes");
+  }
   assert.equal(f.hardwareReads(), 0);
 });

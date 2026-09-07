@@ -10,6 +10,8 @@ export interface LiquidSloshInput {
   activity: number;
   fill: number;
   viscosity: number;
+  /** Optional accepted body-frame acceleration residual (g), not tracking. */
+  acceleration?: readonly number[];
 }
 
 export interface LiquidSloshResult {
@@ -18,7 +20,8 @@ export interface LiquidSloshResult {
   activity: number;
   flow: THREE.Vector2;
   revision: number;
-  /** Metres along the surface normal, with u/v in [-0.5, 0.5]. */
+  maxDisplacement: number;
+  /** Normal-coordinate displacement in metres, with u/v in [-0.5, 0.5]. */
   displacement: (u: number, v: number) => number;
 }
 
@@ -46,12 +49,15 @@ export class LiquidSlosh {
   private previousVelocityX = 0;
   private previousVelocityY = 0;
   private previousActivity = 0;
+  private readonly previousAcceleration = new THREE.Vector3();
+  private readonly inputAcceleration = new THREE.Vector3();
   private limit = 0;
   private readonly result: LiquidSloshResult = {
     normal: new THREE.Vector3(0, 1, 0),
     activity: 0,
     flow: new THREE.Vector2(),
     revision: 0,
+    maxDisplacement: 0,
     displacement: (u, v) => this.displacement(u, v)
   };
 
@@ -76,8 +82,16 @@ export class LiquidSlosh {
     const activity = clamp(finite(input.activity), 0, 1);
     const fill = clamp(finite(input.fill, 0.5), 0, 1);
     const viscosity = clamp(finite(input.viscosity), 0, 1);
+    this.inputAcceleration.set(
+      clamp(finite(input.acceleration?.[0] ?? 0), -8, 8),
+      clamp(finite(input.acceleration?.[1] ?? 0), -8, 8),
+      clamp(finite(input.acceleration?.[2] ?? 0), -8, 8)
+    );
     const dt = this.lastTime === undefined ? 0 : input.timeS - this.lastTime;
-    this.limit = Math.min(this.size.x, this.size.y, this.size.z) * 0.07 * Math.min(1, fill * 10, (1 - fill) * 10);
+    // The broad surge and its drawdown now deform the actual free surface;
+    // there is no second plane, attached sheet or separate lifetime/volume.
+    this.limit = Math.min(this.size.x, this.size.y, this.size.z) * 0.18 * Math.min(1, fill * 10, (1 - fill) * 10);
+    this.result.maxDisplacement = this.limit;
 
     if (this.lastTime === undefined || dt < 0 || dt > 0.5 || this.limit < 1e-12) {
       // Entering a view, loading a preset or recovering stale telemetry must not
@@ -95,7 +109,7 @@ export class LiquidSlosh {
       // display. Size/depth still determine their relative frequency.
       const omega = (length: number, mode = 1) => {
         const k = Math.PI * mode / length;
-        return clamp(Math.sqrt(9.81 * k * Math.tanh(k * depth)) * 0.46, 2.4, 23);
+        return clamp(Math.sqrt(9.81 * k * Math.tanh(k * depth)) * 0.62, 3.2, 29);
       };
       const ox = omega(this.size.x), oz = omega(this.size.z);
       const frequencies = [ox, oz, omega(this.size.x, 2), omega(this.size.z, 2), Math.hypot(ox, oz), Math.hypot(ox * 1.45, oz)];
@@ -105,9 +119,14 @@ export class LiquidSlosh {
       const changeX = clamp((mx - this.previousMassX) * 0.17 + (vx - this.previousVelocityX) * 0.025, -0.65, 0.65);
       const changeY = clamp((my - this.previousMassY) * 0.10 + (vy - this.previousVelocityY) * 0.015, -0.45, 0.45);
       const agitation = Math.max(0, activity - this.previousActivity) * 0.075;
-      const kickX = normalX * 0.38 + changeX;
-      const kickZ = normalZ * 0.38;
-      const kicks = [kickX, kickZ, changeY * 0.70 + agitation, changeY * 0.46 + agitation * 0.63,
+      // Changes, not a residual activity level, excite waves. The fore/aft
+      // channel is visual detail; it does not add body-z haptic contacts.
+      const accelX = clamp(this.inputAcceleration.x - this.previousAcceleration.x, -3, 3) * 0.24;
+      const accelY = clamp(this.inputAcceleration.y - this.previousAcceleration.y, -3, 3) * 0.06;
+      const accelZ = clamp(this.inputAcceleration.z - this.previousAcceleration.z, -3, 3) * 0.24;
+      const kickX = normalX * 0.5 + changeX * 1.35 + accelX;
+      const kickZ = normalZ * 0.5 + accelZ;
+      const kicks = [kickX, kickZ, changeY * 0.70 + agitation + accelY, changeY * 0.46 + agitation * 0.63 + accelY * 0.7,
         (normalX + normalZ) * 0.095 + changeX * 0.24, (normalX - normalZ) * 0.055 + changeY * 0.3];
       for (let i = 0; i < this.q.length; i++) {
         this.dq[i] = clamp(this.dq[i] + kicks[i] * span * frequencies[i], -this.limit * frequencies[i] * 3, this.limit * frequencies[i] * 3);
@@ -121,7 +140,7 @@ export class LiquidSlosh {
       }
       const steps = Math.ceil(dt / (1 / 120));
       const h = dt / steps;
-      const damping = 0.115 + viscosity * 0.56;
+      const damping = 0.15 + viscosity * 0.56;
       const bulkOmega = Math.min(ox, oz) * 0.86;
       for (let step = 0; step < steps; step++) {
         this.acceleration.copy(this.target).sub(this.position).multiplyScalar(bulkOmega * bulkOmega)
@@ -153,6 +172,7 @@ export class LiquidSlosh {
     this.previousVelocityX = vx;
     this.previousVelocityY = vy;
     this.previousActivity = activity;
+    this.previousAcceleration.copy(this.inputAcceleration);
     this.lastTime = input.timeS;
     this.result.revision++;
     return this.result;
@@ -163,12 +183,14 @@ export class LiquidSlosh {
     const z = clamp(finite(v), -0.5, 0.5) * Math.PI;
     const q = this.q;
     const broad = q[0] * Math.sin(x) + q[1] * Math.sin(z);
-    const reflected = q[2] * Math.cos(2 * x) + q[3] * Math.cos(2 * z)
-      + q[4] * Math.sin(x) * Math.sin(z) + q[5] * Math.sin(2 * x) * Math.cos(z);
-    // A weak second harmonic sharpens moving crests without an independent
-    // ripple clock. The geometry owner subtracts the area-weighted mean.
-    const wave = broad + reflected;
-    const crest = this.limit > 0 ? wave * Math.abs(wave) / this.limit * 0.12 : 0;
-    return clamp(wave + crest, -this.limit, this.limit);
+    const reflected = (q[2] * Math.cos(2 * x) + q[3] * Math.cos(2 * z)
+      + q[4] * Math.sin(x) * Math.sin(z) + q[5] * Math.sin(2 * x) * Math.cos(z)) * 0.42;
+    // Stokes-like steepening raises the broad moving shoulder, not an isolated
+    // central spout. The geometry owner removes its area-weighted mean, so the
+    // neighbouring water is drawn down instead of retaining a flat cap below.
+    const crest = this.limit > 0 ? broad * broad / this.limit * 0.48 : 0;
+    const wave = broad + reflected + crest;
+    // Smooth saturation avoids a clipped, planar top on a strong wave.
+    return this.limit > 0 ? this.limit * Math.tanh(wave / this.limit) : 0;
   }
 }

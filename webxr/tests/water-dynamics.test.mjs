@@ -51,7 +51,20 @@ function metrics(scene) {
     const height = areaNormal.dot(a.fromBufferAttribute(positions, i));
     low = Math.min(low, height); high = Math.max(high, height);
   }
-  return { normal: areaNormal, roughness: high - low, activity: mesh.userData.visualActivity };
+  // The area-weighted mean is the supporting plane for the zero-volume wave
+  // displacement, even when the water is tilted. Compare both sides of it so
+  // merely adding a raised overlay cannot pass as motion of the water itself.
+  let weightedHeight = 0, projectedArea = 0;
+  const ab = new Vector3(), ac = new Vector3();
+  for (let i = 0; i < mesh.geometry.drawRange.count; i += 3) {
+    a.fromBufferAttribute(positions, i); b.fromBufferAttribute(positions, i + 1); c.fromBufferAttribute(positions, i + 2);
+    const area = ab.subVectors(b, a).cross(ac.subVectors(c, a)).dot(areaNormal) / 2;
+    projectedArea += area;
+    weightedHeight += area * (a.dot(areaNormal) + b.dot(areaNormal) + c.dot(areaNormal)) / 3;
+  }
+  const mean = weightedHeight / projectedArea;
+  return { normal: areaNormal, roughness: high - low, crest: high - mean, trough: mean - low,
+    activity: mesh.userData.visualActivity };
 }
 function geometrySnapshot(scene) {
   const names = ["content-liquid", "content-liquid-surface", "content-liquid-contact", "content-liquid-caustics"];
@@ -59,6 +72,7 @@ function geometrySnapshot(scene) {
   for (const name of names) scene.group.getObjectByName(name).traverse(object => {
     if (object.geometry?.attributes.position) objects.push({
       name: object.name, positions: Array.from(object.geometry.attributes.position.array),
+      visible: object.visible, position: object.position.toArray(), scale: object.scale.toArray(), quaternion: object.quaternion.toArray(),
       normals: object.geometry.attributes.normal ? Array.from(object.geometry.attributes.normal.array) : undefined,
       version: object.geometry.attributes.position.version, drawCount: object.geometry.drawRange.count
     });
@@ -85,6 +99,41 @@ function checkVolumeAndBounds(scene, size = defaultSize, fill = quiet.fill) {
   const expected = size.reduce((a, b) => a * b, 1) * 0.96 ** 3 * fill;
   assert.ok(Math.abs(Math.abs(signedVolume) - expected) < size.reduce((a, b) => a * b, 1) * 6e-6,
     "deformed closed geometry retains the reported content volume");
+}
+
+function checkConnectedFreeSurface(scene) {
+  const mesh = surface(scene), position = mesh.geometry.attributes.position;
+  const vertices = new Map(), edges = new Map(), faces = new Set();
+  const vertex = index => {
+    const key = [position.getX(index), position.getY(index), position.getZ(index)]
+      .map(value => Math.round(value / 1e-8)).join(",");
+    if (!vertices.has(key)) vertices.set(key, new Set());
+    return key;
+  };
+  for (let i = 0; i < mesh.geometry.drawRange.count; i += 3) {
+    const triangle = [vertex(i), vertex(i + 1), vertex(i + 2)];
+    assert.equal(new Set(triangle).size, 3, "water has no collapsed triangle");
+    const face = [...triangle].sort().join("|");
+    assert.ok(!faces.has(face), "water has no duplicate internal surface cap");
+    faces.add(face);
+    for (let j = 0; j < 3; j++) {
+      const a = triangle[j], b = triangle[(j + 1) % 3];
+      vertices.get(a).add(b); vertices.get(b).add(a);
+      const key = [a, b].sort().join("|");
+      edges.set(key, (edges.get(key) ?? 0) + 1);
+    }
+  }
+  assert.ok(vertices.size > 0);
+  const visited = new Set(), pending = [vertices.keys().next().value];
+  while (pending.length) {
+    const key = pending.pop();
+    if (visited.has(key)) continue;
+    visited.add(key);
+    for (const neighbour of vertices.get(key)) if (!visited.has(neighbour)) pending.push(neighbour);
+  }
+  assert.equal(visited.size, vertices.size, "every crest and trough belongs to one connected free surface");
+  assert.ok([...edges.values()].every(count => count === 1 || count === 2), "no non-manifold seams or overlapping caps");
+  assert.equal(vertices.size - edges.size + faces.size, 1, "the free surface is one disk, without a closed extra cap or hole");
 }
 
 test("pitch alone creates lag and ripples, then settles and reacts to return without firmware energy", () => {
@@ -193,4 +242,54 @@ test("resolved dimensions determine slosh response and geometry instead of the l
   assert.ok(metrics(small).normal.distanceTo(metrics(large).normal) > 0.05, "different tank spans produce different wave frequencies");
   checkVolumeAndBounds(small, smallSize); checkVolumeAndBounds(large, largeSize);
   assert.ok(Math.abs(body(small).userData.fillVolume / body(large).userData.fillVolume - 1 / 64) < 1e-6);
+});
+
+test("axial shake redistributes one continuous water surface; pause and source changes cannot leak motion", () => {
+  const scene = create({ viscosity: 0.06 });
+  const advance = (time, acceleration) => {
+    scene.setDeviceState({ ...quiet, phaseS: time });
+    scene.setDeviceOrientation({ pitchRad: 0, rollRad: 0 });
+    scene.setDeviceAcceleration(acceleration, 1 / 60);
+    scene.update({ x: 0, y: 0 }, content, time, 1 / 60);
+  };
+  advance(0, [0, 0, 0]);
+  const originalSurface = surface(scene), originalGeometry = originalSurface.geometry;
+  const rest = metrics(scene);
+  assert.ok(rest.roughness < 1e-7);
+  checkConnectedFreeSurface(scene);
+  let peakCrest = 0, peakTrough = 0, peakPairedExcursion = 0;
+  for (let frame = 1; frame <= 50; frame++) {
+    const acceleration = [0, 0.35 * Math.cos(frame / 60 * 9), 1.65 * Math.sin(frame / 60 * 9)];
+    advance(frame / 60, acceleration);
+    acceleration.fill(8); // Caller-owned samples cannot alter an already drawn frame.
+    assert.equal(surface(scene), originalSurface);
+    assert.equal(surface(scene).geometry, originalGeometry, "the original water surface carries the motion");
+    const result = metrics(scene);
+    peakCrest = Math.max(peakCrest, result.crest);
+    peakTrough = Math.max(peakTrough, result.trough);
+    peakPairedExcursion = Math.max(peakPairedExcursion, Math.min(result.crest, result.trough));
+    if (frame % 10 === 0) {
+      checkVolumeAndBounds(scene);
+      checkConnectedFreeSurface(scene);
+    }
+  }
+  const visibleExcursion = Math.min(...defaultSize) * 0.96 * 0.025;
+  assert.ok(peakCrest > visibleExcursion && peakTrough > visibleExcursion,
+    `fore/aft shaking raises and draws down the water itself: crest ${peakCrest}, trough ${peakTrough}`);
+  assert.ok(peakPairedExcursion > visibleExcursion,
+    "a visible crest and compensating trough coexist instead of the whole surface swelling");
+  scene.group.traverse(object => assert.ok(!/content-liquid-(?:sheet|ligament|breakup)/.test(object.name),
+    "the water response must not use separately shaded sheets or detached overlay lobes"));
+  const held = geometrySnapshot(scene);
+  for (let i = 0; i < 3; i++) scene.update({ x: 1, y: 1 }, content, 200 + i, 0.05);
+  assert.deepEqual(geometrySnapshot(scene), held);
+  advance(50 / 60, [8, -8, 8]);
+  assert.deepEqual(geometrySnapshot(scene), held, 'duplicate source time holds even changed acceleration');
+  advance(3, [0, 0, 0]);
+  assert.ok(metrics(scene).roughness < 1e-7, 'long gap clears old wave motion');
+  checkVolumeAndBounds(scene);
+  scene.setDeviceState(null);
+  step(scene, 0);
+  assert.ok(metrics(scene).roughness < 1e-7, 'new source starts quietly');
+  scene.dispose();
 });

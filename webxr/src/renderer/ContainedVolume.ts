@@ -8,14 +8,22 @@ interface ClippedVolume {
   volume: number;
 }
 
+interface SurfaceBoundary {
+  original: THREE.Vector3[];
+  deformed: THREE.Vector3[];
+}
+
 /** Presentation-only displacement over the clipped plane. Revision changes
  * when its source sample advances; no clock is advanced by this geometry. */
 export interface SurfaceWaveField {
   revision: number;
   displacement(u: number, v: number): number;
+  /** Optional bounded allowance in metres for the same continuous surface. */
+  maxDisplacement?: number;
 }
 
 const epsilon = 1e-10;
+const liquidSurfaceRings = 14;
 
 // Smooth, deterministic local roughness without periodic diagonal wave bands.
 function sandRelief(x: number, z: number): number {
@@ -90,6 +98,24 @@ function triangles(polygon: THREE.Vector3[], output: number[]) {
   }
 }
 
+/** A moving waterline can make a wall polygon concave. It remains planar:
+ * triangulate the entire wall rather than fanning across an apparent air gap. */
+function planarTriangles(polygon: THREE.Vector3[], output: number[]) {
+  if (polygon.length < 3) return;
+  const normal = new THREE.Vector3();
+  for (let i = 0; i < polygon.length; i++) normal.add(new THREE.Vector3().crossVectors(polygon[i], polygon[(i + 1) % polygon.length]));
+  if (normal.lengthSq() < 1e-24) return;
+  normal.normalize();
+  const u = (Math.abs(normal.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).cross(normal).normalize();
+  const v = new THREE.Vector3().crossVectors(normal, u);
+  const contour = polygon.map(point => new THREE.Vector2(point.dot(u), point.dot(v)));
+  for (const [ia, ib, ic] of THREE.ShapeUtils.triangulateShape(contour, [])) {
+    const a = polygon[ia], b = polygon[ib], c = polygon[ic];
+    const winding = new THREE.Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a)).dot(normal);
+    for (const point of winding < 0 ? [a, c, b] : [a, b, c]) output.push(point.x, point.y, point.z);
+  }
+}
+
 /** A convex cavity clipped by its free surface, solved for fill volume. No simulated
  * motion or wall-clock state: the caller owns all motion, phase and material. */
 export class ContainedVolume {
@@ -99,6 +125,8 @@ export class ContainedVolume {
   readonly centroid = new THREE.Vector3();
   offset = 0;
   volume = 0;
+  /** Changes with accepted geometry snapshots, including a moving waterline. */
+  revision = 0;
   private readonly boundaryPoints: THREE.Vector3[] = [];
   private readonly boundaryPool: THREE.Vector3[];
   readonly size: THREE.Vector3;
@@ -118,7 +146,8 @@ export class ContainedVolume {
     this.size = bounds.getSize(new THREE.Vector3());
     this.capacity = enclosedVolume(this.faces);
     this.sand = typeof sandOrUvScale === "boolean" && sandOrUvScale;
-    this.boundaryPool = Array.from({ length: Math.max(6, this.faces.length) }, () => new THREE.Vector3());
+    const edgeSegments = this.faces.length > 8 ? 2 : 8;
+    this.boundaryPool = Array.from({ length: Math.max(6, this.faces.length) * edgeSegments }, () => new THREE.Vector3());
     this.wallPlanes = this.faces.map(face => new THREE.Plane().setFromCoplanarPoints(face[0], face[1], face[2]));
   }
 
@@ -130,8 +159,9 @@ export class ContainedVolume {
     return this.wallPlanes.every(plane => plane.distanceToPoint(point) <= -margin + 1e-10);
   }
 
-  /** Ordered, exact wall/free-surface intersections. This borrowed read-only
-   * view changes on update; it is empty for an empty or completely full box. */
+  /** Ordered wall/free-surface intersections, sampled along the deformed
+   * waterline when waves are present. The borrowed view changes on update;
+   * it is empty for an empty or completely full cavity. */
   get boundary(): readonly Readonly<THREE.Vector3>[] { return this.boundaryPoints; }
 
   update(fill: number, normal: THREE.Vector3, amplitude = 0, phase = 0, waves?: SurfaceWaveField) {
@@ -142,6 +172,7 @@ export class ContainedVolume {
     const signature = [fraction, ...this.normal.toArray(), amplitude, phase, waves?.revision ?? "static"].join(",");
     if (signature === this.signature) return;
     this.signature = signature;
+    this.revision++;
     const projections = this.faces.flat().map(point => point.dot(this.normal));
     const minimum = Math.min(...projections), maximum = Math.max(...projections);
     const fullVolume = this.capacity;
@@ -160,10 +191,17 @@ export class ContainedVolume {
     for (let i = 0; i < clipped.surface.length; i++) {
       this.boundaryPoints[i] = this.boundaryPool[i].copy(clipped.surface[i]);
     }
+    const surfaceBoundary = this.writeSurface(clipped.surface, amplitude, phase, waves);
+    if (surfaceBoundary) {
+      this.boundaryPoints.length = surfaceBoundary.deformed.length;
+      for (let i = 0; i < surfaceBoundary.deformed.length; i++) this.boundaryPoints[i] = this.boundaryPool[i].copy(surfaceBoundary.deformed[i]);
+    }
     const bodyPositions: number[] = [];
-    for (const face of clipped.walls) triangles(face, bodyPositions);
+    for (const face of clipped.walls) {
+      if (surfaceBoundary) planarTriangles(this.deformedWall(face, surfaceBoundary), bodyPositions);
+      else triangles(face, bodyPositions);
+    }
     this.writeGeometry(this.body, bodyPositions, false);
-    this.writeSurface(clipped.surface, amplitude, phase, waves);
     this.centroid.set(0, 0, 0);
     let signedVolume = 0;
     for (const face of [...clipped.walls, clipped.surface]) {
@@ -177,12 +215,14 @@ export class ContainedVolume {
     if (Math.abs(signedVolume) > 1e-15) this.centroid.multiplyScalar(1 / signedVolume);
   }
 
+  /** Reference-plane height for existing optical/buoyancy callers, not the
+   * presentation wave's local height or a new physical content state. */
   heightAt(x: number, z: number) {
     if (Math.abs(this.normal.y) < 1e-8) return this.lower.y;
     return THREE.MathUtils.clamp((this.offset - this.normal.x * x - this.normal.z * z) / this.normal.y, this.lower.y, this.upper.y);
   }
 
-  private writeSurface(polygon: THREE.Vector3[], amplitude: number, phase: number, waves?: SurfaceWaveField) {
+  private writeSurface(polygon: THREE.Vector3[], amplitude: number, phase: number, waves?: SurfaceWaveField): SurfaceBoundary | undefined {
     const positions: number[] = [];
     if (polygon.length < 3) { this.writeGeometry(this.surface, positions, true); return; }
     const center = polygon.reduce((sum, p) => sum.add(p), new THREE.Vector3()).multiplyScalar(1 / polygon.length);
@@ -191,10 +231,32 @@ export class ContainedVolume {
       const segments = this.faces.length > 8 ? 2 : 8;
       for (let segment = 0; segment < segments; segment++) edgeSamples.push(polygon[side].clone().lerp(polygon[(side + 1) % polygon.length], segment / segments));
     }
-    const rings = 8, count = edgeSamples.length;
+    const rings = this.sand ? 8 : liquidSurfaceRings, count = edgeSamples.length;
     const points: THREE.Vector3[] = [];
     const heights: number[] = [], weights: number[] = [];
     const shortest = Math.min(this.size.x, this.size.y, this.size.z);
+    const waveLimit = Number.isFinite(waves?.maxDisplacement)
+      ? THREE.MathUtils.clamp(waves!.maxDisplacement!, 0, shortest * 0.18) : shortest * 0.07;
+    const followingBoundary = !!waves && !this.sand;
+    const direction = this.normal.clone();
+    let axisContinuity = 1;
+    let pinnedPlanes: THREE.Plane[] = [];
+    if (followingBoundary) {
+      // One shared body-axis displacement makes the waterline slide along
+      // compatible cavity walls. Its normal-coordinate displacement remains h,
+      // so the same area-weighted volume correction is exact, including tilt.
+      const components = this.normal.toArray().map(Math.abs);
+      const axis = components.indexOf(Math.max(...components));
+      const sorted = [...components].sort((a, b) => b - a);
+      // Changing the dominant axis also changes which walls may carry a crest.
+      // Quiet only the narrow ambiguous band (about 3.6 degrees either side of
+      // a two-axis tie); both projections then meet at the same reference plane
+      // with zero slope, instead of snapping the waterline across the cavity.
+      const dominance = THREE.MathUtils.clamp((sorted[0] - sorted[1]) / (sorted[0] * 0.12), 0, 1);
+      axisContinuity = dominance * dominance * (3 - 2 * dominance);
+      direction.set(0, 0, 0).setComponent(axis, 1 / this.normal.getComponent(axis));
+      pinnedPlanes = this.wallPlanes.filter(plane => Math.abs(plane.normal.getComponent(axis)) > 1e-8);
+    }
     // At neutral pose u/v are body x/z. Projection keeps the wave field
     // two-dimensional as the supporting plane approaches a side wall.
     const uAxis = new THREE.Vector3(1, 0, 0).addScaledVector(this.normal, -this.normal.x);
@@ -207,9 +269,18 @@ export class ContainedVolume {
       const r = ring / rings;
       for (const edge of edgeSamples) {
         const p = center.clone().lerp(edge, r);
-        // Rich broad waves keep their shoulder close to the walls, while the
-        // exact outer seam remains pinned to the same volume boundary.
-        const weight = waves ? 1 - r ** 4 : 1 - r * r;
+        let weight = waves ? 1 - r ** 4 : 1 - r * r;
+        if (followingBoundary) {
+          // A tapered/oblique wall or end cap cannot slide along this axis.
+          // Pin its exact intersection and fade nearby waves smoothly, while
+          // parallel walls carry the full continuous crest and trough.
+          weight = 1;
+          for (const wall of pinnedPlanes) {
+            const distance = -wall.distanceToPoint(p);
+            const t = THREE.MathUtils.clamp((distance - epsilon) / (shortest * 0.22), 0, 1);
+            weight *= t * t * (3 - 2 * t);
+          }
+        }
         const x = p.x / this.size.x, z = p.z / this.size.z;
         const wave = this.sand
           ? sandRelief(x * 8 + 3.7, z * 8 + 8.1) * 0.4
@@ -217,7 +288,7 @@ export class ContainedVolume {
         points.push(p);
         const sample = waves?.displacement(p.dot(uAxis) / uSize, p.dot(vAxis) / vSize);
         const height = sample === undefined ? wave * Math.min(Math.abs(amplitude), shortest * 0.035)
-          : Number.isFinite(sample) ? THREE.MathUtils.clamp(sample, -shortest * 0.07, shortest * 0.07) : 0;
+          : Number.isFinite(sample) ? THREE.MathUtils.clamp(sample, -waveLimit, waveLimit) : 0;
         heights.push(height * weight);
         weights.push(weight);
       }
@@ -232,8 +303,9 @@ export class ContainedVolume {
         if (ring > 1) indices.push(a, c, d);
       }
     }
-    // Zero mean surface displacement preserves volume rather than swelling
-    // the entire body. Boundary vertices remain exactly on wall intersections.
+    // Zero mean normal-coordinate displacement preserves volume rather than
+    // swelling the body. All samples travel in the same direction, and the
+    // body wall edges below are rebuilt from these exact boundary samples.
     let displacement = 0, weightArea = 0;
     for (let i = 0; i < indices.length; i += 3) {
       const [a, b, c] = indices.slice(i, i + 3);
@@ -248,13 +320,14 @@ export class ContainedVolume {
     for (let i = 0; i < points.length; i++) {
       heights[i] -= correction * weights[i];
       for (const wall of this.wallPlanes) {
-        const travel = wall.normal.dot(this.normal) * heights[i];
+        const travel = wall.normal.dot(direction) * heights[i];
         if (travel <= 1e-12) continue;
         const room = -wall.distanceToPoint(points[i]);
         amplitudeScale = Math.min(amplitudeScale, Math.max(0, room / travel));
       }
     }
-    for (let i = 0; i < points.length; i++) points[i].addScaledVector(this.normal, heights[i] * amplitudeScale);
+    amplitudeScale *= axisContinuity;
+    for (let i = 0; i < points.length; i++) points[i].addScaledVector(direction, heights[i] * amplitudeScale);
     for (const index of indices) positions.push(...points[index].toArray());
     this.writeGeometry(this.surface, positions, true);
     if (!this.sand) {
@@ -278,14 +351,48 @@ export class ContainedVolume {
       for (let i = 0; i < indices.length; i++) attribute.setXYZ(i, normals[indices[i]].x, normals[indices[i]].y, normals[indices[i]].z);
       attribute.needsUpdate = true;
     }
+    return followingBoundary ? { original: edgeSamples, deformed: points.slice(rings * count) } : undefined;
+  }
+
+  private deformedWall(polygon: THREE.Vector3[], boundary: SurfaceBoundary): THREE.Vector3[] {
+    const result: THREE.Vector3[] = [];
+    const onSurface = (point: THREE.Vector3) => Math.abs(point.dot(this.normal) - this.offset) < 1e-8;
+    const moved = (point: THREE.Vector3) => {
+      if (!onSurface(point)) return point;
+      const index = boundary.original.findIndex(sample => sample.distanceToSquared(point) < 1e-16);
+      return index < 0 ? point : boundary.deformed[index];
+    };
+    for (let i = 0; i < polygon.length; i++) {
+      const a = polygon[i], b = polygon[(i + 1) % polygon.length];
+      const edge = b.clone().sub(a), lengthSquared = edge.lengthSq();
+      if (!onSurface(a) || !onSurface(b) || lengthSquared < 1e-20) {
+        result.push(moved(a));
+        continue;
+      }
+      // Match by location rather than polygon winding: the clipped wall runs
+      // oppositely to the free surface along their common contour.
+      const samples: { t: number; point: THREE.Vector3 }[] = [];
+      for (let j = 0; j < boundary.original.length; j++) {
+        const delta = boundary.original[j].clone().sub(a);
+        const t = delta.dot(edge) / lengthSquared;
+        if (t < -1e-8 || t >= 1 - 1e-8 || delta.addScaledVector(edge, -t).lengthSq() > 1e-16) continue;
+        samples.push({ t, point: boundary.deformed[j] });
+      }
+      samples.sort((a, b) => a.t - b.t);
+      if (samples.length === 0) result.push(moved(a));
+      else for (const sample of samples) result.push(sample.point);
+    }
+    return result;
   }
 
   private writeGeometry(geometry: THREE.BufferGeometry, positions: number[], surface: boolean) {
     // Stable GPU buffers avoid leaking/reallocating an attribute every model
     // frame as the waterline crosses box corners and changes polygon topology.
     const edgeSegments = this.faces.length > 8 ? 2 : 8;
-    const maxSurfaceVertices = Math.max(6, this.faces.length) * edgeSegments * 15 * 3;
-    const capacity = surface ? maxSurfaceVertices * 3 : Math.max(90, this.faces.flat().length * 3) * 3;
+    const rings = this.sand ? 8 : liquidSurfaceRings;
+    const maxSurfaceVertices = Math.max(6, this.faces.length) * edgeSegments * (2 * rings - 1) * 3;
+    const maxBodyVertices = Math.max(90, (this.faces.flat().length + Math.max(6, this.faces.length) * edgeSegments * 2) * 3);
+    const capacity = surface ? maxSurfaceVertices * 3 : maxBodyVertices * 3;
     if (!geometry.hasAttribute("position")) {
       geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(capacity), 3));
       geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(capacity / 3 * 2), 2));

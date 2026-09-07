@@ -29,7 +29,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(process.cwd(), "index.html"),
-        webusb: resolve(process.cwd(), "webusb.html")
+        webusb: resolve(process.cwd(), "webusb.html"),
+        tune: resolve(process.cwd(), "tune.html")
       }
     }
   }

@@ -120,6 +120,27 @@ test("mass and velocity transients create waves without a tilt change", () => {
   assert.ok(result.flow.length() > 0.001);
 });
 
+test("accepted fore/aft and vertical acceleration excite water without firmware mass travel", () => {
+  for (const acceleration of [[0, 0, 1.2], [0, -1.2, 0]]) {
+    const slosh = new LiquidSlosh(size);
+    frame(slosh, 0, { acceleration: [0, 0, 0] });
+    const result = frame(slosh, 0.1, { acceleration });
+    assert.ok(peak(result) > 0.0002, `visible acceleration-driven waves for ${acceleration}`);
+    const before = capture(result);
+    assert.deepEqual(capture(frame(slosh, 0.1, { acceleration: [8, 8, 8] })), before);
+    for (let i = 1; i <= 300; i++) frame(slosh, 0.1 + i / 60, { acceleration });
+    assert.ok(peak(result) < 0.00002, "a held acceleration residual cannot excite waves indefinitely");
+  }
+});
+
+test("a first or recovered acceleration sample establishes a quiet baseline", () => {
+  const slosh = new LiquidSlosh(size);
+  assert.equal(peak(frame(slosh, 0, { acceleration: [1, -1, 2] })), 0);
+  frame(slosh, 0.1, { acceleration: [-1, 1, -2] });
+  assert.equal(peak(frame(slosh, 2, { acceleration: [2, -2, 3] })), 0);
+  assert.equal(peak(frame(slosh, 0, { acceleration: [NaN, Infinity, -Infinity] })), 0);
+});
+
 test("extreme inputs stay finite and displacement remains inside the declared bound", () => {
   const slosh = new LiquidSlosh(size);
   for (let i = 0; i < 180; i++) {
@@ -130,7 +151,8 @@ test("extreme inputs stay finite and displacement remains inside the declared bo
     assert.ok(result.flow.toArray().every(Number.isFinite));
     for (const height of [...samples(result), result.displacement(NaN, Infinity)]) {
       assert.ok(Number.isFinite(height));
-      assert.ok(Math.abs(height) <= Math.min(size.x, size.y, size.z) * 0.07 + 1e-12);
+      assert.ok(Math.abs(height) <= Math.min(size.x, size.y, size.z) * 0.18 + 1e-12);
+      assert.ok(Math.abs(height) <= result.maxDisplacement + 1e-12);
     }
   }
   const empty = frame(slosh, 3, { fill: 0 });

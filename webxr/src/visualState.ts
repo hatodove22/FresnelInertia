@@ -124,7 +124,7 @@ export function visualSampleInterval(previousMs: number | null, currentMs: numbe
 }
 
 export function isSingleMarble(preset: ContainerPreset, resolvedDimensions: boolean) {
-  return resolvedDimensions && (/marble/i.test(preset.preset) ||
+  return resolvedDimensions && !/coin/i.test(preset.preset) && (/marble/i.test(preset.preset) ||
     ((preset.container.particle_count ?? 1) <= 0.1 && (preset.container.particle_hardness ?? 0) >= 0.8));
 }
 

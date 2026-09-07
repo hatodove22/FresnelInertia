@@ -6,6 +6,8 @@ import { GripProxy } from "./GripProxy";
 import { ContainerGeometry, containerRestY, tableTopY, bottleBodyHeightM, bottleNeckRadiusM, tumblerTopDiameterM, tumblerBottomDiameterM } from "./ContainerGeometry";
 import { LiquidContentRenderer } from "./LiquidContentRenderer";
 import { ParticleContentRenderer } from "./ParticleContentRenderer";
+import { CoinContentRenderer } from "./CoinContentRenderer";
+import { IceContentRenderer } from "./IceContentRenderer";
 import { disposeObjectTree } from "./disposeObjectTree";
 
 export { containerRestY } from "./ContainerGeometry";
@@ -19,8 +21,11 @@ export class ContainerScene {
   private resolvedDimensions = false;
   private deviceState?: DeviceContentState;
   private deviceOrientation?: DeviceOrientation;
+  private deviceAcceleration?: readonly number[];
   private liquid?: LiquidContentRenderer;
   private particles?: ParticleContentRenderer;
+  private coins?: CoinContentRenderer;
+  private ice?: IceContentRenderer;
   private disposed = false;
   private deviceDirty = true;
   private desktop = true;
@@ -41,6 +46,7 @@ export class ContainerScene {
     this.geometry = new ContainerGeometry(preset, useResolvedDimensions);
     this.deviceDirty = true;
     this.offset.set(0, 0, 0);
+    this.deviceAcceleration = undefined;
     this.rebuild();
     this.placeDesktop();
   }
@@ -50,7 +56,7 @@ export class ContainerScene {
     const wasConnected = this.deviceState !== undefined;
     this.deviceState = state ? sanitizeDeviceContent(state) : undefined;
     this.deviceDirty = true;
-    if (!state) { this.deviceOrientation = undefined; this.offset.set(0, 0, 0); }
+    if (!state) { this.deviceOrientation = undefined; this.deviceAcceleration = undefined; this.offset.set(0, 0, 0); }
     if (wasConnected !== (this.deviceState !== undefined) && this.preset) this.rebuild();
   }
 
@@ -65,9 +71,13 @@ export class ContainerScene {
    * new snapshots, so stale/disconnected scenes remain completely still. */
   setDeviceAcceleration(acceleration: readonly number[] | null, elapsedSeconds = 0.1) {
     if (this.disposed) return;
-    if (!acceleration) { this.offset.set(0, 0, 0); this.deviceDirty = true; return; }
+    if (!acceleration) { this.deviceAcceleration = undefined; this.offset.set(0, 0, 0); this.deviceDirty = true; return; }
     if (acceleration.length !== 3 || !acceleration.every(Number.isFinite)) return;
     if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) return;
+    // Keep body-space motion before the desktop-only projection discards y.
+    // Liquid presentation consumes this same accepted sample, never phone or
+    // rendering-clock acceleration, and cannot write it back to the device.
+    this.deviceAcceleration = acceleration.map(value => THREE.MathUtils.clamp(value, -8, 8));
     const pose = this.deviceOrientation;
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pose?.pitchRad ?? 0, 0, pose?.rollRad ?? 0));
     this.scratch.set(acceleration[0], acceleration[1], acceleration[2]).applyQuaternion(q);
@@ -91,6 +101,13 @@ export class ContainerScene {
   restY() { return tableTopY + (this.geometry?.dimensions.y ?? 0.06) * 0.5 + 0.0008; }
   getSize(target: THREE.Vector3) { return this.geometry ? target.copy(this.geometry.dimensions) : target.setScalar(0.06); }
 
+  /** Optional visual ingredient loading never starts or stops hardware. */
+  whenPresentationReady() { return this.coins?.ready ?? Promise.resolve(); }
+  get presentationStatus() {
+    return this.coins?.status === "loading" ? "コインの物理描画を準備しています…" :
+      this.coins?.status === "error" ? `コイン描画を読み込めませんでした — ページの再読み込みで再試行: ${this.coins.error}` : "";
+  }
+
   /** Stable anchor: following the translated object with the camera cancels the cue. */
   getDesktopTarget(target: THREE.Vector3) {
     return target.set(0, tableTopY + (this.geometry?.dimensions.length() ?? 0.104) * 0.5, -0.72);
@@ -102,14 +119,21 @@ export class ContainerScene {
     if (this.deviceState) {
       if (this.desktop && !this.deviceDirty) return;
       if (this.deviceOrientation) this.group.rotation.set(this.deviceOrientation.pitchRad, 0, this.deviceOrientation.rollRad);
-      this.liquid?.updateDevice(this.deviceState, this.group.quaternion);
-      this.particles?.updateDevice(this.deviceState);
+      this.liquid?.updateDevice(this.deviceState, this.group.quaternion, this.deviceAcceleration);
+      this.particles?.updateDevice(this.deviceState, this.group.quaternion, this.deviceAcceleration);
+      this.coins?.updateDevice(this.deviceState, this.group.quaternion, this.deviceAcceleration);
+      if (this.liquid) this.ice?.updateDevice(this.deviceState, this.liquid.volume);
       this.deviceDirty = false;
     } else {
-      this.group.rotation.x = THREE.MathUtils.lerp(this.group.rotation.x, tilt.y * 0.62, 0.16);
-      this.group.rotation.z = THREE.MathUtils.lerp(this.group.rotation.z, -tilt.x * 0.62, 0.16);
+      // Preserve the established 60 Hz feel without slowing tilt at 30 Hz or
+      // speeding it up on a high-refresh phone. Connected pose stays direct.
+      const follow = 1 - Math.pow(0.84, THREE.MathUtils.clamp(dt, 0, 0.05) * 60);
+      this.group.rotation.x = THREE.MathUtils.lerp(this.group.rotation.x, tilt.y * 0.62, follow);
+      this.group.rotation.z = THREE.MathUtils.lerp(this.group.rotation.z, -tilt.x * 0.62, follow);
       this.liquid?.updatePreview(content, elapsed, this.group.quaternion);
       this.particles?.updatePreview(content, elapsed, dt, this.group.quaternion, this.liquid?.volume);
+      this.coins?.updatePreview(content, dt, this.group.quaternion);
+      if (this.liquid) this.ice?.updatePreview(content, elapsed, dt, this.group.quaternion, this.liquid.volume);
       // Preview motion is explicitly illustrative, never sent to the hardware.
       const gain = Math.min(...(this.geometry?.dimensions.toArray() ?? [0.06])) * 0.04;
       this.scratch.set(Math.tanh(content.surfaceVelocityX) * gain, 0, -Math.tanh(content.surfaceVelocityY) * gain);
@@ -137,9 +161,13 @@ export class ContainerScene {
     this.group.remove(this.gripProxy.group);
     this.liquid?.dispose();
     this.particles?.dispose();
+    this.coins?.dispose();
+    this.ice?.dispose();
     disposeObjectTree(this.group);
     this.liquid = undefined;
     this.particles = undefined;
+    this.coins = undefined;
+    this.ice = undefined;
     this.supportPoints = [];
   }
 
@@ -216,7 +244,15 @@ export class ContainerScene {
       this.liquid = new LiquidContentRenderer(this.preset, this.geometry);
       this.group.add(this.liquid.group);
     }
-    if (this.preset.family === "Granular" || this.preset.family === "Hybrid") {
+    if (this.preset.family === "Granular" && /coin/i.test(this.preset.preset)) {
+      this.coins = new CoinContentRenderer(this.preset, this.geometry);
+      this.group.add(this.coins.group);
+      const coins = this.coins;
+      void coins.ready.then(() => { if (!this.disposed && this.coins === coins) this.deviceDirty = true; });
+    } else if (this.preset.family === "Hybrid") {
+      this.ice = new IceContentRenderer(this.preset, this.geometry);
+      this.group.add(this.ice.group);
+    } else if (this.preset.family === "Granular") {
       this.particles = new ParticleContentRenderer(this.preset, this.geometry, this.resolvedDimensions);
       this.group.add(this.particles.group);
     }

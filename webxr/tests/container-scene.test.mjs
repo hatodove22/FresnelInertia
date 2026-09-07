@@ -146,14 +146,14 @@ test("empty state hides contents; clearing device state restores animated previe
   scene.setPreset(preset({ family: "Hybrid" }), true);
   scene.setDeviceState({ ...state, fill: 0 });
   tick(scene);
-  assert.equal(particles(scene).visible, false);
+  assert.equal(scene.group.getObjectByName("ice-content").visible, false);
   assert.equal(scene.group.getObjectByName("content-liquid").visible, false);
   assert.equal(scene.group.getObjectByName("content-liquid-surface").visible, false);
   scene.setDeviceState(null);
   scene.setPreset(preset());
   tick(scene, 0);
   const before = particlePositions(scene);
-  tick(scene, 1, 0.1);
+  tick(scene, 0.1, 0.1);
   assert.notDeepEqual(particlePositions(scene), before);
 });
 
@@ -182,8 +182,8 @@ test("connected orientation directly maps pitch to x and roll to z; stale pose f
   scene.setDeviceState(null);
   scene.group.rotation.set(0, 0, 0);
   tick(scene);
-  close(scene.group.rotation.x, -0.3 * 0.62 * 0.16);
-  close(scene.group.rotation.z, -0.6 * 0.62 * 0.16);
+  close(scene.group.rotation.x, -0.3 * 0.62 * (1 - Math.pow(0.84, 0.016 * 60)));
+  close(scene.group.rotation.z, -0.6 * 0.62 * (1 - Math.pow(0.84, 0.016 * 60)));
 });
 
 test("large preview labels never obscure the contents in either source mode", () => {
@@ -355,9 +355,14 @@ test('round preview vessels constrain complete particles to their changing inner
     const mesh = particles(scene);
     for(let i=0;i<mesh.count;i++) {
       const m = mesh.instanceMatrix.array.slice(i*16,(i+1)*16);
-      const radius = Math.hypot(m[0],m[1],m[2]);
-      const inner = (0.052+(0.07-0.052)*Math.min(1,Math.max(0,(m[13]+0.035)/0.07)))*0.48;
-      assert.ok(Math.hypot(m[12],m[14])+radius <= inner+1e-7);
+      // Ice uses a rounded cube, not the old particle's spherical radius.
+      const vertices = mesh.geometry.getAttribute('position');
+      for (let k = 0; k < vertices.count; k++) {
+        const x = vertices.getX(k), y = vertices.getY(k), z = vertices.getZ(k);
+        const px = m[0]*x+m[4]*y+m[8]*z+m[12], py = m[1]*x+m[5]*y+m[9]*z+m[13], pz = m[2]*x+m[6]*y+m[10]*z+m[14];
+        const inner = (0.052+(0.07-0.052)*Math.min(1,Math.max(0,(py+0.035)/0.07)))*0.48;
+        assert.ok(Math.hypot(px,pz) <= inner+1e-7);
+      }
     }
   }
   scene.dispose();

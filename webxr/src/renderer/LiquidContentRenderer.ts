@@ -40,12 +40,12 @@ export class LiquidContentRenderer {
     this.liquidSurface.material.normalMap!.colorSpace = THREE.NoColorSpace;
     Object.assign(this.liquidSurface.material, {
       transparent: false, opacity: 1, transmission: 0.92, ior: 1.333,
-      roughness: 0.07, thickness: geometry.dimensions.y * this.preset.container.fill,
-      attenuationDistance: geometry.dimensions.y * 2, envMapIntensity: 1.1,
+      roughness: 0.075, thickness: geometry.dimensions.y * this.preset.container.fill,
+      attenuationDistance: geometry.dimensions.y * 2, envMapIntensity: 0.85,
       clearcoat: 0, depthWrite: false
     });
-    this.liquidSurface.material.color.set("#d1f7f3");
-    this.liquidSurface.material.attenuationColor.set("#58b1b7");
+    this.liquidSurface.material.color.set("#c7f3f0");
+    this.liquidSurface.material.attenuationColor.set("#3299a5");
     this.liquidSurface.material.normalScale.set(0.075, 0.075);
     const bubbleMaterial = new THREE.MeshPhysicalMaterial({ color: "#efffff", transparent: true, opacity: 0.68, roughness: 0.1, clearcoat: 1, depthWrite: false });
     this.sodaBubbles = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), bubbleMaterial, 72);
@@ -87,7 +87,7 @@ export class LiquidContentRenderer {
     return s - Math.floor(s);
   }
 
-  updateDevice(state: DeviceContentState, orientation: THREE.Quaternion) {
+  updateDevice(state: DeviceContentState, orientation: THREE.Quaternion, acceleration?: readonly number[]) {
     const pressure = state.pressure;
     const fill = state.fill * (pressure?.remaining ?? 1);
     const activity = state.slosh ?? state.energy;
@@ -105,7 +105,7 @@ export class LiquidContentRenderer {
     const visual = state.phaseS === undefined ? undefined : this.liquidSlosh.update({
       timeS: state.phaseS, normal: this.surfaceNormal,
       massX: state.massX, massY: state.massY, velocityX: state.velocityX, velocityY: state.velocityY,
-      activity, fill, viscosity: this.preset.container.viscosity ?? 0.3
+      activity, fill, viscosity: this.preset.container.viscosity ?? 0.3, acceleration
     });
     const visualActivity = visual?.activity ?? activity;
     this.volume.update(fill, visual?.normal ?? this.surfaceNormal,
@@ -123,7 +123,9 @@ export class LiquidContentRenderer {
     this.liquidSurface.userData.visualActivity = visualActivity;
     this.liquidSurface.userData.visualNormal = this.volume.normal.toArray();
     this.liquidSurface.material.thickness = this.geometry.dimensions.y * fill;
-    this.liquidSurface.material.normalScale.setScalar(0.018 + visualActivity * 0.19);
+    // Broad geometric waves carry motion. Fine bump detail must not obscure
+    // their continuous shape or make it look like crumpled transparent film.
+    this.liquidSurface.material.normalScale.setScalar(0.012 + visualActivity * 0.05);
     const flowX = visual?.flow.x ?? state.massX * 0.035;
     const flowZ = visual?.flow.y ?? state.massY * 0.02;
     this.liquidSurface.material.normalMap?.offset.set(flowX, flowZ);

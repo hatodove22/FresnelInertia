@@ -29,7 +29,7 @@ export class LiquidCaustics {
       geometry.computeVertexNormals();
     } else geometry.rotateX(-Math.PI / 2);
     const material = new THREE.MeshStandardMaterial({
-      color: "#3c929b", roughness: 0.48, metalness: 0,
+      color: "#34646b", roughness: 0.48, metalness: 0,
       transparent: false, opacity: 1, side: THREE.DoubleSide
     });
     const aspect = Math.sqrt(size.x / size.z);
@@ -94,7 +94,9 @@ float causticRidge(vec2 uv) {
 // tilted shallow fill, the dry side of the container must stay unpainted.
 if (causticClip > 0.5 && dot(causticPlane.xyz, vCausticFloorPosition) > causticPlane.w) discard;
 float caustic = causticRidge(vCausticUv);
-float causticStrength = (0.25 + causticActivity * 0.40) * smoothstep(0.0, 0.08, causticFill);
+// Keep reflected light subordinate to the moving liquid silhouette. A bright
+// cell network across the whole floor read as painted neon under a splash.
+float causticStrength = (0.035 + causticActivity * 0.07) * smoothstep(0.0, 0.08, causticFill);
 float floorEdge = smoothstep(0.0, 0.035, min(min(vCausticUv.x, 1.0 - vCausticUv.x), min(vCausticUv.y, 1.0 - vCausticUv.y)));
 caustic *= mix(0.55, 1.0, floorEdge);
 diffuseColor.rgb *= 0.77 + 0.23 * floorEdge;
@@ -102,7 +104,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.94, 0.80), caustic * caust
         .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
 totalEmissiveRadiance += vec3(0.82, 0.95, 0.81) * caustic * causticStrength * 0.10;`);
     };
-    material.customProgramCacheKey = () => "contained-liquid-caustic-floor-v2";
+    material.customProgramCacheKey = () => "contained-liquid-caustic-floor-v4";
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.name = "content-liquid-caustics";
     this.mesh.position.y = this.uniforms.causticFloorY.value;

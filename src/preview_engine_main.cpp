@@ -90,8 +90,14 @@ EMSCRIPTEN_KEEPALIVE int preview_load_preset(const char* name) {
   SystemParams next{};
   if (std::strcmp(name, "granular_single_marble_box") == 0) {
     next = makeDefaultGranularSingleMarblePreset();
+  } else if (std::strcmp(name, "granular_coin_box") == 0) {
+    next = makeDefaultGranularPreset();
+  } else if (std::strcmp(name, "granular_single_coin_box") == 0) {
+    next = makeDefaultGranularSingleCoinPreset();
   } else if (std::strcmp(name, "granular_sand_box") == 0) {
     next = makeDefaultGranularSandPreset();
+  } else if (std::strcmp(name, "granular_sand_pile_box") == 0) {
+    next = makeDefaultGranularPilePreset();
   } else if (std::strcmp(name, "liquid_small_box") == 0) {
     next = makeDefaultLiquidPreset();
   } else if (std::strcmp(name, "liquid_soda_bottle") == 0) {
@@ -103,7 +109,8 @@ EMSCRIPTEN_KEEPALIVE int preview_load_preset(const char* name) {
   // Explicit preview conditions, not changes to generic or physical defaults.
   // This enables model calculation only: the browser links no actuator backend.
   next.features.enable_tilt_plane = true;
-  next.features.enable_granular_pile_demo = std::strcmp(name, "granular_sand_box") == 0;
+  next.features.enable_granular_pile_demo = std::strcmp(name, "granular_sand_box") == 0 ||
+                                             std::strcmp(name, "granular_sand_pile_box") == 0;
   next.features.enable_pressurized_demo = std::strcmp(name, "liquid_soda_bottle") == 0;
   params = next;
   loaded = true;
@@ -143,7 +150,10 @@ EMSCRIPTEN_KEEPALIVE int preview_set_param(const char* path, float value) {
   PREVIEW_FLOAT(mass, granular_static_friction, 0.0f, 2.0f)
   PREVIEW_FLOAT(mass, granular_dynamic_friction, 0.0f, 2.0f)
   PREVIEW_FLOAT(resonance, master_gain, 0.0f, 1.0f)
+  PREVIEW_FLOAT(tilt, max_tilt_deg, 0.0f, 10.0f)
   PREVIEW_FLOAT(tilt, k_phi, 0.0f, 8.0f)
+  PREVIEW_FLOAT(tilt, k_cm, 0.0f, 1.0f)
+  PREVIEW_FLOAT(tilt, k_tau, 0.0f, 1.0f)
 #undef PREVIEW_FLOAT
   if (std::strcmp(path, "features.enable_granular_pile_demo") == 0) {
     if (value != 0.0f && value != 1.0f) return 0;
@@ -195,10 +205,12 @@ EMSCRIPTEN_KEEPALIVE const char* preview_snapshot() {
           params.container.fill, params.container.headspace, params.container.viscosity,
           params.container.particle_count, params.container.particle_hardness);
   out.add("\"parameters\":{\"granularPile\":%s,\"staticFriction\":%.9g,\"dynamicFriction\":%.9g,"
-          "\"dampingX\":%.9g,\"dampingY\":%.9g,\"rebound\":%.9g,\"masterGain\":%.9g,\"tiltGain\":%.9g},",
+          "\"dampingX\":%.9g,\"dampingY\":%.9g,\"rebound\":%.9g,\"masterGain\":%.9g,\"tiltGain\":%.9g,"
+          "\"tiltKcm\":%.9g,\"tiltKtau\":%.9g,\"tiltPositionGain\":%.9g},",
           params.features.enable_granular_pile_demo ? "true" : "false", params.mass.granular_static_friction,
           params.mass.granular_dynamic_friction, params.mass.damping_ratio_x, params.mass.damping_ratio_y,
-          params.mass.rebound, params.resonance.master_gain, params.tilt.k_phi);
+          params.mass.rebound, params.resonance.master_gain, params.tilt.k_phi,
+          params.tilt.k_cm, params.tilt.k_tau, params.tilt.max_tilt_deg);
   out.add("\"mass\":{\"posNorm\":[%.9g,%.9g],\"velNormS\":[%.9g,%.9g],\"energy\":%.9g,\"fill\":%.9g,"
           "\"wallContact\":[%.9g,%.9g,%.9g,%.9g],\"wallImpactSpeedNormS\":[%.9g,%.9g,%.9g,%.9g],"
           "\"pileSlope\":%.9g,\"granularFlow\":%.9g,\"granularPileActive\":%s,",

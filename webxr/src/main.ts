@@ -4,13 +4,15 @@ import { frameDesktopContainer } from "./renderer/desktopView";
 import { EnvironmentScene } from "./renderer/EnvironmentScene";
 import { SpatialControlPanel } from "./renderer/SpatialControlPanel";
 import { PhoneInput } from "./input/PhoneInput";
-import { presets, findPreset } from "./presets";
+import { DemoKeyboard } from "./input/DemoKeyboard";
+import { MaterialSound } from "./audio/MaterialSound";
+import { fromDeviceSound, fromLabSound, fromPreviewSound } from "./audio/SoundState";
+import { presets, findPreset, previewPresetLabel } from "./presets";
 import { VisualSimulator } from "./simulator";
 import { ExperimentRecorder } from "./experimentRecorder";
 import { scriptedTilt, stimulusScripts, type StimulusScriptName } from "./stimulusScripts";
 import type { DemoUiElements, SpatialPanelState, TiltState } from "./types";
 import { WebXrBridge } from "./xr/WebXrBridge";
-import { iwsdkIntegrationNotes } from "./iwsdkNotes";
 import { DeviceDemo } from "./deviceDemo";
 import { OfflineLab } from "./offlineLab";
 import { makeMaterialBackdrop, makeMaterialEnvironment } from "./renderer/MaterialStudio";
@@ -36,12 +38,11 @@ const ui: DemoUiElements = {
   trialElapsed: document.querySelector<HTMLElement>("#trial-elapsed")!,
   exportFormatSelect: document.querySelector<HTMLSelectElement>("#export-format-select")!,
   exportButton: document.querySelector<HTMLButtonElement>("#export-button")!,
-  orientationButton: document.querySelector<HTMLButtonElement>("#orientation-button")!,
   xrButton: document.querySelector<HTMLButtonElement>("#xr-button")!,
   questButton: document.querySelector<HTMLButtonElement>("#quest-button")!,
   touchModeButton: document.querySelector<HTMLButtonElement>("#touch-mode-button")!,
   tiltModeButton: document.querySelector<HTMLButtonElement>("#tilt-mode-button")!,
-  handModeButton: document.querySelector<HTMLButtonElement>("#hand-mode-button")!,
+  inputStatus: document.querySelector<HTMLElement>("#input-status")!,
   resetButton: document.querySelector<HTMLButtonElement>("#reset-button")!,
   modeBadge: document.querySelector<HTMLElement>("#mode-badge")!,
   familyReadout: document.querySelector<HTMLElement>("#family-readout")!,
@@ -108,6 +109,34 @@ const container = new ContainerScene();
 worldRoot.add(container.group);
 
 const simulator = new VisualSimulator();
+const materialSound = new MaterialSound();
+const soundToggle = document.querySelector<HTMLButtonElement>("#sound-toggle")!;
+const soundVolume = document.querySelector<HTMLInputElement>("#sound-volume")!;
+const soundValue = document.querySelector<HTMLOutputElement>("#sound-volume-value")!;
+const soundStatus = document.querySelector<HTMLElement>("#sound-status")!;
+function refreshSoundControls() {
+  soundToggle.setAttribute("aria-pressed", String(!!materialSound.running));
+  soundToggle.textContent = materialSound.running ? "効果音 ON" : "効果音をON";
+  soundStatus.textContent = materialSound.error || (materialSound.enabled && !materialSound.running
+    ? "音声が中断されています。ONで再開できます。" : "スピーカー出力 · 4ch振動とは別の設定");
+  if (materialSound.error || (materialSound.enabled && !materialSound.running)) {
+    soundStatus.closest("details")?.setAttribute("open", "");
+  }
+}
+materialSound.onChange = refreshSoundControls;
+soundToggle.onclick = async () => {
+  if (materialSound.running) { materialSound.mute(); return; }
+  soundToggle.disabled = true;
+  soundStatus.textContent = "音声を準備しています…";
+  try { await materialSound.enable(); }
+  finally { soundToggle.disabled = false; refreshSoundControls(); }
+};
+soundVolume.oninput = () => {
+  materialSound.setVolume(Number(soundVolume.value) / 100);
+  soundValue.value = `${Math.round(materialSound.volume * 100)}%`;
+};
+document.addEventListener("visibilitychange", () => { if (document.hidden) materialSound.silence(); });
+window.addEventListener("pagehide", () => materialSound.silence());
 const phoneInput = new PhoneInput(canvas);
 const recorder = new ExperimentRecorder();
 let panelState: SpatialPanelState = { shakeBoost: 0.35, dampingPreview: 0.5 };
@@ -161,16 +190,20 @@ const deviceDemo = new DeviceDemo(container, {
 });
 const offlineLab = new OfflineLab(container, {
   canEnter: () => !deviceDemo.active && !renderer.xr.isPresenting,
+  onSilence: () => materialSound.silence(),
   onPreset: preset => { activePreset = preset; },
   onClose: () => { container.group.position.x = 0; applyPreviewPreset("liquid_small_box"); }
 });
-
-console.info("IWSDK integration", iwsdkIntegrationNotes);
+// Stop/disconnect/invalid source cuts sound at state notification, even when a
+// costly WebGL frame is delayed. This observer never issues device commands.
+deviceDemo.link.subscribe(state => {
+  if (deviceDemo.active && !fromDeviceSound(state)) materialSound.silence();
+});
 
 for (const preset of presets) {
   const option = document.createElement("option");
   option.value = preset.preset;
-  option.textContent = preset.preset.replaceAll("_", " ");
+  option.textContent = previewPresetLabel(preset.preset);
   ui.presetSelect.appendChild(option);
 }
 
@@ -199,23 +232,15 @@ ui.dampingPreviewSlider.addEventListener("input", () => {
   setPanelState({ ...panelState, dampingPreview: Number(ui.dampingPreviewSlider.value) });
 });
 
-ui.orientationButton.addEventListener("click", async () => {
-  await enableTiltMode();
-});
-
 ui.touchModeButton.addEventListener("click", () => {
   phoneInput.setTouchMode();
   setActiveMethod("touch");
-  ui.modeBadge.textContent = "Phone";
+  ui.inputStatus.textContent = "容器をドラッグして傾けられます。";
+  ui.modeBadge.textContent = "Preview";
 });
 
 ui.tiltModeButton.addEventListener("click", async () => {
   await enableTiltMode();
-});
-
-ui.handModeButton.addEventListener("click", () => {
-  setActiveMethod("hand");
-  ui.xrButton.click();
 });
 
 ui.resetButton.addEventListener("click", () => {
@@ -248,8 +273,11 @@ xrBridge.installButton(ui.xrButton);
 container.setPreset(activePreset);
 setPanelState(panelState);
 updateReadout(phoneInput.tilt);
+new DemoKeyboard(document, () => deviceDemo.active ? "device" :
+  renderer.xr.isPresenting ? "xr" : offlineLab.active ? "lab" : "preview");
 if (new URLSearchParams(window.location.search).get("lab") === "1") void offlineLab.open();
 
+const presentationStatus = document.querySelector<HTMLElement>("#presentation-status")!;
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -270,6 +298,16 @@ renderer.setAnimationLoop((time) => {
   currentTilt = { ...tilt };
   const content = deviceFrame?.content ?? simulator.update(activePreset, tilt, dt, panelState);
   container.update(tilt, content, time * 0.001, dt);
+  const presentationMessage = container.presentationStatus;
+  if (presentationStatus.textContent !== presentationMessage) {
+    presentationStatus.textContent = presentationMessage;
+    presentationStatus.hidden = !presentationMessage;
+  }
+  const soundFrame = document.hidden ? null : offlineLab.active
+    ? offlineLab.soundFrame ? fromLabSound(offlineLab.soundFrame) : null
+    : deviceDemo.active ? fromDeviceSound(deviceDemo.link.state)
+    : fromPreviewSound(activePreset, content, time * 0.001);
+  materialSound.update(soundFrame);
   // A close view uses the camera, never an invented scale on the physical box.
   // XR continues to use its own tracked camera and hand-positioned container.
   if (!renderer.xr.isPresenting) {
@@ -313,6 +351,7 @@ renderer.setAnimationLoop((time) => {
 
 function resetContainerToRest() {
   if (deviceDemo.active) return;
+  materialSound.silence();
   setActiveStimulus("manual");
   phoneInput.resetTilt();
   xrBridge.resetTilt();
@@ -330,12 +369,15 @@ function updateReadout(tilt: TiltState) {
 }
 
 async function enableTiltMode() {
-  const ok = await phoneInput.enableOrientation();
-  ui.orientationButton.textContent = ok ? "Tilt On" : "Tilt Blocked";
-  ui.orientationButton.disabled = ok;
-  if (ok) {
-    setActiveMethod("tilt");
-    ui.modeBadge.textContent = "Tilt";
+  try {
+    const ok = await phoneInput.enableOrientation();
+    ui.inputStatus.textContent = ok ? "端末の傾きで操作中です。" : "端末の傾きを利用できません。ドラッグで操作できます。";
+    if (ok) {
+      setActiveMethod("tilt");
+    ui.modeBadge.textContent = "Preview";
+    }
+  } catch (error) {
+    ui.inputStatus.textContent = `端末の傾きを利用できません: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 
@@ -343,7 +385,8 @@ function setActiveMethod(method: "touch" | "tilt" | "hand") {
   activeInputMethod = method;
   ui.touchModeButton.classList.toggle("active", method === "touch");
   ui.tiltModeButton.classList.toggle("active", method === "tilt");
-  ui.handModeButton.classList.toggle("active", method === "hand");
+  ui.touchModeButton.setAttribute("aria-pressed", String(method === "touch"));
+  ui.tiltModeButton.setAttribute("aria-pressed", String(method === "tilt"));
 }
 
 function setActiveStimulus(stimulus: StimulusScriptName) {

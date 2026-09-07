@@ -1,7 +1,7 @@
 import type { ContainerPreset, MaterialFamily } from "../types";
 import type { PreviewEngineModule } from "./generated/preview-engine.js";
 
-export const previewPresets = ["granular_single_marble_box", "granular_sand_box", "liquid_small_box", "liquid_soda_bottle"] as const;
+export const previewPresets = ["granular_single_marble_box", "granular_sand_box", "granular_sand_pile_box", "liquid_small_box", "liquid_soda_bottle", "granular_coin_box", "granular_single_coin_box"] as const;
 export type PreviewPreset = typeof previewPresets[number];
 export type Triple = [number, number, number];
 export type Quad = [number, number, number, number];
@@ -23,7 +23,7 @@ export interface PreviewFrame {
   frameCounter: number;
   eventsTotal: number;
   container: ContainerPreset["container"];
-  parameters: { granularPile: boolean; staticFriction: number; dynamicFriction: number; dampingX: number; dampingY: number; rebound: number; masterGain: number; tiltGain: number };
+  parameters: { granularPile: boolean; staticFriction: number; dynamicFriction: number; dampingX: number; dampingY: number; rebound: number; masterGain: number; tiltGain: number; tiltKcm: number; tiltKtau: number; tiltPositionGain: number };
   mass: {
     posNorm: [number, number]; velNormS: [number, number]; energy: number; fill: number;
     wallContact: Quad; wallImpactSpeedNormS: Quad;

@@ -80,6 +80,26 @@ for documentation cleanup. Details are in [webxr README](../../webxr/README.md).
 The visual application and its separate `/webusb.html` probe have different
 roles. The preview build does not establish actual phone/Quest USB support.
 
+For interactive browser inspection, `agent-browser` 0.36.0 was installed
+globally on this Windows host on 2026-09-07 (`npm.cmd install --global
+agent-browser@0.36.0`). It detected an existing browser; no additional browser
+download or project dependency change was needed. Use `.cmd` in PowerShell
+and quote snapshot refs (for example `'@e13'`) to avoid PowerShell splatting.
+With the local demo already running, an isolated, output-free check is:
+
+```powershell
+agent-browser.cmd --session fresnel-check --headed false --args "--use-angle=swiftshader,--enable-unsafe-swiftshader" open "http://127.0.0.1:8082/?lab=1"
+agent-browser.cmd --session fresnel-check snapshot -i
+agent-browser.cmd --session fresnel-check screenshot
+agent-browser.cmd --session fresnel-check errors
+agent-browser.cmd --session fresnel-check close
+```
+
+Adjust the URL to the actual server. The explicit software-WebGL run verified
+Lab load, material selection, snapshots/screenshots and no page errors; it is
+not GPU performance or physical-device evidence. Keep the existing Playwright
+mock-transport smoke test below for connected-control regression coverage.
+
 ## Output-free C++ Lab
 
 Open the ordinary Vite URL with `?lab=1`, or choose **実機なしラボ**. The Lab
@@ -130,6 +150,10 @@ If Playwright is provided by a host runtime rather than local dependencies,
 set `FRESNEL_PLAYWRIGHT_MODULE` to its existing module path first. This script
 injects a fake serial port and writes ignored screenshots under `tmp/browser/`;
 it is a connected-UI smoke test, not the Lab visual review or real USB access.
+The default browser channel is Chrome. If only Playwright's bundled Chromium
+is available, set `FRESNEL_BROWSER_CHANNEL=chromium`; for an explicit software
+WebGL run set `FRESNEL_SOFTWARE_WEBGL=1`. The smoke test also exercises a mocked
+servo fault, rejected/successful recovery and a separate deliberate restart.
 
 ## Focused checks
 

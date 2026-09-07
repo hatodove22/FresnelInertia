@@ -1,0 +1,434 @@
+{
+  "version": 1,
+  "sampleRate": 24000,
+  "totalFrames": 1328640,
+  "provenance": "Authored solids plus Joseph SARDIN CC0 recorded water, cork and fizz; see sources/CREDITS.md.",
+  "recordedSources": [
+    {
+      "id": "joseph-sardin-water-0192",
+      "title": "Swirl in the water",
+      "author": "Joseph SARDIN",
+      "sourcePage": "https://bigsoundbank.com/swirl-in-the-water-s0192.html",
+      "downloadUrl": "https://bigsoundbank.com/UPLOAD/bwf-en/0192.wav",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "https://bigsoundbank.com/licenses.html",
+      "verifiedOn": "2026-09-07",
+      "originalSha256": "4053c40c34cdc11e5b8a22b77b639aa621887aede01c784e8d4b3ad84544546c",
+      "localFile": "water-swirl-0192.wav",
+      "localSha256": "30d8c956656a93ada1078b672956a276ae428d4a0bbf09181347d2c160d16e93",
+      "processing": "Original real mono water recording; ffmpeg highpass=f=70,lowpass=f=8500, resampled to mono 24000 Hz PCM16. Excerpts receive bounded gain, edge fades and a 200 ms flow-loop crossfade; no generated water noise or pitch shift.",
+      "excerpts": {
+        "water": {
+          "flow": [
+            7,
+            6
+          ],
+          "impact": [
+            [
+              1.45,
+              0.85
+            ],
+            [
+              7.75,
+              0.95
+            ],
+            [
+              11.4,
+              1.05
+            ],
+            [
+              14.65,
+              1
+            ]
+          ],
+          "scrape": [
+            [
+              2,
+              0.75
+            ],
+            [
+              8.6,
+              0.8
+            ],
+            [
+              12,
+              0.85
+            ],
+            [
+              17.6,
+              0.8
+            ]
+          ]
+        },
+        "hybrid": {
+          "flow": [
+            11.2,
+            6
+          ],
+          "impact": [
+            [
+              7,
+              0.9
+            ],
+            [
+              8.1,
+              0.9
+            ],
+            [
+              11.5,
+              1
+            ],
+            [
+              18,
+              0.9
+            ]
+          ],
+          "scrape": [
+            [
+              2,
+              0.75
+            ],
+            [
+              8.6,
+              0.8
+            ],
+            [
+              12,
+              0.85
+            ],
+            [
+              17.6,
+              0.8
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "joseph-sardin-cork-0648",
+      "title": "Champagne cork #2",
+      "author": "Joseph SARDIN",
+      "sourcePage": "https://bigsoundbank.com/champagne-cork-2-s0648.html",
+      "downloadUrl": "https://bigsoundbank.com/UPLOAD/bwf-en/0648.wav",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "https://bigsoundbank.com/licenses.html",
+      "originalSha256": "59176d6d503e2f0a0064ca8455f206821aa2c6f0047e0be5f3caa56f5d0fe81c",
+      "localFile": "soda-cork-0648.wav",
+      "localSha256": "c41f91712674cebcb653cf982d691bf43e19de4eba4331a9b7f725788e659d0e",
+      "processing": "Actual cork release; 50 Hz high-pass / 9.5 kHz low-pass, stereo downmix and 24 kHz PCM16 resampling. Four nearby onset trims of the same recording, not four separate takes; no pitch shift."
+    },
+    {
+      "id": "joseph-sardin-fizz-0230",
+      "title": "Sparkling water",
+      "author": "Joseph SARDIN",
+      "sourcePage": "https://bigsoundbank.com/sparkling-water-s0230.html",
+      "downloadUrl": "https://bigsoundbank.com/UPLOAD/bwf-en/0230.wav",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "https://bigsoundbank.com/licenses.html",
+      "originalSha256": "6c00a20794d6a739a06d3bac41e384ed676410f2fc0b5be2dc8f52a7ef10061e",
+      "localFile": "soda-fizz-0230.wav",
+      "localSha256": "ac52121e298bdedd8a971ad74d025157b7950d2270fd41d26537a8b3cfe9e442",
+      "processing": "Actual sparkling water in a glass; 180 Hz high-pass / 9.5 kHz low-pass and mono 24 kHz PCM16 resampling. A 3.8 s excerpt with a 200 ms seam is a quiet burst-only fizz bed, not an extra opening event."
+    }
+  ],
+  "clips": {
+    "flow:coin": {
+      "start": 0,
+      "frames": 48000,
+      "source": "locally-authored"
+    },
+    "coin:impact:0": {
+      "start": 48000,
+      "frames": 8640,
+      "source": "locally-authored"
+    },
+    "coin:impact:1": {
+      "start": 56640,
+      "frames": 8640,
+      "source": "locally-authored"
+    },
+    "coin:impact:2": {
+      "start": 65280,
+      "frames": 8640,
+      "source": "locally-authored"
+    },
+    "coin:impact:3": {
+      "start": 73920,
+      "frames": 8640,
+      "source": "locally-authored"
+    },
+    "coin:scrape:0": {
+      "start": 82560,
+      "frames": 8640,
+      "source": "locally-authored"
+    },
+    "coin:scrape:1": {
+      "start": 91200,
+      "frames": 8640,
+      "source": "locally-authored"
+    },
+    "coin:scrape:2": {
+      "start": 99840,
+      "frames": 8640,
+      "source": "locally-authored"
+    },
+    "coin:scrape:3": {
+      "start": 108480,
+      "frames": 8640,
+      "source": "locally-authored"
+    },
+    "flow:marble": {
+      "start": 117120,
+      "frames": 48000,
+      "source": "locally-authored"
+    },
+    "marble:impact:0": {
+      "start": 165120,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "marble:impact:1": {
+      "start": 168960,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "marble:impact:2": {
+      "start": 172800,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "marble:impact:3": {
+      "start": 176640,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "marble:scrape:0": {
+      "start": 180480,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "marble:scrape:1": {
+      "start": 184320,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "marble:scrape:2": {
+      "start": 188160,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "marble:scrape:3": {
+      "start": 192000,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "flow:sand": {
+      "start": 195840,
+      "frames": 48000,
+      "source": "locally-authored"
+    },
+    "sand:impact:0": {
+      "start": 243840,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "sand:impact:1": {
+      "start": 247680,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "sand:impact:2": {
+      "start": 251520,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "sand:impact:3": {
+      "start": 255360,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "sand:scrape:0": {
+      "start": 259200,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "sand:scrape:1": {
+      "start": 263040,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "sand:scrape:2": {
+      "start": 266880,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "sand:scrape:3": {
+      "start": 270720,
+      "frames": 3840,
+      "source": "locally-authored"
+    },
+    "flow:water": {
+      "start": 274560,
+      "frames": 139200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "water:impact:0": {
+      "start": 413760,
+      "frames": 20400,
+      "source": "joseph-sardin-water-0192"
+    },
+    "water:impact:1": {
+      "start": 434160,
+      "frames": 22800,
+      "source": "joseph-sardin-water-0192"
+    },
+    "water:impact:2": {
+      "start": 456960,
+      "frames": 25200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "water:impact:3": {
+      "start": 482160,
+      "frames": 24000,
+      "source": "joseph-sardin-water-0192"
+    },
+    "water:scrape:0": {
+      "start": 506160,
+      "frames": 18000,
+      "source": "joseph-sardin-water-0192"
+    },
+    "water:scrape:1": {
+      "start": 524160,
+      "frames": 19200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "water:scrape:2": {
+      "start": 543360,
+      "frames": 20400,
+      "source": "joseph-sardin-water-0192"
+    },
+    "water:scrape:3": {
+      "start": 563760,
+      "frames": 19200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "flow:soda": {
+      "start": 582960,
+      "frames": 139200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "soda:impact:0": {
+      "start": 722160,
+      "frames": 20400,
+      "source": "joseph-sardin-water-0192"
+    },
+    "soda:impact:1": {
+      "start": 742560,
+      "frames": 22800,
+      "source": "joseph-sardin-water-0192"
+    },
+    "soda:impact:2": {
+      "start": 765360,
+      "frames": 25200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "soda:impact:3": {
+      "start": 790560,
+      "frames": 24000,
+      "source": "joseph-sardin-water-0192"
+    },
+    "soda:scrape:0": {
+      "start": 814560,
+      "frames": 18000,
+      "source": "joseph-sardin-water-0192"
+    },
+    "soda:scrape:1": {
+      "start": 832560,
+      "frames": 19200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "soda:scrape:2": {
+      "start": 851760,
+      "frames": 20400,
+      "source": "joseph-sardin-water-0192"
+    },
+    "soda:scrape:3": {
+      "start": 872160,
+      "frames": 19200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "flow:hybrid": {
+      "start": 891360,
+      "frames": 139200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "hybrid:impact:0": {
+      "start": 1030560,
+      "frames": 21600,
+      "source": "joseph-sardin-water-0192"
+    },
+    "hybrid:impact:1": {
+      "start": 1052160,
+      "frames": 21600,
+      "source": "joseph-sardin-water-0192"
+    },
+    "hybrid:impact:2": {
+      "start": 1073760,
+      "frames": 24000,
+      "source": "joseph-sardin-water-0192"
+    },
+    "hybrid:impact:3": {
+      "start": 1097760,
+      "frames": 21600,
+      "source": "joseph-sardin-water-0192"
+    },
+    "hybrid:scrape:0": {
+      "start": 1119360,
+      "frames": 18000,
+      "source": "joseph-sardin-water-0192"
+    },
+    "hybrid:scrape:1": {
+      "start": 1137360,
+      "frames": 19200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "hybrid:scrape:2": {
+      "start": 1156560,
+      "frames": 20400,
+      "source": "joseph-sardin-water-0192"
+    },
+    "hybrid:scrape:3": {
+      "start": 1176960,
+      "frames": 19200,
+      "source": "joseph-sardin-water-0192"
+    },
+    "pop:0": {
+      "start": 1196160,
+      "frames": 11520,
+      "source": "joseph-sardin-cork-0648"
+    },
+    "pop:1": {
+      "start": 1207680,
+      "frames": 11520,
+      "source": "joseph-sardin-cork-0648"
+    },
+    "pop:2": {
+      "start": 1219200,
+      "frames": 11520,
+      "source": "joseph-sardin-cork-0648"
+    },
+    "pop:3": {
+      "start": 1230720,
+      "frames": 11520,
+      "source": "joseph-sardin-cork-0648"
+    },
+    "vent:soda": {
+      "start": 1242240,
+      "frames": 86400,
+      "source": "joseph-sardin-fizz-0230"
+    }
+  }
+}

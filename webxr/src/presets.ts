@@ -1,5 +1,6 @@
 import granularBeadBox from "../../presets/granular_bead_box.json";
 import granularCoinBox from "../../presets/granular_coin_box.json";
+import granularSingleCoinBox from "../../presets/granular_single_coin_box.json";
 import granularSandBox from "../../presets/granular_sand_box.json";
 import hybridIceWater from "../../presets/hybrid_ice_water.json";
 import liquidDenseJar from "../../presets/liquid_dense_jar.json";
@@ -12,6 +13,7 @@ const rawPresets = [
   liquidDenseJar,
   liquidHalfTube,
   granularCoinBox,
+  granularSingleCoinBox,
   granularSandBox,
   granularBeadBox,
   hybridIceWater
@@ -75,6 +77,21 @@ const tumblerPreset: ContainerPreset = {
 };
 
 export const presets = [basePresets[0], bottlePreset, tumblerPreset, ...basePresets.slice(1)];
+
+const previewLabels: Record<string, string> = {
+  liquid_small_box: "水の容器",
+  liquid_cylinder_bottle: "水のボトル",
+  liquid_plastic_tumbler: "水のカップ",
+  liquid_dense_jar: "粘性のある液体",
+  liquid_half_tube: "細長い容器の液体",
+  granular_coin_box: "コイン",
+  granular_single_coin_box: "コイン1枚",
+  granular_sand_box: "細かい砂",
+  granular_bead_box: "ビーズ",
+  hybrid_ice_water: "氷と水"
+};
+
+export const previewPresetLabel = (name: string) => previewLabels[name] ?? name.replaceAll("_", " ");
 
 export function findPreset(name: string): ContainerPreset {
   return presets.find((preset) => preset.preset === name) ?? presets[0];

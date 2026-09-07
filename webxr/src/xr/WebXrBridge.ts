@@ -162,7 +162,7 @@ export class WebXrBridge {
     this.savedWorldPosition = this.worldRoot.position.clone();
     this.savedProjection = this.desktopCamera ? { fov: this.desktopCamera.fov, zoom: this.desktopCamera.zoom } : undefined;
     this.savedBadge = this.modeBadge.textContent ?? "";
-    this.savedModeClasses = ["#hand-mode-button", "#touch-mode-button", "#tilt-mode-button"]
+    this.savedModeClasses = ["#touch-mode-button", "#tilt-mode-button"]
       .map(selector => document.querySelector(selector))
       .filter((element): element is Element => element !== null)
       .map(element => ({ element, active: element.classList.contains("active") }));
@@ -188,7 +188,6 @@ export class WebXrBridge {
       button.disabled = false;
       button.textContent = "Exit MR";
       this.modeBadge.textContent = "Quest MR";
-      document.querySelector("#hand-mode-button")?.classList.add("active");
       document.querySelector("#touch-mode-button")?.classList.remove("active");
       document.querySelector("#tilt-mode-button")?.classList.remove("active");
     } catch (error) {

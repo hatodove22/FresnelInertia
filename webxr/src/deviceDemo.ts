@@ -2,6 +2,8 @@ import { HapticLink, HapticLinkError, type DeviceSnapshot } from "./link/HapticL
 import type { DevicePanelState, DevicePanelCallbacks } from "./renderer/SpatialControlPanel";
 import type { ContainerPreset, LocalContentState, TiltState } from "./types";
 import { contentFromSnapshot, orientationFromSnapshot, resolvedPresetFromSnapshot, visualSampleInterval, type DeviceVisualSink } from "./visualState";
+import { parseProfile, serializeProfile, PROFILE_STORAGE_PREFIX, type TuningProfile } from "./tuning/TuningProfile";
+import { demoDefinitions } from "./tuning/RepresentativeDemos";
 
 const devicePresets = [
   ["granular_single_marble_box", "ひと粒のビー玉"],
@@ -12,6 +14,7 @@ const devicePresets = [
   ["hybrid_ice_water", "氷と水"],
   ["granular_bead_box", "ビーズ"],
   ["granular_coin_box", "コイン"],
+  ["granular_single_coin_box", "コイン1枚（新FW）"],
   ["liquid_dense_jar", "粘性のある液体"],
   ["liquid_half_tube", "細長い容器の液体"]
 ];
@@ -36,7 +39,25 @@ export class DeviceDemo {
   private error = "";
   private operations = 0;
   private get busy() { return this.operations > 0; }
+  private get servoRetrying() {
+    const { connection, paired, stale, telemetry } = this.link.state;
+    // Only the device's fresh, exact recovery state grants this interpretation.
+    // Retained telemetry or an ordinary latched fault must not imply recovery.
+    return connection === "connected" && paired !== false && !stale &&
+      telemetry?.run_mode === "live" && telemetry.tilt_servo?.state === 1 &&
+      telemetry.tilt_servo.fault === 2 && telemetry.safety?.tilt_disarmed === false;
+  }
   private selectedPresetPending = "";
+  private profileApplyIncomplete = false;
+  private profileMessage = "";
+  private readonly profiles = new Map<string, TuningProfile>();
+  // Optional: older embedded/test clients have only the original controls.
+  private readonly profileSelect = document.getElementById("device-profile-select") as HTMLSelectElement | null;
+  private readonly profileApply = document.getElementById("device-profile-apply") as HTMLButtonElement | null;
+  private readonly profileImport = document.getElementById("device-profile-import") as HTMLInputElement | null;
+  private readonly profileExport = document.getElementById("device-profile-export") as HTMLButtonElement | null;
+  private readonly profileDetail = document.getElementById("device-profile-detail");
+  private get hasProfileControls() { return typeof this.profileSelect?.replaceChildren === "function"; }
   private tilt: TiltState = { x: 0, y: 0 };
   private gravity: number[] | null = null;
   private visualTimestampMs: number | null = null;
@@ -109,10 +130,13 @@ export class DeviceDemo {
       await this.link.getState();
     });
     this.link.subscribe(() => this.refresh());
+    this.initializeProfiles();
     this.refresh();
   }
 
   async start() {
+    if (this.profileApplyIncomplete) throw new Error("選択結果の適用が未完了です。再適用するか、材質を選び直してください");
+    if (this.servoRetrying) throw new Error("サーボ通信を再試行中です。復帰を待つか、停止してください");
     if (!this.applied || this.link.state.stale) throw new Error("実機の適用状態を取得してから開始してください");
     await this.link.start({ audio: this.audioChoice.checked, tilt: this.tiltChoice.checked });
   }
@@ -122,8 +146,96 @@ export class DeviceDemo {
   async selectPreset(name: string) {
     await this.perform(async () => {
       this.selectedPresetPending = name;
-      try { await this.link.loadPreset(name); }
-      catch (error) { this.selectedPresetPending = ""; throw error; }
+      try { await this.link.loadPreset(name); this.profileApplyIncomplete = false; this.profileMessage = ""; }
+      catch (error) {
+        this.selectedPresetPending = "";
+        if (name === "granular_single_coin_box" && error instanceof HapticLinkError &&
+          error.code === "rejected" && error.message.includes("preset_load_failed")) {
+          throw new HapticLinkError(error.code, `${error.message} — コイン1枚には対応するAtomS3 FWが必要です`);
+        }
+        throw error;
+      }
+    });
+  }
+
+  private profileLabel(profile: TuningProfile): string {
+    const review = profile.reviewStatus === "rehearsal-only" ? "練習のみ・触覚評価なし" :
+      profile.reviewStatus === "not-evaluated" ? "未評価（比較0件）" : "実機モードの自己申告選好・検証保証なし";
+    const material = demoDefinitions.find(definition => definition.id === profile.demo)!.label;
+    return `${material} · ${review} · 比較${profile.comparisonCount}件`;
+  }
+
+  private initializeProfiles() {
+    if (!this.hasProfileControls) return;
+    this.profileSelect!.onchange = () => { this.profileMessage = ""; this.refresh(); };
+    if (this.profileApply) this.profileApply.onclick = () => void this.applySelectedProfile();
+    if (this.profileImport) this.profileImport.onchange = () => void this.perform(async () => {
+      const file = this.profileImport?.files?.[0];
+      if (!file) return;
+      if (file.size > 16384) throw new Error("選択結果JSONは16 KiB以下にしてください");
+      const profile = parseProfile(await file.text()), key = PROFILE_STORAGE_PREFIX + profile.sourceSession.id;
+      localStorage.setItem(key, serializeProfile(profile));
+      this.refreshProfileList(key);
+      this.profileMessage = "選択結果を保存しました。実機にはまだ適用していません。";
+      this.profileImport!.value = "";
+    });
+    if (this.profileExport) this.profileExport.onclick = () => void this.perform(async () => {
+      const profile = this.profiles.get(this.profileSelect!.value);
+      if (!profile) throw new Error("書き出す選択結果を選んでください");
+      const url = URL.createObjectURL(new Blob([serializeProfile(profile)], { type: "application/json" }));
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `haptic-profile-${profile.demo}-${profile.sourceSession.id}.json`; anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", event => {
+        if (event.key === null || event.key.startsWith(PROFILE_STORAGE_PREFIX)) this.refreshProfileList();
+      });
+      window.addEventListener("focus", () => this.refreshProfileList());
+    }
+    this.refreshProfileList();
+  }
+
+  private refreshProfileList(selected = this.profileSelect?.value ?? "") {
+    if (!this.hasProfileControls) return;
+    this.profiles.clear(); this.profileMessage = "";
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)!;
+        if (!key.startsWith(PROFILE_STORAGE_PREFIX)) continue;
+        try {
+          const profile = parseProfile(localStorage.getItem(key)!);
+          if (key === PROFILE_STORAGE_PREFIX + profile.sourceSession.id) this.profiles.set(key, profile);
+        } catch { /* Invalid evidence remains stored but is never selectable. */ }
+      }
+    } catch { this.profileMessage = "端末内の選択結果を読み込めません。保存権限を確認してください。"; }
+    this.profileSelect!.replaceChildren(new Option("選択結果を選ぶ（自動適用しません）", ""));
+    for (const [key, profile] of [...this.profiles].sort((a, b) => b[1].createdAt.localeCompare(a[1].createdAt))) {
+      this.profileSelect!.add(new Option(`${this.profileLabel(profile)} · ${profile.reference || profile.objective}`, key));
+    }
+    this.profileSelect!.value = this.profiles.has(selected) ? selected : "";
+    this.refresh();
+  }
+
+  private async applySelectedProfile() {
+    await this.perform(async () => {
+      const key = this.profileSelect?.value;
+      if (!key || !this.profiles.has(key)) throw new Error("適用する選択結果を選んでください");
+      const profile = parseProfile(localStorage.getItem(key)!);
+      if (!this.applied || this.applied.preset !== profile.preset || this.link.state.connection !== "connected" ||
+          this.link.state.stale || this.selectedPresetPending) throw new Error("選択結果と同じ実機の材質を先に選んでください");
+      this.profileApplyIncomplete = true;
+      this.profileMessage = "選択結果を停止中に適用しています…";
+      this.selectedPresetPending = profile.preset;
+      try {
+        await this.link.applyTuning(profile.preset, profile.parameters);
+        this.profileApplyIncomplete = false;
+        this.profileMessage = "7値の実行ACKと傾き4値の読み戻しを確認。停止中です。開始は別ボタンです。";
+      } catch (error) {
+        this.profileMessage = "選択結果の適用は未完了です。再適用するか、材質を選び直してください。";
+        this.selectedPresetPending = "";
+        throw error;
+      }
     });
   }
 
@@ -170,22 +282,36 @@ export class DeviceDemo {
       }
     }
     const available = connected && state.paired !== false && !state.stale && !this.busy && !state.pendingCommand;
+    const servoRetrying = this.servoRetrying;
     this.connectButton.disabled = state.connection === "connecting" || this.busy || !!state.pendingCommand;
     this.connectButton.textContent = connected ? "状態を再取得" : "StampC5に接続";
     this.previewButton.disabled = !this.active || this.busy;
-    this.startButton.disabled = !available || !this.applied || !!this.selectedPresetPending;
+    this.startButton.disabled = !available || !this.applied || !!this.selectedPresetPending || servoRetrying || this.profileApplyIncomplete;
     this.stopButton.disabled = !connected; // Stop remains available during Start/preset work.
     this.clearButton.disabled = !available;
     this.presetSelect.disabled = !available;
     this.fillButton.disabled = !available || !this.applied;
+    if (this.hasProfileControls) {
+      const profile = this.profiles.get(this.profileSelect!.value), matches = !!profile && profile.preset === this.applied?.preset;
+      this.profileSelect!.disabled = this.busy;
+      if (this.profileApply) this.profileApply.disabled = !available || !matches || !!this.selectedPresetPending;
+      if (this.profileImport) this.profileImport.disabled = this.busy;
+      if (this.profileExport) this.profileExport.disabled = this.busy || !profile;
+      if (this.profileDetail) this.profileDetail.textContent = (profile ? `${this.profileLabel(profile)}。` : "") + (this.profileMessage ||
+        (profile ? matches ? "選択だけでは実機へ適用しません。" : "同じ実機材質を選択してから適用してください。" :
+          "探索で保存した選択結果を利用できます。履歴・投票は引き継がず、適用しても自動では開始しません。"));
+    }
     const fault = Number(snapshot?.tilt_servo?.fault ?? 0);
     const message = this.error || state.error;
+    const faultGuidance = "「停止してサーボ復帰」で再確認し、復帰後に「実機で開始」。復帰だけでは出力を再開しません。";
+    const retryStatus = `サーボ通信を再試行中 · 振動 ${snapshot?.audio?.runtime_enabled === true ? "ON" : snapshot?.audio?.runtime_enabled === false ? "OFF" : "未確認"} · 傾きフィードバック未確認（通信復帰待ち）`;
     this.status.dataset.level = message || fault || (this.active && state.stale) ? "warning" : connected ? "live" : "preview";
-    this.status.textContent = message ? `確認が必要: ${message}` : !this.active ? "プレビュー — 実機出力なし" :
+    this.status.textContent = message ? `確認が必要: ${message}${servoRetrying ? ` — ${retryStatus}` : connected && !state.stale && fault ? ` — サーボ fault ${fault}。${faultGuidance}` : ""}` : !this.active ? "プレビュー — 実機出力なし" :
       !connected ? "接続が切れました — 最後の表示で停止 / 実機出力は未確認" :
       state.paired === false ? "USB接続済み — AtomS3とのペアリング待ち" : state.stale ? "実機データ待ち — 表示を保持" :
+      servoRetrying ? retryStatus :
       this.selectedPresetPending ? "材質を適用中…" : !this.applied ? "接続済み — 寸法・材質を含むFWが必要です" :
-      fault ? `サーボ通信・状態を確認してください (fault ${fault})` :
+      fault ? `サーボ fault ${fault} — ${faultGuidance}` :
       `${snapshot?.run_mode === "live" ? "LIVE" : "IDLE"} · 振動 ${snapshot?.audio?.runtime_enabled ? "ON" : "OFF"} · 傾き ${snapshot?.safety?.tilt_disarmed === false ? "ON" : "OFF"}`;
     this.detail.textContent = this.applied ?
       `${this.applied.family} · ${[this.applied.container.span_x_m, this.applied.container.span_y_m, this.applied.container.span_z_m].map(v => (v * 1000).toFixed(0)).join(" × ")} mm · ${Math.round(this.applied.container.fill * 100)}% · ${state.transport ?? "切断"}` :
@@ -209,7 +335,7 @@ export class DeviceDemo {
         this.refresh();
       }
     });
-    for (const id of ["preset-select", "stimulus-select", "shake-boost-slider", "damping-preview-slider", "reset-button", "orientation-button", "touch-mode-button", "tilt-mode-button"]) {
+    for (const id of ["preset-select", "stimulus-select", "shake-boost-slider", "damping-preview-slider", "reset-button", "touch-mode-button", "tilt-mode-button"]) {
       element<HTMLInputElement>(id).disabled = this.active;
     }
   }

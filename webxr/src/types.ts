@@ -63,12 +63,11 @@ export interface DemoUiElements {
   trialElapsed: HTMLElement;
   exportFormatSelect: HTMLSelectElement;
   exportButton: HTMLButtonElement;
-  orientationButton: HTMLButtonElement;
   xrButton: HTMLButtonElement;
   questButton: HTMLButtonElement;
   touchModeButton: HTMLButtonElement;
   tiltModeButton: HTMLButtonElement;
-  handModeButton: HTMLButtonElement;
+  inputStatus: HTMLElement;
   resetButton: HTMLButtonElement;
   modeBadge: HTMLElement;
   familyReadout: HTMLElement;

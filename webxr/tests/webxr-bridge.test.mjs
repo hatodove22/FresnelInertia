@@ -64,7 +64,7 @@ function fixture(t, { supported = true } = {}) {
       }
     }
   } : {} });
-  const modes = new Map(["#hand-mode-button", "#touch-mode-button", "#tilt-mode-button"].map(id => [id, new Element()]));
+  const modes = new Map(["#touch-mode-button", "#tilt-mode-button"].map(id => [id, new Element()]));
   modes.get("#touch-mode-button").classList.add("active");
   globalThis.document = { querySelector: selector => modes.get(selector) ?? null, createElement: () => new Element() };
   t.after(() => {
@@ -184,7 +184,8 @@ test("user click requests MR immediately; success is shown only after renderer s
   assert.equal(button.disabled, false);
   assert.equal(badge.textContent, "Quest MR");
   assert.ok(references.every(value => value === "local-floor"));
-  assert.equal(modes.get("#hand-mode-button").classList.contains("active"), true);
+  assert.equal(modes.get("#touch-mode-button").classList.contains("active"), false);
+  assert.equal(modes.get("#tilt-mode-button").classList.contains("active"), false);
   await session.end();
 });
 
@@ -251,7 +252,7 @@ test("actual end restores world/projection/input state and re-entry recalculates
   assert.equal(controllers[0].visible, false);
   assert.ok(panel.resetCount > resets);
   assert.equal(modes.get("#touch-mode-button").classList.contains("active"), true);
-  assert.equal(modes.get("#hand-mode-button").classList.contains("active"), false);
+  assert.equal(modes.get("#tilt-mode-button").classList.contains("active"), false);
   assert.deepEqual(container.quaternion.toArray(), originalRotation);
   assert.deepEqual(container.userData.deviceState, device);
   xrCamera.position.y = 1.7;

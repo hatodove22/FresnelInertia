@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0b1014" />
-    <title>Container Haptics XR Demo</title>
+    <title>Container Haptics · Demo</title>
   </head>
   <body>
     <main id="app">
@@ -15,28 +15,30 @@
             <p class="eyebrow">Parametric Container Haptics</p>
             <h1>Feel the contents.</h1>
           </div>
-          <span id="mode-badge" class="badge">Phone</span>
+          <span id="mode-badge" class="badge">Preview</span>
         </div>
-        <button id="lab-open" class="primary" type="button">実機なしラボを開く</button>
+        <div class="hud-scroll">
         <section id="offline-lab" aria-label="実機なし素材ラボ" hidden>
-          <div class="panel-header"><h2>Material lab</h2><button id="lab-close" class="small-button" type="button">閉じる</button></div>
+          <div class="panel-header"><h2>素材ラボ</h2><button id="lab-close" class="small-button" type="button">プレビューへ</button></div>
           <p class="lab-source">本番 C++ エンジン · 実機への接続／出力なし</p>
           <div class="lab-materials" role="group" aria-label="ラボの素材">
             <button type="button" data-lab-preset="granular_single_marble_box">ビー玉</button>
             <button type="button" data-lab-preset="granular_sand_box">砂</button>
             <button type="button" data-lab-preset="liquid_small_box">水</button>
             <button type="button" data-lab-preset="liquid_soda_bottle">炭酸</button>
+            <button type="button" data-lab-preset="granular_coin_box">コイン</button>
+            <button type="button" data-lab-preset="granular_single_coin_box">コイン1枚</button>
           </div>
           <p id="lab-description"></p>
-          <label class="lab-playback"><input id="lab-slow" type="checkbox" /> スロー再生（¼速度・モデルごと）</label>
           <label class="range-control"><span>左右</span><input id="lab-roll" type="range" min="-60" max="60" step="1" value="0" /><output id="lab-roll-value">0°</output></label>
           <label class="range-control"><span>前後</span><input id="lab-pitch" type="range" min="-35" max="35" step="1" value="0" /><output id="lab-pitch-value">0°</output></label>
           <div class="actions"><button id="lab-sweep" type="button">傾ける → 戻す</button><button id="lab-shake" type="button">振ってみる</button></div>
-          <div class="actions secondary-actions"><button id="lab-reset" type="button">リセット</button><button id="lab-pause" type="button">一時停止</button></div>
-          <label id="lab-sand-option"><input id="lab-pile" type="checkbox" checked /> 堆積・静止摩擦を使う <small>OFFで従来モデルと比較</small></label>
+          <div class="actions secondary-actions"><button id="lab-reset" type="button">リセット</button><button id="lab-pause" type="button" aria-pressed="false">一時停止</button></div>
           <p id="lab-status" role="status">C++モデルを準備しています…</p>
           <div id="lab-pressure" hidden><label>蓄積（演出値） <meter id="lab-charge" min="0" max="1" value="0"></meter></label><output id="lab-pressure-label">密封</output></div>
-          <details class="lab-signals" open><summary>同じ状態から計算した触覚指令</summary>
+          <details class="lab-signals"><summary>モデルの設定・触覚指令を見る</summary>
+            <label class="lab-playback"><input id="lab-slow" type="checkbox" /> スロー再生（¼速度・モデルごと）</label>
+            <label id="lab-sand-option"><input id="lab-pile" type="checkbox" checked /> 堆積・静止摩擦を使う <small>OFFで従来モデルと比較</small></label>
             <div class="lab-channel-grid" aria-label="4チャンネル振動の計算値">
               <label>右 +X <meter data-lab-channel="0" min="0" max="1" value="0"></meter></label>
               <label>左 −X <meter data-lab-channel="1" min="0" max="1" value="0"></meter></label>
@@ -52,98 +54,117 @@
           <p id="device-status" role="status">プレビュー — 実機出力なし</p>
           <p id="device-detail" class="device-detail"></p>
           <div class="device-connect-row">
-            <select id="device-transport" aria-label="接続方法">
-              <option value="auto">自動 / USB</option>
-              <option value="serial">PC · Serial</option>
-              <option value="usb">Phone / Quest · WebUSB</option>
-            </select>
-            <button id="device-connect" type="button">StampC5に接続</button>
+            <button id="device-connect" class="primary" type="button">StampC5に接続</button>
+            <details class="transport-settings"><summary>接続方法</summary>
+              <select id="device-transport" aria-label="接続方法">
+                <option value="auto">自動 / USB</option>
+                <option value="serial">PC · Serial</option>
+                <option value="usb">Android / Quest · WebUSB</option>
+              </select>
+            </details>
           </div>
-          <label class="control"><span>実機の材質</span><select id="device-preset"></select></label>
+          <div class="device-session">
+          <label class="control"><span>質感</span><select id="device-preset"></select></label>
+          <div class="actions secondary-actions">
+            <button id="device-clear" type="button" title="停止してサーボを再確認します。出力の再開には「実機で開始」が必要です。">停止してサーボ復帰</button>
+          </div>
+          <details class="device-settings"><summary>実機設定・内容量</summary>
+          <p class="helper-text">次に開始するときの出力</p>
           <div class="device-outputs">
             <label><input id="device-audio" type="checkbox" checked /> 4ch振動</label>
             <label><input id="device-tilt" type="checkbox" checked /> 接平面の傾き</label>
           </div>
-          <div class="actions">
-            <button id="device-start" class="primary" type="button">実機で開始</button>
-            <button id="device-stop" class="stop" type="button">停止</button>
-          </div>
-          <details class="device-settings"><summary>内容量・接続の操作</summary>
           <div class="device-fill-row">
             <label for="device-fill">内容量 %</label>
             <input id="device-fill" type="number" min="0" max="100" step="1" value="55" />
             <button id="device-apply-fill" type="button">停止して適用</button>
           </div>
           <div class="actions secondary-actions">
-            <button id="device-clear" type="button">サーボ再確認</button>
             <button id="device-preview" type="button">停止してプレビューへ</button>
           </div>
           </details>
+          </div>
+          <details class="device-profile-settings"><summary>探索で保存した選択結果</summary>
+            <label class="control"><span>選択結果</span><select id="device-profile-select" aria-label="保存した選択結果"></select></label>
+            <p id="device-profile-detail" class="helper-text" role="status">選択だけでは実機へ適用しません。</p>
+            <div class="actions secondary-actions">
+              <button id="device-profile-apply" type="button" disabled>停止して選択結果を適用</button>
+              <button id="device-profile-export" type="button" disabled>選択結果JSONを書き出す</button>
+            </div>
+            <label class="control"><span>選択結果JSONを読み込む</span><input id="device-profile-import" type="file" accept=".json,application/json" /></label>
+            <p class="helper-text">同じ材質の7値だけを適用します。別材質への共通ゲイン転用は探索画面で。練習の設定は触覚評価済みとは扱いません。適用後も開始は別操作です。</p>
+          </details>
         </section>
-        <div class="actions xr-actions">
-          <button id="xr-button" type="button">Enter MR</button>
-          <button id="quest-button" type="button">Send to Quest</button>
-        </div>
-        <details class="preview-controls">
-          <summary>画面だけで試す / プレビュー</summary>
+        <section class="preview-controls" aria-label="画面プレビュー">
+        <div class="panel-header"><h2>画面で試す</h2><button id="reset-button" class="small-button" type="button">リセット</button></div>
         <label class="control">
-          <span>Preset</span>
+          <span>質感</span>
           <select id="preset-select"></select>
         </label>
-        <label class="control">
-          <span>Stimulus</span>
-          <select id="stimulus-select"></select>
-        </label>
-        <div class="actions">
-          <button id="orientation-button" type="button">Use Tilt</button>
-        </div>
         <section class="operation-panel" aria-label="Operation methods">
-          <div class="panel-header">
-            <h2>Operation</h2>
-            <button id="reset-button" class="small-button" type="button">Reset</button>
-          </div>
           <div class="method-grid" role="group" aria-label="Input method">
-            <button id="touch-mode-button" class="method active" type="button">
-              <span>Touch</span>
-              <small>Drag</small>
+            <button id="touch-mode-button" class="method active" type="button" aria-pressed="true">
+              <span>ドラッグ</span>
+              <small>画面をなぞる</small>
             </button>
-            <button id="tilt-mode-button" class="method" type="button">
-              <span>Phone</span>
-              <small>Tilt</small>
-            </button>
-            <button id="hand-mode-button" class="method" type="button">
-              <span>MR</span>
-              <small>Pinch</small>
+            <button id="tilt-mode-button" class="method" type="button" aria-pressed="false">
+              <span>スマホの傾き</span>
+              <small>センサーを使う</small>
             </button>
           </div>
         </section>
+        <p id="input-status" class="helper-text" role="status"></p>
+        <details class="preview-settings"><summary>自動モーション・表示の調整</summary>
+        <label class="control"><span>動かし方</span><select id="stimulus-select"></select></label>
         <section class="tuning-panel" aria-label="Spatial tuning">
           <label class="range-control">
-            <span>Motion</span>
+            <span>動きの強さ</span>
             <input id="shake-boost-slider" type="range" min="0" max="1" step="0.01" value="0.35" />
             <output id="shake-boost-value" for="shake-boost-slider">0.35</output>
           </label>
           <label class="range-control">
-            <span>Damping</span>
+            <span>減衰</span>
             <input id="damping-preview-slider" type="range" min="0" max="1" step="0.01" value="0.50" />
             <output id="damping-preview-value" for="damping-preview-slider">0.50</output>
           </label>
         </section>
-        </details>
         <dl class="readout">
           <div>
-            <dt>Family</dt>
+            <dt>材質系統</dt>
             <dd id="family-readout">-</dd>
           </div>
           <div>
-            <dt>Fill</dt>
+            <dt>内容量</dt>
             <dd id="fill-readout">-</dd>
           </div>
           <div>
-            <dt>Tilt</dt>
+            <dt>傾き（rad）</dt>
             <dd id="tilt-readout">0 / 0</dd>
           </div>
         </dl>
+        </details>
+        <div class="lab-entry">
+          <p class="helper-text"><a href="./tune.html">触って選ぶ · ゲイン探索を開く ↗</a></p>
+          <p class="helper-text">触覚指令も比較するなら、本番モデルのラボへ。</p>
+          <button id="lab-open" type="button">実機なしラボを開く</button>
+        </div>
+        </section>
+        <p id="presentation-status" class="helper-text" role="status" hidden></p>
+        <footer class="demo-utilities">
+          <div class="sound-controls" role="group" aria-label="スピーカー効果音">
+            <button id="sound-toggle" type="button" aria-pressed="false">効果音をON</button>
+            <details class="sound-settings"><summary>音量</summary>
+              <div class="sound-volume-row"><label for="sound-volume">音量</label><input id="sound-volume" type="range" min="0" max="100" step="1" value="35" /><output id="sound-volume-value" for="sound-volume">35%</output></div>
+              <small id="sound-status" role="status">スピーカー出力 · 4ch振動とは別の設定</small>
+            </details>
+          </div>
+          <details class="demo-keyboard-help"><summary>キー操作 · Enter 開始 / Esc 停止</summary><p><kbd>1–9 / 0</kbd> 表示順の素材 · <kbd>[ ]</kbd> 前後の素材<br />ラボ: <kbd>← ↑ ↓ →</kbd> 傾き · <kbd>Space</kbd> 一時停止 · <kbd>S</kbd> 振る · <kbd>R</kbd> リセット<br /><small>入力中は無効（Escを除く）。画面の容器をクリックすると操作できます。</small></p></details>
+        </footer>
+        <details class="extra-tools"><summary>その他の機能 · MR / 試行ログ</summary>
+        <div class="actions xr-actions">
+          <button id="xr-button" type="button">Enter MR</button>
+          <button id="quest-button" type="button">Send to Quest</button>
+        </div>
         <details class="trial-details"><summary>試行ログ（任意）</summary>
         <section class="trial-strip" aria-label="Experiment trial logger">
           <div class="panel-header">
@@ -172,6 +193,12 @@
           </div>
         </section>
         </details>
+        </details>
+        </div>
+        <div class="actions device-run-actions" role="group" aria-label="実機の開始と停止">
+          <button id="device-start" class="primary" type="button">実機で開始</button>
+          <button id="device-stop" class="stop" type="button">停止</button>
+        </div>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

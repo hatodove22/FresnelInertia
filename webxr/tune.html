@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Haptic Tuning · 触って選ぶ</title></head>
+<body>
+  <main class="workspace">
+    <header><div><p class="eyebrow">CONTAINER HAPTICS / PREFERENCE LAB</p><h1>触って、近づける。</h1><p class="intro">数値にしにくい「実物らしさ」を、あなたのA/B比較から探す。</p></div><a href="./?lab=1" id="demo-link">素材デモへ ↗</a></header>
+    <div class="workspace-grid">
+      <aside class="setup card">
+        <p class="step">01 / 比較条件をそろえる</p><h2>3つの手応えから探す</h2>
+        <label>代表デモ<select id="demo"><option value="water">水 · 流動と慣性</option><option value="marble">ビー玉1個 · 移動と衝突</option><option value="sand">砂 · 摩擦と重心の偏り</option></select></label>
+        <p id="demo-note" class="notice"></p>
+        <p class="muted">振動と傾きを一つの触感として、5軸を同時に探索。材質・量・容器は固定し、同じ把持と動きで比べます。</p>
+        <label>評価モード<select id="mode"><option value="rehearsal">操作練習 · 実機出力なし</option><option value="device">実機 · 触感を比較</option></select></label>
+        <p id="mode-note" class="notice"></p>
+        <label>今回の判断基準<input id="objective" maxlength="300" value="水が入った容器を傾けて戻したとき、どちらが実物らしいか" /></label>
+        <label>実物・把持・FWのメモ<input id="reference" maxlength="300" placeholder="例：右手、同じ実物を参照、FWの日付" /></label>
+        <details><summary>5つの探索軸と初期基準</summary>
+          <label>振動の強さ <output id="gain-value"></output><input type="range" id="gain" min="0.1" max="1" step="0.01" value="0.5" /></label>
+          <label><span id="damping-label">水の減衰</span> <output id="damping-value"></output><input type="range" id="damping" min="0.05" max="1.5" step="0.01" value="0.3" /></label>
+          <label>内容物位置 → 傾き <output id="position-value"></output><input type="range" id="position" min="0" max="10" step="0.1" value="10" /></label>
+          <label>上下慣性 → 共通傾き <output id="cm-value"></output><input type="range" id="cm" min="0" max="1" step="0.01" value="0.35" /></label>
+          <label>重心・横慣性 → 左右差 <output id="tau-value"></output><input type="range" id="tau" min="0" max="1" step="0.01" value="0.25" /></label>
+          <p class="muted">振動0.10–1.00／位置ゲイン0–10°／上下・左右差0–1。素材の軸は水・ビー玉が減衰、砂が内部摩擦です。位置ゲインは機構の上限ではありません。</p>
+          <label>擬似力の共通倍率（探索中は固定）<output id="phi-value"></output><input type="range" id="phi" min="0.1" max="8" step="0.1" value="4" /></label>
+          <p class="muted">k_phi は k_cm・k_tau と積で効くため、重複探索を避けて固定します。既存の角度・速度上限は変更しません。</p>
+        </details>
+        <button id="new-session" class="primary">この条件で探索を始める</button>
+        <p class="muted">値・基準・装着条件を変えるときは別セッションへ。前の記録は端末内に残ります。</p>
+        <div id="device-controls" hidden>
+          <h3>StampC5</h3><p class="muted">先にデモ画面をプレビューへ戻してUSB接続を解放してください。接続や候補適用だけでは動きません。</p>
+          <select id="transport" aria-label="USB接続方式"><option value="auto">自動 · PC Serial / Android WebUSB</option><option value="usb">WebUSB</option><option value="serial">Web Serial</option></select>
+          <button id="connect">StampC5に接続</button><button id="disconnect">停止して切断</button>
+          <p id="link-status" role="status">未接続</p>
+          <p id="tilt-readback" class="muted">傾き係数の読み戻しは未確認。新AtomS3 FWが必要です。</p>
+          <label class="check"><input type="checkbox" id="handling" /> 同じ把持・動かし方で実機を比較する準備ができた</label>
+        </div>
+      </aside>
+      <section class="comparison card" aria-labelledby="comparison-title">
+        <div class="section-heading"><div><p class="step">02 / 感じて選ぶ</p><h2 id="comparison-title">どちらが実物らしい？</h2></div><span id="trial-count" class="pill">準備中</span></div>
+        <p id="session-caption" class="muted"></p>
+        <p class="gesture">右手で左右に傾ける → 水平へ戻す → 小さく上下に動かす。振動＋傾きが合わさった実物らしさを、A/Bで同じ動きから判断。</p>
+        <div class="keyboard-guide"><span><kbd>Q</kbd> Aを提示</span><span><kbd>W</kbd> Bを提示</span><span><kbd>A</kbd> Aが良い</span><span><kbd>D</kbd> Bが良い</span><span><kbd>S</kbd> 同等</span><span><kbd>X</kbd> 保留</span><span><kbd>Space</kbd> / <kbd>Esc</kbd> 停止</span></div>
+        <p class="muted">左手で操作できます。実機のQ/Wは、準備チェック後に停止→適用→開始まで実行。長押し・文字入力中には反応しません。回答後の自動提示はありません。</p>
+        <div class="candidates">
+          <article id="card-a"><span class="candidate-letter">A</span><p id="state-a">まだ比較していません</p><button id="apply-a">Aを確認</button><button id="start-a" class="start" hidden>Aを実機で開始</button></article>
+          <article id="card-b"><span class="candidate-letter">B</span><p id="state-b">まだ比較していません</p><button id="apply-b">Bを確認</button><button id="start-b" class="start" hidden>Bを実機で開始</button></article>
+        </div>
+        <p id="status" role="status" aria-live="polite">C++モデルを準備しています…</p>
+        <label>違和感や良かった点（任意・提案計算には使いません）<input id="note" maxlength="300" placeholder="例：壁で止まる感じはA。Bは振動が強すぎる" /></label>
+        <div class="votes" role="group" aria-label="比較結果"><button data-choice="a">Aがよりリアル</button><button data-choice="b">Bがよりリアル</button><button data-choice="tie">同じくらい</button><button data-choice="skip">判断できない</button></div>
+        <p class="muted">両方を確認してから回答。「判断できない」は学習せず記録だけ。次の候補は自動では動きません。</p>
+        <details id="model-details"><summary>パラメータとC++計算値を見る（感じる前の先入観に注意）</summary><div id="candidate-values"></div><svg id="response" viewBox="0 0 600 180" role="img" aria-label="同じ入力でのC++計算振動包絡。実測ではありません"></svg><svg id="tilt-response" viewBox="0 0 600 180" role="img" aria-label="親指と人差し指の計算角度。実測ではありません"></svg><p id="model-summary" class="muted">波形は計算値です。実際の振動・サーボ・音ではありません。</p></details>
+      </section>
+      <section class="progress card"><div class="section-heading"><div><p class="step">03 / 探索を残す</p><h2>自分の「らしさ」の地図</h2></div><span id="learn-count" class="pill">0比較</span></div>
+        <div class="progress-grid"><div><div class="map-axes"><label>横軸<select id="map-x"></select></label><label>縦軸<select id="map-y"></select></label></div><svg id="search-map" viewBox="0 0 400 255" role="img" aria-label="探索空間の二軸への投影。探索自体は全軸同時"></svg><p class="muted">図は選んだ2軸への投影だけです。探索自体は全軸同時。点は提案した候補（保留を含む）、輪は今の候補。</p></div><div><p id="current-best"></p><button id="baseline">初期基準を再確認</button><button id="start-baseline" class="start" hidden>初期基準を実機で開始</button><p class="muted">選好GPが組み合わせの好みと不確かさを推定し、次の候補を提案。8〜12比較で一度休み、必要なら継続。全体最適や収束回数を保証しません。</p></div></div>
+        <div class="storage"><button id="export">JSONで書き出す</button><label class="file-label">JSONから再開<input id="import" type="file" accept=".json,application/json" /></label></div>
+        <div class="storage"><button id="preferred">今選んでいる候補を再確認</button><button id="start-preferred" class="start" hidden>今の候補を実機で開始</button></div>
+        <details open class="profile-library"><summary>選んだ設定をデモへ持ち出す</summary>
+          <p class="muted">探索の記録とは別に、今選んでいる設定を保存します。同じ素材には全係数、違う素材には共通の振動・傾き係数だけを、新しい探索の開始点として引き継ぎます。比較票は混ぜません。</p>
+          <button id="save-profile">今の候補を設定として保存</button>
+          <label>保存した設定<select id="profiles"></select></label>
+          <p id="profile-detail" class="muted"></p>
+          <div class="storage"><button id="reuse-profile">選択中の素材の開始点にする</button><button id="export-profile">設定JSONを書き出す</button><label class="file-label">設定JSONを読み込む<input id="import-profile" type="file" accept=".json,application/json" /></label></div>
+          <p id="profile-status" class="notice" role="status"></p>
+          <p class="muted">通常デモの実機設定からも呼び出せます。端末間は設定JSONで移動。同じブラウザでもURLのホストが違うと保存領域は別になります。</p>
+        </details>
+        <p id="storage-warning" role="alert" hidden>端末内への保存に失敗しました。現在の記録はメモリ上だけです。JSONを書き出してください。</p>
+        <details><summary>保存したセッション・直近の比較</summary><label>端末内の記録<select id="saved"></select></label><button id="resume">選んだ記録を再開</button><ol id="history"></ol></details>
+        <p class="muted">自動保存はこのブラウザ内だけです。PC間の移動にはJSONを書き出してください。練習と実機の評価は混ぜません。</p>
+      </section>
+    </div>
+    <footer><span>水・ビー玉・砂ごとに振動＋傾きを5軸同時探索。新AtomS3 FWで傾き係数を読み戻し。振動・素材係数は実行ACK確認。実測・触感評価とは区別します。</span><a href="https://research.sabanciuniv.edu/id/eprint/50131/" target="_blank" rel="noreferrer">選好による触覚最適化の研究 ↗</a></footer>
+  </main>
+  <div class="stop-bar"><span id="output-state">実機未接続 · 出力状態は未確認</span><button id="stop">停止 / Esc</button></div>
+  <script type="module" src="/src/tuning/main.ts"></script>
+</body></html>

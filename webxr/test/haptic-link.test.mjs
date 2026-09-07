@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { setImmediate as turn, setTimeout as delay } from "node:timers/promises";
-import { HapticLink, hapticLinkCapabilities, parseHapticLinkLine } from "../src/link/HapticLink.ts";
+import { HapticLink, hapticLinkCapabilities, parseHapticLinkLine, parseTiltGainReadback, tiltGainsMatch } from "../src/link/HapticLink.ts";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -402,6 +402,260 @@ test("preset change stops, loads, gets state and waits for real telemetry", asyn
   assert.equal(link.state.telemetry.preset, "water_box");
   assert.deepEqual(wire.writes, ["status\n", "stop\n", "preset load water_box\n", "get state\n"]);
 });
+
+const tuningValues = () => ({
+  "resonance.master_gain": 0.65, "mass.damping_ratio_x": 0.25, "mass.damping_ratio_y": 0.4
+});
+
+const fullTuningValues = () => ({ ...tuningValues(), "mass.damping_ratio_y": .25, "tilt.max_tilt_deg": 6, "tilt.k_cm": .4, "tilt.k_tau": .3, "tilt.k_phi": 4 });
+const sandTuningValues = (friction = .55) => ({ "resonance.master_gain": .65,
+  "mass.granular_static_friction": friction, "mass.granular_dynamic_friction": friction * 7 / 11,
+  "tilt.max_tilt_deg": 6, "tilt.k_cm": .4, "tilt.k_tau": .3, "tilt.k_phi": 4 });
+const readback = p => `tilt_v1=${["tilt.max_tilt_deg", "tilt.k_cm", "tilt.k_tau", "tilt.k_phi"].map(k => p[k].toPrecision(6)).join(",")}`;
+function respondToTuning(wire, { old = false, mismatch = false } = {}) {
+  const applied = fullTuningValues(); let id = 0;
+  wire.onWrite = async raw => {
+    const command = raw.trim();
+    const operation = command === "stop" ? 3 : command === "get state" ? 2 : command.startsWith("preset load") ? 6 : 7;
+    if (command.startsWith("set ")) { const [, key, number] = command.split(" "); applied[key] = Number(number); }
+    const actual = mismatch && id > 2 ? { ...applied, "tilt.k_tau": .99 } : applied;
+    const detail = command === "get state" && !old ? readback(actual) : "applied";
+    ++id;
+    wire.send(`haptic_link_tx: request=${id} operation=${operation}\nhaptic_link_ack: request=${id} result=applied session=1234ABCD frame=${121+id} detail=${detail}\n`);
+  };
+}
+
+test("tilt readback is versioned, finite, complete and tolerant only of wire float precision", () => {
+  const expected = fullTuningValues();
+  assert.equal(tiltGainsMatch(parseTiltGainReadback(readback(expected)), expected), true);
+  assert.equal(tiltGainsMatch(parseTiltGainReadback("tilt_v1=6,0.4,0.300002,4"), expected), true);
+  assert.equal(tiltGainsMatch(parseTiltGainReadback("tilt_v1=6,0.4,0.31,4"), expected), false);
+  for (const text of ["applied", "tilt_v1_unavailable", "tilt_v1=4,.3,.2", "tilt_v1=4,.3,.2,", "tilt_v1=4,NaN,.2,4", "tilt_v1=4,.3,Infinity,4", "tilt_v1=4,.3,.2,4,0", "tilt_v2=6,.4,.3,4"])
+    assert.equal(parseTiltGainReadback(text), null, text);
+  assert.equal(parseTiltGainReadback("tilt_v1=15,0.4,0.3,9")["tilt.k_phi"], 9, "readback does not clamp local settings");
+  for (const value of [null, "0.4", NaN]) assert.equal(tiltGainsMatch({ ...parseTiltGainReadback(readback(expected)), "tilt.k_cm":value },expected),false);
+});
+
+test("full tuning probes support, applies fixed and searched branches, verifies tilt readback, never starts", async t => {
+  const { wire, link } = await fixture(t); respondToTuning(wire);
+  const values = fullTuningValues(), result = await link.applyTuning("liquid_small_box", values);
+  assert.equal(result.length, 11);
+  assert.deepEqual(wire.writes, ["status\n", "stop\n", "get state\n", "preset load liquid_small_box\n",
+    ...Object.entries(values).map(([key, value]) => `set ${key} ${value}\n`), "get state\n"]);
+  assert.equal(tiltGainsMatch(parseTiltGainReadback(result.at(-1).detail), values), true);
+});
+
+test("old firmware is rejected before any preset or parameter change", async t => {
+  const { wire, link } = await fixture(t); respondToTuning(wire, { old: true });
+  await assert.rejects(link.applyTuning("liquid_small_box", fullTuningValues()), /AtomS3 FW/);
+  assert.deepEqual(wire.writes, ["status\n", "stop\n", "get state\n", "stop\n"]);
+});
+
+test("mismatched final readback stops instead of granting successful application", async t => {
+  const { wire, link } = await fixture(t); respondToTuning(wire, { mismatch: true });
+  await assert.rejects(link.applyTuning("liquid_small_box", fullTuningValues()), /読み戻し/);
+  assert.equal(wire.writes.at(-1), "stop\n");
+  assert.ok(!wire.writes.some(v => /^(live|tilt on|audio on)/.test(v)));
+});
+
+test("invalid tilt candidates cause zero IO", async t => {
+  const { wire, link } = await fixture(t), before = [...wire.writes];
+  for (const [key, maximum] of [["tilt.max_tilt_deg", 10], ["tilt.k_cm", 1], ["tilt.k_tau", 1], ["tilt.k_phi", 8]]) {
+    for (const value of [NaN, Infinity, -.001, maximum+.001, "0.5"]) {
+      await assert.rejects(link.applyTuning("liquid_small_box", { ...fullTuningValues(), [key]: value }));
+    }
+  }
+  assert.deepEqual(wire.writes, before);
+});
+
+test("single marble and sand pile apply their complete material-specific candidates without Start", async t => {
+  for (const [preset, values] of [["granular_single_marble_box", fullTuningValues()],
+    ...[.2, .55, .9].flatMap(friction => [["granular_sand_pile_box", sandTuningValues(friction)],
+      ["granular_sand_pile_box", { ...sandTuningValues(friction), "mass.granular_dynamic_friction": friction * (7 / 11) }]])]) {
+    const { wire, link } = await fixture(t); respondToTuning(wire);
+    const result = await link.applyTuning(preset, values);
+    assert.equal(result.length, 11);
+    assert.deepEqual(wire.writes, ["status\n", "stop\n", "get state\n", `preset load ${preset}\n`,
+      ...Object.entries(values).map(([path, value]) => `set ${path} ${value}\n`), "get state\n"]);
+    assert.equal(tiltGainsMatch(parseTiltGainReadback(result.at(-1).detail), values), true);
+    assert.ok(!wire.writes.some(text => /^(live|audio on|tilt on)\n$/.test(text)));
+  }
+});
+
+test("joint tuning validates material paths and coupled axes before any IO while legacy remains water-only", async t => {
+  const { wire, link } = await fixture(t), before = [...wire.writes];
+  const cases = [
+    ["granular_single_marble_box", tuningValues()], ["granular_sand_pile_box", tuningValues()],
+    ["granular_sand_box", sandTuningValues()], ["granular_coin_box", fullTuningValues()],
+    ["granular_sand_pile_box", fullTuningValues()], ["liquid_small_box", sandTuningValues()],
+    ["granular_single_marble_box", sandTuningValues()],
+    ["granular_sand_pile_box\nlive", sandTuningValues()],
+    ["granular_sand_pile_box", { ...sandTuningValues(), "mass.granular_dynamic_friction": .34 }],
+    ["granular_sand_pile_box", { ...sandTuningValues(), "mass.damping_ratio_x": .3 }],
+    ["granular_single_marble_box", { ...fullTuningValues(), "mass.damping_ratio_y": .26 }],
+    ["liquid_small_box", { ...fullTuningValues(), "mass.damping_ratio_y": .26 }]
+  ];
+  for (const path of ["mass.granular_static_friction", "mass.granular_dynamic_friction"]) {
+    const missing = sandTuningValues(); delete missing[path];
+    cases.push(["granular_sand_pile_box", missing]);
+    for (const value of [NaN, Infinity, -Infinity, -.01, 0, 1, "0.55"])
+      cases.push(["granular_sand_pile_box", { ...sandTuningValues(), [path]: value }]);
+  }
+  for (const friction of [.199999, .900001]) cases.push(["granular_sand_pile_box", sandTuningValues(friction)]);
+  for (const [preset, values] of cases) await assert.rejects(link.applyTuning(preset, values));
+  assert.deepEqual(wire.writes, before);
+});
+
+test("new material transactions retain cancellation at every phase, including capability and final readback", async t => {
+  for (const [preset, values] of [["granular_single_marble_box", fullTuningValues()], ["granular_sand_pile_box", sandTuningValues()]]) {
+    const steps = [["stop\n", 3], ["get state\n", 2], [`preset load ${preset}\n`, 6],
+      ...Object.entries(values).map(([key, value]) => [`set ${key} ${value}\n`, 7]), ["get state\n", 2]];
+    const accept = (wire, request, operation, result = "applied") => wire.send(
+      `haptic_link_tx: request=${request} operation=${operation}\nhaptic_link_ack: request=${request} result=${result} session=1234ABCD frame=121 detail=${operation === 2 ? readback(values) : "applied"}\n`);
+    for (const interruption of ["stop", "disconnect"]) for (let phase = 0; phase < steps.length; phase++) {
+      const { wire, link } = await fixture(t), applying = outcome(link.applyTuning(preset, values));
+      for (let index = 0; index < phase; index++) {
+        assert.equal(wire.writes.at(-1), steps[index][0]);
+        accept(wire, index + 1, steps[index][1]); await turn();
+      }
+      assert.equal(wire.writes.at(-1), steps[phase][0]);
+      const expected = ["status\n", ...steps.slice(0, phase + 1).map(([text]) => text)];
+      if (interruption === "stop") {
+        const stopped = outcome(link.stop()); accept(wire, phase + 1, steps[phase][1]);
+        assert.equal((await applying).error.code, "cancelled");
+        accept(wire, 100, 3); assert.equal((await stopped).value.result, "applied");
+        expected.push("stop\n");
+      } else {
+        await link.disconnect(); assert.equal((await applying).error.code, "disconnected");
+      }
+      await turn(); assert.deepEqual(wire.writes, expected);
+      await link.disconnect();
+    }
+  }
+});
+
+test("unsupported new-material FW and partial friction rejection leave the transaction stopped", async t => {
+  for (const preset of ["granular_single_marble_box", "granular_sand_pile_box"]) {
+    const { wire, link } = await fixture(t); respondToTuning(wire, { old: true });
+    await assert.rejects(link.applyTuning(preset, preset === "granular_sand_pile_box" ? sandTuningValues() : fullTuningValues()), /AtomS3 FW/);
+    assert.deepEqual(wire.writes, ["status\n", "stop\n", "get state\n", "stop\n"]);
+  }
+  const { wire, link } = await fixture(t); respondToTuning(wire);
+  const respond = wire.onWrite;
+  wire.onWrite = raw => raw.startsWith("set mass.granular_dynamic_friction ") ?
+    wire.accept(99, 7, "rejected") : respond(raw);
+  await assert.rejects(link.applyTuning("granular_sand_pile_box", sandTuningValues()), /rejected/);
+  assert.equal(wire.writes.at(-1), "stop\n");
+  assert.equal(wire.writes.filter(text => text.startsWith("set tilt.")).length, 0);
+});
+
+const tuningSteps = [
+  ["stop\n", 3], ["preset load liquid_small_box\n", 6],
+  ["set resonance.master_gain 0.65\n", 7], ["set mass.damping_ratio_x 0.25\n", 7],
+  ["set mass.damping_ratio_y 0.4\n", 7], ["get state\n", 2]
+];
+async function advanceTuning(wire, phase) {
+  for (let index = 0; index < phase; index++) {
+    assert.equal(wire.writes.at(-1), tuningSteps[index][0]);
+    wire.accept(index + 1, tuningSteps[index][1]);
+    await turn();
+  }
+  assert.equal(wire.writes.at(-1), tuningSteps[phase][0]);
+}
+
+test("water tuning applies a copied complete candidate and returns execution ACKs without starting or inventing readback", async t => {
+  const { link, wire } = await fixture(t);
+  wire.send(jsonLine());
+  const values = tuningValues();
+  const applying = outcome(link.applyTuning("liquid_small_box", values));
+  values["resonance.master_gain"] = 4; // Caller mutation cannot change an in-flight candidate.
+  await advanceTuning(wire, tuningSteps.length - 1);
+  wire.accept(6, 2);
+  const result = await applying;
+  assert.equal(result.error, undefined);
+  assert.deepEqual(result.value.map(ack => ack.requestId), [1, 2, 3, 4, 5, 6]);
+  assert.ok(result.value.every(ack => ack.result === "applied"));
+  assert.deepEqual(wire.writes, ["status\n", ...tuningSteps.map(([text]) => text)]);
+  assert.deepEqual(link.state.telemetry, snapshot(), "ACKs must not manufacture a preset or parameter snapshot");
+  assert.equal(link.state.pendingCommand, null);
+});
+
+test("water tuning validates the preset and complete bounded candidate before any IO", async t => {
+  const { link, wire } = await fixture(t);
+  const cases = [
+    ["granular_coin_box", tuningValues()], ["liquid_small_box\nlive", tuningValues()],
+    ["liquid_small_box", null], ["liquid_small_box", []],
+    ["liquid_small_box", {}],
+    ["liquid_small_box", { ...tuningValues(), "tilt.k_phi": 4 }],
+    ["liquid_small_box", { ...tuningValues(), [Symbol("extra")]: 1 }]
+  ];
+  for (const [path, minimum, maximum] of [["resonance.master_gain", 0.1, 1],
+    ["mass.damping_ratio_x", 0.05, 1.5], ["mass.damping_ratio_y", 0.05, 1.5]]) {
+    const missing = tuningValues(); delete missing[path];
+    cases.push(["liquid_small_box", missing]);
+    for (const value of [NaN, Infinity, -Infinity, "0.4", minimum - 0.001, maximum + 0.001]) {
+      cases.push(["liquid_small_box", { ...tuningValues(), [path]: value }]);
+    }
+  }
+  for (const [preset, values] of cases) await assert.rejects(link.applyTuning(preset, values));
+  assert.deepEqual(wire.writes, ["status\n"]);
+});
+
+test("water tuning accepts inclusive parameter bounds", async t => {
+  for (const [gain, damping] of [[0.1, 0.05], [1, 1.5]]) {
+    const { link, wire } = await fixture(t);
+    let request = 0;
+    wire.onWrite = text => wire.accept(++request, text === "stop\n" ? 3 :
+      text.startsWith("preset load ") ? 6 : text.startsWith("set ") ? 7 : 2);
+    const result = await link.applyTuning("liquid_small_box", {
+      "resonance.master_gain": gain, "mass.damping_ratio_x": damping, "mass.damping_ratio_y": damping
+    });
+    assert.equal(result.length, 6);
+    assert.ok(wire.writes.includes(`set resonance.master_gain ${gain}\n`));
+    assert.ok(wire.writes.includes(`set mass.damping_ratio_y ${damping}\n`));
+    assert.ok(!wire.writes.some(text => /^(live|audio on|tilt on)\n$/.test(text)));
+  }
+});
+
+test("water tuning rejection after a partial apply sends Stop and preserves the original failure without rollback", async t => {
+  const { link, wire } = await fixture(t);
+  const applying = outcome(link.applyTuning("liquid_small_box", tuningValues()));
+  await advanceTuning(wire, 3);
+  wire.accept(4, 7, "rejected");
+  await turn();
+  assert.equal(wire.writes.at(-1), "stop\n");
+  wire.accept(5, 3);
+  assert.equal((await applying).error.code, "rejected");
+  assert.deepEqual(wire.writes, ["status\n", ...tuningSteps.slice(0, 4).map(([text]) => text), "stop\n"]);
+});
+
+for (const interruption of ["Stop", "disconnect", "reconnect"]) {
+  for (let phase = 0; phase < tuningSteps.length; phase++) {
+    test(`water tuning ${interruption} at phase ${phase + 1} prevents every later write and Start`, async t => {
+      const { link, wire } = await fixture(t);
+      const oldReceive = wire.onBytes;
+      const applying = outcome(link.applyTuning("liquid_small_box", tuningValues()));
+      await advanceTuning(wire, phase);
+      const expected = ["status\n", ...tuningSteps.slice(0, phase + 1).map(([text]) => text)];
+      if (interruption === "Stop") {
+        const stopped = outcome(link.stop());
+        wire.accept(phase + 1, tuningSteps[phase][1]); // Already-sent command can finish, not continue the transaction.
+        assert.equal((await applying).error.code, "cancelled");
+        wire.accept(100, 3);
+        assert.equal((await stopped).value.result, "applied");
+        expected.push("stop\n");
+      } else {
+        await link.disconnect();
+        if (interruption === "reconnect") { await link.connect(); expected.push("status\n"); }
+        oldReceive(encoder.encode(`haptic_link_tx: request=${phase + 1} operation=${tuningSteps[phase][1]}\n${ackLine(phase + 1)}`));
+        assert.equal((await applying).error.code, "disconnected");
+      }
+      await turn();
+      assert.deepEqual(wire.writes, expected);
+      assert.equal(link.state.pendingCommand, null);
+    });
+  }
+}
 
 test("disconnect rejects pending work; old connection callbacks cannot alter new state", async t => {
   const { link, wire } = await fixture(t);

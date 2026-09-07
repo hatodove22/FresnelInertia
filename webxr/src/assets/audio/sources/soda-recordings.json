@@ -1,0 +1,34 @@
+{
+  "verifiedOn": "2026-09-08",
+  "recordings": [
+    {
+      "id": "joseph-sardin-cork-0648",
+      "title": "Champagne cork #2",
+      "author": "Joseph SARDIN",
+      "sourcePage": "https://bigsoundbank.com/champagne-cork-2-s0648.html",
+      "downloadUrl": "https://bigsoundbank.com/UPLOAD/bwf-en/0648.wav",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "https://bigsoundbank.com/licenses.html",
+      "originalSha256": "59176d6d503e2f0a0064ca8455f206821aa2c6f0047e0be5f3caa56f5d0fe81c",
+      "localFile": "soda-cork-0648.wav",
+      "localSha256": "c41f91712674cebcb653cf982d691bf43e19de4eba4331a9b7f725788e659d0e",
+      "processing": "Actual cork release; 50 Hz high-pass / 9.5 kHz low-pass, stereo downmix and 24 kHz PCM16 resampling. Four nearby onset trims of the same recording, not four separate takes; no pitch shift."
+    },
+    {
+      "id": "joseph-sardin-fizz-0230",
+      "title": "Sparkling water",
+      "author": "Joseph SARDIN",
+      "sourcePage": "https://bigsoundbank.com/sparkling-water-s0230.html",
+      "downloadUrl": "https://bigsoundbank.com/UPLOAD/bwf-en/0230.wav",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "https://bigsoundbank.com/licenses.html",
+      "originalSha256": "6c00a20794d6a739a06d3bac41e384ed676410f2fc0b5be2dc8f52a7ef10061e",
+      "localFile": "soda-fizz-0230.wav",
+      "localSha256": "ac52121e298bdedd8a971ad74d025157b7950d2270fd41d26537a8b3cfe9e442",
+      "processing": "Actual sparkling water in a glass; 180 Hz high-pass / 9.5 kHz low-pass and mono 24 kHz PCM16 resampling. A 3.8 s excerpt with a 200 ms seam is a quiet burst-only fizz bed, not an extra opening event."
+    }
+  ],
+  "excerpts": { "pop": [[0.210, 0.48], [0.212, 0.48], [0.214, 0.48], [0.216, 0.48]], "vent": [7.1, 3.8] }
+}

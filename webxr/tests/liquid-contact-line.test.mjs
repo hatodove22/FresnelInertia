@@ -53,6 +53,36 @@ test("pitch moves the optical contact while identical snapshots freeze all buffe
   line.dispose(); volume.dispose();
 });
 
+test("wave revision moves the wet boundary with the real surface even at a fixed reference plane", () => {
+  const volume = new ContainedVolume(size), line = new LiquidContactLine(size);
+  const normal = new Vector3(0, 1, 0);
+  const field = sign => ({ revision: sign, maxDisplacement: 0.006,
+    displacement: (u, v) => sign * (0.005 * Math.sin(u * Math.PI) + 0.002 * Math.sin(v * Math.PI)) });
+  volume.update(0.5, normal, 0, 0, field(1));
+  line.update(volume, 0.5);
+  const wet = line.group.getObjectByName("content-liquid-meniscus");
+  const attribute = wet.geometry.attributes.position;
+  const old = Float32Array.from(attribute.array), version = attribute.version;
+  const plane = [volume.offset, ...volume.normal.toArray()];
+  volume.update(0.5, normal, 0, 0, field(-1));
+  line.update(volume, 0.5);
+  assert.deepEqual([volume.offset, ...volume.normal.toArray()], plane);
+  assert.ok(attribute.version > version, "a changing waterline cannot reuse the static-plane optical cache");
+  assert.notDeepEqual(attribute.array, old);
+  for (const edge of volume.boundary) {
+    let nearest = Infinity;
+    for (let i = 0; i < wet.geometry.drawRange.count; i++) nearest = Math.min(nearest,
+      new Vector3().fromBufferAttribute(attribute, i).distanceTo(edge));
+    assert.ok(nearest < 1e-7, "the optical edge starts on the exact deformed waterline");
+  }
+  const held = Float32Array.from(attribute.array), heldVersion = attribute.version;
+  volume.update(0.5, normal, 0, 0, field(-1));
+  line.update(volume, 0.5);
+  assert.deepEqual(attribute.array, held);
+  assert.equal(attribute.version, heldVersion);
+  volume.dispose(); line.dispose();
+});
+
 test("empty, full and invalid fill have no phantom waterline or foam", () => {
   const volume = new ContainedVolume(size);
   const line = new LiquidContactLine(size);

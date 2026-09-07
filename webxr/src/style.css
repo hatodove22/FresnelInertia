@@ -8,13 +8,23 @@
   -webkit-font-smoothing: antialiased;
 }
 
-.device-panel { margin: 0 0 14px; padding: 12px; border: 1px solid #488e89; border-radius: 10px; background: rgba(34, 81, 76, .20); }
+.device-panel { margin: 0 0 16px; padding: 0 0 14px; border-bottom: 1px solid rgba(255, 255, 255, .12); }
+.device-session, .hud > .device-run-actions { display: none; }
+.device-connected .device-session { display: block; }
+.device-connected .hud > .device-run-actions { display: flex; flex-shrink: 0; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .16); }
+.device-connected .device-panel { margin-bottom: 0; border: 0; }
 #device-status { margin: 0 0 6px; font-weight: 700; font-size: 14px; }
 #device-status[data-level="live"] { color: #88ede0; }
 #device-status[data-level="warning"] { color: #ffd596; }
 .device-detail { color: #aec8c8; font-size: 12px; line-height: 1.5; margin: 0 0 12px; }
 .device-connect-row, .device-fill-row, .device-outputs { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
 .device-connect-row select { flex: 1; min-width: 0; }
+.device-connect-row { flex-wrap: wrap; }
+.device-connect-row > button { flex: 1; }
+.device-connected #device-connect { background: rgba(255, 255, 255, .08); color: #edf4f6; }
+.transport-settings { flex: 0 0 auto; }
+.transport-settings[open] { flex-basis: 100%; }
+.transport-settings select { width: 100%; }
 .device-fill-row input { width: 64px; flex: 0 0 64px; }
 .device-fill-row label { white-space: nowrap; }
 .device-fill-row { font-size: 12px; }
@@ -23,19 +33,37 @@
 .device-outputs input { min-height: 20px; accent-color: #75e2d1; }
 button.primary { color: #102b28; background: #85e0d1; }
 button.stop { border-color: #d18b77; color: #ffd7c8; }
-.secondary-actions button { font-size: 11px; min-height: 32px; }
-details > summary { padding: 9px 0; color: #afc3ca; font-size: 12px; cursor: pointer; }
+.secondary-actions button { font-size: 12px; min-height: 40px; }
+details > summary { padding: 12px 0; min-height: 42px; color: #b8cbd2; font-size: 12px; cursor: pointer; }
+details[open] > summary { color: #e1f0ef; }
+.helper-text { color: #a5bbc3; font-size: 12px; line-height: 1.6; margin: 6px 0 10px; }
+.helper-text:empty { display: none; }
+.lab-entry { margin-top: 12px; }
+.demo-utilities { border-top: 1px solid rgba(255, 255, 255, .12); padding-top: 12px; }
 .device-connected .preview-controls { display: none; }
+.demo-keyboard-help { margin: 0; color: #a5bbc3; font-size: 12px; line-height: 1.7; }
+.demo-keyboard-help > summary { font-size: 12px; }
+.demo-keyboard-help > p { margin: 6px 0 0; }
+.demo-keyboard-help kbd { color: #e0eeec; font: inherit; font-weight: 600; white-space: nowrap; }
+.sound-controls { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 0; font-size: 12px; }
+.sound-controls button { flex: 0 0 auto; min-height: 42px; padding: 6px 10px; font-size: 12px; }
+.sound-settings { flex: 1; min-width: 0; }
+.sound-volume-row { display: grid; grid-template-columns: minmax(40px, 1fr) 32px; align-items: center; gap: 8px; }
+.sound-volume-row > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.sound-controls button[aria-pressed="true"] { color: #102b28; background: #85e0d1; }
+.sound-controls input { width: 100%; min-width: 0; min-height: 20px; accent-color: #85e0d1; }
+.sound-controls small { display: block; margin-top: 8px; color: #a5bbc3; line-height: 1.5; }
+.sound-controls output { font-variant-numeric: tabular-nums; text-align: right; }
 
 [hidden] { display: none !important; }
 #lab-open { width: 100%; margin-bottom: 12px; }
 .device-connected #lab-open { display: none; }
-.offline-lab-active .device-panel, .offline-lab-active .xr-actions,
+.offline-lab-active .device-panel, .offline-lab-active .extra-tools,
 .offline-lab-active .preview-controls, .offline-lab-active .trial-details,
 .offline-lab-active #lab-open, .offline-lab-active .readout { display: none; }
 .lab-source { font-size: 11px; line-height: 1.5; color: #a5bbc3; margin: 5px 0 10px; }
-.lab-materials { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.lab-materials button { font-size: 13px; }
+.lab-materials { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.lab-materials button { font-size: 13px; min-height: 44px; }
 .lab-materials button[aria-pressed="true"] { background: #85e0d1; color: #102b28; border-color: #85e0d1; }
 #lab-description { font-size: 13px; line-height: 1.65; min-height: 42px; color: #d9e7e7; }
 #lab-status { font-size: 12px; line-height: 1.5; color: #9de4d6; min-height: 18px; }
@@ -72,10 +100,11 @@ body,
 }
 
 body {
-  touch-action: none;
+  touch-action: manipulation;
 }
 
 #scene {
+  touch-action: none;
   position: fixed;
   inset: 0;
   width: 100%;
@@ -87,6 +116,8 @@ body {
 }
 
 .hud {
+  display: flex;
+  flex-direction: column;
   position: fixed;
   left: max(14px, env(safe-area-inset-left));
   right: max(14px, env(safe-area-inset-right));
@@ -94,13 +125,19 @@ body {
   width: min(430px, calc(100vw - 28px));
   max-height: calc(100vh - 28px);
   padding: 14px;
-  overflow-y: auto;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
   background: rgba(10, 15, 19, 0.78);
   backdrop-filter: blur(18px);
   box-shadow: 0 20px 58px rgba(0, 0, 0, 0.32);
 }
+
+.hud-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; touch-action: pan-y; }
+.hud > .title-row { flex-shrink: 0; }
+.hud :is(button, select, input, summary):focus-visible { outline: 2px solid #9af2e4; outline-offset: 3px; }
+.hud button, .hud summary { -webkit-tap-highlight-color: transparent; }
+select option { color: #edf4f6; background: #17272c; }
 
 .title-row,
 .actions,
@@ -203,11 +240,7 @@ button:disabled {
 #xr-session-status:empty { display: none; }
 
 .operation-panel {
-  margin-bottom: 12px;
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.055);
+  margin-bottom: 8px;
 }
 
 .tuning-panel,
@@ -262,7 +295,7 @@ h2 {
 }
 
 .small-button {
-  min-height: 30px;
+  min-height: 40px;
   padding: 0 10px;
   font-size: 12px;
 }
@@ -412,7 +445,7 @@ dd {
   }
 
   .method {
-    flex-basis: calc(33.333% - 6px);
+    flex-basis: calc(50% - 4px);
   }
 
   .trial-actions {

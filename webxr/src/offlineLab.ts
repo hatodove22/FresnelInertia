@@ -5,9 +5,12 @@ import type { ContainerPreset, LocalContentState, TiltState } from "./types";
 const quiet: LocalContentState = { surfaceOffsetX: 0, surfaceOffsetY: 0, surfaceVelocityX: 0,
   surfaceVelocityY: 0, agitation: 0, particleSpread: 0, impactPulse: 0, wavePrimary: 0, waveSecondary: 0 };
 const descriptions: Record<PreviewPreset, string> = {
-  granular_single_marble_box: "ひと粒が転がり、壁にコツン。いまの良い感触を比較の基準に。",
+  granular_single_marble_box: "ひと粒が左右・前後に転がる。前後は映像の補助表現、触覚・音はC++の左右・上下モデル。",
+  granular_coin_box: "コインが滑り、床・壁・互いとの接触で転がる。振り方次第で裏返る3D物理描画。触覚・音は従来のC++モデル。",
+  granular_single_coin_box: "コイン1枚の滑り・縁立ち・回転を接触から計算。フリップの決まった演出はなし。触覚・音は従来のC++モデル。",
   granular_sand_box: "傾けると崩れ、戻しても偏りが残る。砂の重心と堆積面を一緒に見る。",
-  liquid_small_box: "左右・前後に寄り、返る波が静まる。水面は描画専用の応答で豊かにし、FWの重心・触覚指令はそのまま。",
+  granular_sand_pile_box: "摩擦で堆積面と重心の偏りが残る砂pile。静止摩擦と流動時の摩擦を連動させて比較する。",
+  liquid_small_box: "水面全体が寄り、片側の盛り上がりと周囲の引き込みが一続きに動く。戻る波の細部は映像表現、FWの重心・触覚指令はそのまま。",
   liquid_soda_bottle: "振るほど気泡が蓄積。限界でポンと弾け、泡が吹き出して静まる。"
 };
 function element<T extends HTMLElement>(id: string): T {
@@ -40,8 +43,14 @@ export class OfflineLab {
   private readonly pile = element<HTMLInputElement>("lab-pile");
   private readonly slow = element<HTMLInputElement>("lab-slow");
 
+  /** Presentation-only consumers may observe the model, never advance it. */
+  get soundFrame(): PreviewFrame | null {
+    return this.active && !this.paused && !this.modelError ? this.frame ?? null : null;
+  }
+
   constructor(private readonly scene: ContainerScene, private readonly hooks: {
     canEnter(): boolean; onPreset(preset: ContainerPreset): void; onClose(): void;
+    onSilence?(): void;
   }) {
     element("lab-open").onclick = () => void this.open();
     element("lab-close").onclick = () => this.close();
@@ -81,6 +90,8 @@ export class OfflineLab {
       this.panel.hidden = false;
       document.body.classList.add("offline-lab-active");
       this.select(this.preset);
+      element("mode-badge").textContent = "C++ Lab";
+      element("lab-close").focus?.();
     } catch (error) {
       element("lab-open").textContent = `ラボを開けません: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
@@ -92,15 +103,19 @@ export class OfflineLab {
   close() {
     ++this.generation;
     if (!this.active) return;
+    this.hooks.onSilence?.();
     this.active = false;
     this.panel.hidden = true;
     document.body.classList.remove("offline-lab-active");
     this.scene.setDeviceState(null);
     this.hooks.onClose();
+    element("mode-badge").textContent = "Preview";
+    element("lab-open").focus?.();
   }
 
   private select(preset: PreviewPreset) {
     if (!this.engine) return;
+    this.hooks.onSilence?.();
     this.preset = preset;
     this.frame = this.engine.loadPreset(preset);
     this.pile.checked = this.frame.parameters.granularPile;
@@ -119,6 +134,7 @@ export class OfflineLab {
 
   private reset() {
     if (!this.engine) return;
+    this.hooks.onSilence?.();
     this.frame = this.engine.reset();
     this.scene.setDeviceAcceleration(null);
     this.modelError = "";
@@ -129,7 +145,12 @@ export class OfflineLab {
     this.showAngles(); this.refreshPause();
   }
 
-  private refreshPause() { element("lab-pause").textContent = this.paused ? "再開" : "一時停止"; }
+  private refreshPause() {
+    if (this.paused) this.hooks.onSilence?.();
+    const button = element("lab-pause");
+    button.textContent = this.paused ? "再開" : "一時停止";
+    button.setAttribute("aria-pressed", String(this.paused));
+  }
   private showAngles() {
     element("lab-roll-value").textContent = `${Number(this.roll.value).toFixed(0)}°`;
     element("lab-pitch-value").textContent = `${Number(this.pitch.value).toFixed(0)}°`;
@@ -156,11 +177,15 @@ export class OfflineLab {
       // A broad hand sway makes water's roll-over and settling readable. Keep
       // the existing fast shake for grains and the soda charge/pop comparison.
       const shakeOmega = this.preset === "liquid_small_box" ? Math.PI * 2.7 : Math.PI * 10;
-      const ax = shaking ? 1.65 * Math.sin(this.modeTime * shakeOmega) : 0;
-      const ay = shaking ? 0.35 * Math.cos(this.modeTime * shakeOmega) : 0;
+      const coins = /coin/.test(this.preset), t = this.modeTime;
+      // A spatial hand shake lifts a flat coin before a rim/wall encounter.
+      // These are actual synthetic IMU inputs to BOTH models, not a flip event.
+      const ax = shaking ? coins ? 1.44 * Math.sin(2 * Math.PI * 4.6 * t) : 1.65 * Math.sin(t * shakeOmega) : 0;
+      const ay = shaking ? coins ? 1.68 * Math.sin(2 * Math.PI * 4.7 * t + .7) : .35 * Math.cos(t * shakeOmega) : 0;
+      const az = shaking && coins ? 1.14 * Math.sin(2 * Math.PI * 3.2 * t + 1.1) : 0;
       try {
         this.frame = this.engine.step({ dtS: dt,
-          accelG: [Math.sin(r) * Math.cos(p) + ax, Math.cos(r) * Math.cos(p) + ay, -Math.sin(p)],
+          accelG: [Math.sin(r) * Math.cos(p) + ax, Math.cos(r) * Math.cos(p) + ay, -Math.sin(p) + az],
           gyroDps: [0, 0, 0] });
         this.appliedRoll = r; this.appliedPitch = p;
       } catch (error) {
@@ -171,7 +196,7 @@ export class OfflineLab {
         return { tilt: { x: this.appliedPitch, y: this.appliedRoll }, content: quiet };
       }
       if (this.mode === "shake" && !shaking) this.mode = "manual";
-      acceleration = [ax, ay, 0];
+      acceleration = [ax, ay, az];
       this.showAngles();
     }
     const frame = this.frame;

@@ -5,6 +5,7 @@ import { deviceParticleLayout, deviceParticlePose, isSingleMarble, type DeviceCo
 import { ContainerGeometry } from "./ContainerGeometry";
 import { disposeObjectTree } from "./disposeObjectTree";
 import { SandPileRenderer } from "./SandPileRenderer";
+import { SolidDepthMotion } from "./SolidDepthMotion";
 
 interface ParticleState {
   pos: THREE.Vector3;
@@ -16,7 +17,7 @@ interface ParticleState {
   restThreshold: number;
 }
 
-/** Solid ingredient shared by Granular and Hybrid. Only preview integrates particles. */
+/** Reported x/y remains authoritative; one marble may add visual-only z travel. */
 export class ParticleContentRenderer {
   readonly group = new THREE.Group();
   private particles: THREE.InstancedMesh;
@@ -27,12 +28,15 @@ export class ParticleContentRenderer {
   private lastElapsed = 0;
   private readonly sandPile?: SandPileRenderer;
   private readonly preferPile: boolean;
+  private readonly depthMotion?: SolidDepthMotion;
+  private readonly inverse = new THREE.Quaternion();
 
   constructor(private readonly preset: ContainerPreset, private readonly geometry: ContainerGeometry,
     private readonly resolvedDimensions: boolean) {
     const sand = /sand/i.test(preset.preset);
     const coin = /coin/i.test(preset.preset);
     const marble = isSingleMarble(preset, resolvedDimensions);
+    if (marble) this.depthMotion = new SolidDepthMotion("marble");
     this.preferPile = sand && !marble;
     const material = new THREE.MeshPhysicalMaterial(this.preset.family === "Hybrid"
       ? { color: "#e1f3f5", roughness: 0.2, clearcoat: 1, metalness: 0.06 }
@@ -223,7 +227,7 @@ export class ParticleContentRenderer {
     return s - Math.floor(s);
   }
 
-  updateDevice(state: DeviceContentState) {
+  updateDevice(state: DeviceContentState, orientation = new THREE.Quaternion(), acceleration?: readonly number[]) {
     if (this.sandPile) {
       const pile = this.preferPile || state.pileSlope !== undefined;
       this.sandPile.group.visible = pile;
@@ -235,15 +239,24 @@ export class ParticleContentRenderer {
     }
     this.particles.visible = state.fill > 0;
     const layout = deviceParticleLayout(this.geometry.dimensions, state, this.preset.family, isSingleMarble(this.preset, this.resolvedDimensions));
+    this.localGravity.set(0, -1, 0).applyQuaternion(this.inverse.copy(orientation).invert());
+    const depth = this.depthMotion?.update({ timeS: state.phaseS,
+      gravityZ: this.localGravity.z,
+      supportG: Math.abs(state.massY) > 0.9 ? Math.abs(this.localGravity.y) : 0,
+      halfTravelM: Math.max(0, this.geometry.dimensions.z * 0.5 - layout.radius),
+      fill: state.fill, accelerationZ: acceleration?.[2] });
     for (let i = 0; i < this.particleCount; i += 1) {
       const pose = deviceParticlePose(layout, i, this.particleCount);
-      this.dummy.position.set(pose.x, pose.y, pose.z);
+      this.dummy.position.set(pose.x, pose.y, pose.z + (depth?.offsetM ?? 0));
       this.dummy.scale.setScalar(layout.radius);
-      this.dummy.rotation.set(0, pose.seed, layout.angle);
+      this.dummy.rotation.set(depth ? depth.offsetM / layout.radius : 0, pose.seed, layout.angle);
       this.dummy.updateMatrix();
       this.particles.setMatrixAt(i, this.dummy.matrix);
     }
     this.particles.instanceMatrix.needsUpdate = true;
+    // The depth extension can reach parts of the cavity outside the old static
+    // centerline bounds. Keep culling consistent with the actual instances.
+    this.particles.computeBoundingSphere();
   }
 
   dispose() {

@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
 import { setImmediate as turn } from "node:timers/promises";
 import { build } from "esbuild";
 import { Euler, Vector3 } from "three";
@@ -154,6 +155,11 @@ const liquid = () => {
   value.resolved.container.span_y_m = 0.1;
   return value;
 };
+const servoRetry = (overrides = {}) => snapshot({
+  run_mode: "live", audio: { runtime_enabled: true, output_silenced: false },
+  safety: { tilt_disarmed: false }, tilt_servo: { state: 1, fault: 2 },
+  ...overrides
+});
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
 test("preview is explicit; receiving resolved state updates geometry but never starts outputs", () => {
@@ -365,6 +371,41 @@ test("preset request and ACK alone do not claim a new visible material", async (
   assert.deepEqual(link.calls.map(call => call.name), ["loadPreset"]);
 });
 
+test("single-coin rejection on old firmware preserves the applied material and never substitutes other commands", async () => {
+  const { demo, link, element, hookPresets } = fixture();
+  link.publish(liquid());
+  const option = element("device-preset").options.find(option => option.value === "granular_single_coin_box");
+  assert.match(option.text, /コイン1枚.*新FW/);
+  const pending = demo.selectPreset(option.value);
+  assert.deepEqual(link.calls.map(call => [call.name, ...call.args]), [["loadPreset", "granular_single_coin_box"]]);
+  link.pending("loadPreset").reject(new HapticLinkError("rejected", "rejected: preset_load_failed"));
+  await pending;
+  assert.match(element("device-status").textContent, /preset_load_failed.*コイン1枚.*AtomS3 FW/);
+  assert.equal(hookPresets.at(-1).preset, "liquid_small_box");
+  assert.equal(element("device-preset").value, "liquid_small_box");
+  assert.equal(link.calls.length, 1);
+  assert.equal(element("device-stop").disabled, false);
+});
+
+test("single coin becomes visible only from the device's resolved accepted state", async () => {
+  const { demo, link, element, hookPresets } = fixture();
+  link.publish(liquid());
+  const pending = demo.selectPreset("granular_single_coin_box");
+  link.pending("loadPreset").resolve({ result: "applied" });
+  await pending;
+  assert.equal(hookPresets.at(-1).preset, "liquid_small_box");
+  assert.equal(element("device-start").disabled, true);
+  const applied = snapshot({ preset: "granular_single_coin_box" });
+  applied.resolved.container = { span_x_m: 0.05, span_y_m: 0.05, span_z_m: 0.03,
+    fill: 0.04, headspace: 0.96, viscosity: 0.05, particle_count: 0.03, particle_hardness: 0.9 };
+  applied.mass.fill = 0.04;
+  link.publish(applied);
+  assert.equal(hookPresets.at(-1).preset, "granular_single_coin_box");
+  assert.deepEqual(hookPresets.at(-1).container, applied.resolved.container);
+  assert.equal(element("device-start").disabled, false);
+  assert.deepEqual(link.calls.map(call => call.name), ["loadPreset"]);
+});
+
 for (const reconnect of [false, true]) {
   test(`${reconnect ? "new connection" : "explicit state refresh"} abandons an old preset wait only after state ACK`, async () => {
     const { demo, link, element, hookPresets, panels } = fixture();
@@ -445,6 +486,240 @@ test("Start is explicit and output labels continue to reflect telemetry, not des
   link.publish(snapshot({ run_mode: "live", audio: { runtime_enabled: true } }));
   assert.match(element("device-status").textContent, /LIVE.*振動 ON/);
   assert.match(element("device-status").textContent, /傾き OFF/);
+});
+
+test("the existing servo recovery button is outside collapsed settings", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const button = html.indexOf('id="device-clear"');
+  const settings = html.match(/<details\b[^>]*class="device-settings"[^>]*>[\s\S]*?<\/details>/)?.[0];
+  assert.ok(button >= 0, "The recovery action remains in the page");
+  assert.ok(settings, "Device settings remain available");
+  assert.doesNotMatch(settings, /id="device-clear"/, "Recovery must not require opening settings");
+  assert.equal(html.match(/id="device-clear"/g).length, 1);
+  assert.match(html.slice(button, button + 160), /停止してサーボ復帰/);
+});
+
+test("fresh servo retry shows unconfirmed tilt, blocks Start and follows device recovery without commands", async () => {
+  const { demo, link, element, panels } = fixture();
+  link.publish(servoRetry());
+  assert.match(element("device-status").textContent, /サーボ通信を再試行中.*振動 ON.*傾きフィードバック未確認/);
+  assert.doesNotMatch(element("device-status").textContent, /停止してサーボ復帰|傾き ON/);
+  assert.equal(element("device-status").dataset.level, "warning");
+  assert.equal(element("device-start").disabled, true);
+  assert.equal(element("device-stop").disabled, false);
+  assert.equal(element("device-clear").disabled, false);
+  assert.equal(element("device-preset").disabled, false);
+  assert.equal(panels.at(-1).state.canStart, false);
+  assert.equal(panels.at(-1).state.canStop, true);
+  await assert.rejects(demo.start(), /サーボ通信を再試行中/);
+  element("device-start").click();
+  assert.deepEqual(link.calls, [], "neither recovery telemetry nor blocked Start sends a command");
+
+  link.publish(servoRetry({ tilt_servo: { state: 4, fault: 0 } }));
+  assert.match(element("device-status").textContent, /LIVE.*振動 ON.*傾き ON/);
+  assert.doesNotMatch(element("device-status").textContent, /再試行|未確認/);
+  assert.equal(element("device-start").disabled, false);
+  assert.equal(element("device-status").dataset.level, "live");
+  assert.deepEqual(link.calls, [], "the device, not the browser, resumes after link recovery");
+
+  link.publish(servoRetry());
+  link.publish(servoRetry({ tilt_servo: { state: 5, fault: 2 }, safety: { tilt_disarmed: true } }));
+  assert.match(element("device-status").textContent, /fault 2.*停止してサーボ復帰.*実機で開始/);
+  assert.doesNotMatch(element("device-status").textContent, /再試行中/);
+  assert.equal(element("device-clear").disabled, false);
+  assert.deepEqual(link.calls, [], "exhausted recovery must not initiate a browser clear/rearm");
+});
+
+test("servo retry reports actual audio state rather than desired enabled outputs", () => {
+  const { link, element } = fixture();
+  assert.equal(element("device-audio").checked, true);
+  link.publish(servoRetry({ audio: { runtime_enabled: false, output_silenced: true } }));
+  assert.match(element("device-status").textContent, /再試行中.*振動 OFF/);
+  link.publish(servoRetry({ audio: undefined }));
+  assert.match(element("device-status").textContent, /再試行中.*振動 未確認/);
+  assert.doesNotMatch(element("device-status").textContent, /振動 ON/);
+});
+
+test("only the exact live requested-tilt communication retry state is described as automatic recovery", () => {
+  for (const overrides of [
+    { tilt_servo: undefined }, { tilt_servo: { state: 1 } },
+    { tilt_servo: { fault: 2 } }, { tilt_servo: { state: 1, fault: 3 } },
+    { tilt_servo: { state: 5, fault: 2 } }, { tilt_servo: { state: 1, fault: 0 } },
+    { safety: undefined }, { safety: {} }, { safety: { tilt_disarmed: true } },
+    { run_mode: "idle" }
+  ]) {
+    const { link, element } = fixture();
+    link.publish(servoRetry(overrides));
+    assert.doesNotMatch(element("device-status").textContent, /再試行中/, JSON.stringify(overrides));
+    assert.deepEqual(link.calls, []);
+  }
+});
+
+test("stale, disconnected, unpaired or missing telemetry cannot keep a servo retry claim alive", () => {
+  for (const fields of [
+    { stale: true }, { connection: "disconnected" }, { paired: false }, { telemetry: null }
+  ]) {
+    const { link, element } = fixture();
+    link.publish(servoRetry());
+    assert.match(element("device-status").textContent, /再試行中/);
+    link.patch(fields);
+    assert.doesNotMatch(element("device-status").textContent, /再試行中/, JSON.stringify(fields));
+    assert.deepEqual(link.calls, []);
+  }
+});
+
+test("servo retry does not conceal transport errors or rejected commands", async () => {
+  const { demo, link, element } = fixture();
+  link.publish(servoRetry());
+  link.patch({ error: "USB read failed" });
+  assert.match(element("device-status").textContent, /確認が必要: USB read failed.*サーボ通信を再試行中/);
+  assert.doesNotMatch(element("device-status").textContent, /停止してサーボ復帰/);
+  link.patch({ error: null });
+  const stopping = demo.stop();
+  link.pending("stop").reject(new HapticLinkError("rejected", "rejected: stop_failed"));
+  await stopping;
+  assert.match(element("device-status").textContent, /確認が必要: rejected: stop_failed.*サーボ通信を再試行中/);
+  assert.equal(element("device-stop").disabled, false);
+  assert.equal(element("device-start").disabled, true);
+  assert.deepEqual(link.calls.map(call => call.name), ["stop"]);
+});
+
+test("Stop remains available during the retry grace and confirmed Stop does not restart output", async () => {
+  const { demo, link, element, panels } = fixture();
+  link.publish(servoRetry());
+  const stopping = demo.stop();
+  assert.deepEqual(link.calls.map(call => call.name), ["stop"]);
+  assert.equal(element("device-stop").disabled, false);
+  assert.equal(panels.at(-1).state.canStop, true);
+  link.publish(servoRetry());
+  assert.match(element("device-status").textContent, /再試行中/, "request alone does not confirm Stop");
+  link.publish(snapshot({ tilt_servo: { state: 2, fault: 0 } }));
+  link.pending("stop").resolve({ result: "applied" });
+  await stopping;
+  assert.match(element("device-status").textContent, /IDLE.*振動 OFF.*傾き OFF/);
+  assert.doesNotMatch(element("device-status").textContent, /再試行中/);
+  assert.deepEqual(link.calls.map(call => call.name), ["stop"]);
+});
+
+test("manual servo recovery can cancel the retry grace through the existing Stop-first flow", async () => {
+  const { link, element } = fixture();
+  link.publish(servoRetry());
+  element("device-clear").click();
+  assert.deepEqual(link.calls.map(call => call.name), ["stop"]);
+  link.publish(snapshot());
+  link.pending("stop").resolve({ result: "applied" });
+  await turn();
+  link.pending("clearTiltFault").resolve({ result: "applied" });
+  await turn();
+  link.pending("getState").resolve({ result: "applied" });
+  await turn();
+  assert.deepEqual(link.calls.map(call => call.name), ["stop", "clearTiltFault", "getState"]);
+  assert.match(element("device-status").textContent, /IDLE.*振動 OFF.*傾き OFF/);
+});
+
+test("servo fault recovery stops, clears and reads state without starting either output", async () => {
+  const { link, element } = fixture();
+  link.publish(snapshot({ tilt_servo: { fault: 3, state: 4 } }));
+  assert.match(element("device-status").textContent, /fault 3.*停止してサーボ復帰.*実機で開始/);
+  assert.equal(element("device-status").dataset.level, "warning");
+  assert.equal(element("device-clear").disabled, false);
+  assert.deepEqual(link.calls, [], "fault telemetry must not initiate recovery");
+
+  element("device-clear").click();
+  assert.deepEqual(link.calls.map(call => call.name), ["stop"]);
+  assert.equal(element("device-clear").disabled, true);
+  assert.equal(element("device-start").disabled, true);
+  assert.equal(element("device-stop").disabled, false);
+  element("device-clear").click();
+  assert.equal(link.calls.length, 1, "a second recovery click must not overlap the first");
+  link.pending("stop").resolve({ result: "applied" });
+  await turn();
+  assert.deepEqual(link.calls.map(call => call.name), ["stop", "clearTiltFault"]);
+  link.pending("clearTiltFault").resolve({ result: "applied" });
+  await turn();
+  assert.deepEqual(link.calls.map(call => call.name), ["stop", "clearTiltFault", "getState"]);
+  assert.match(element("device-status").textContent, /fault 3/, "ACK alone does not claim a healthy servo");
+  link.publish(snapshot());
+  link.pending("getState").resolve({ result: "applied" });
+  await turn();
+  assert.match(element("device-status").textContent, /IDLE.*振動 OFF.*傾き OFF/);
+  assert.equal(element("device-start").disabled, false);
+  assert.equal(element("device-clear").disabled, false);
+  assert.equal(link.calls.some(call => call.name === "start"), false);
+
+  element("device-start").click();
+  assert.deepEqual(link.pending("start").args, [{ audio: true, tilt: true }]);
+  link.pending("start").resolve({ result: "applied" });
+  await turn();
+});
+
+test("failed servo recovery keeps the fault and execution error visible and permits explicit retry", async () => {
+  const { link, element } = fixture();
+  const fault = snapshot({ tilt_servo: { fault: 3, state: 4 } });
+  link.publish(fault);
+  element("device-clear").click();
+  link.pending("stop").resolve({ result: "applied" });
+  await turn();
+  link.pending("clearTiltFault").reject(new HapticLinkError("rejected", "rejected: tilt_preflight_failed"));
+  await turn();
+  assert.match(element("device-status").textContent, /tilt_preflight_failed.*fault 3.*停止してサーボ復帰/);
+  assert.equal(element("device-status").dataset.level, "warning");
+  assert.equal(element("device-clear").disabled, false);
+  assert.deepEqual(link.calls.map(call => call.name), ["stop", "clearTiltFault"]);
+  link.publish(fault);
+  assert.equal(link.calls.length, 2, "telemetry must not silently retry a rejected recovery");
+
+  element("device-clear").click();
+  link.pending("stop").resolve({ result: "applied" });
+  await turn();
+  link.pending("clearTiltFault").resolve({ result: "applied" });
+  await turn();
+  link.publish(snapshot());
+  link.pending("getState").resolve({ result: "applied" });
+  await turn();
+  assert.deepEqual(link.calls.map(call => call.name), ["stop", "clearTiltFault", "stop", "clearTiltFault", "getState"]);
+  assert.doesNotMatch(element("device-status").textContent, /tilt_preflight_failed|fault/);
+  assert.match(element("device-status").textContent, /IDLE.*振動 OFF.*傾き OFF/);
+});
+
+test("priority Stop remains available while servo recovery is busy and no continuation arms output", async () => {
+  const { demo, link, element } = fixture();
+  link.publish(snapshot({ tilt_servo: { fault: 3, state: 4 } }));
+  element("device-clear").click();
+  link.pending("stop").resolve({ result: "applied" });
+  await turn();
+  assert.equal(element("device-stop").disabled, false);
+  const stopping = demo.stop();
+  assert.deepEqual(link.calls.map(call => call.name), ["stop", "clearTiltFault", "stop"]);
+  link.pending("stop").resolve({ result: "applied" });
+  await stopping;
+  assert.equal(element("device-clear").disabled, true, "Stop completion must not hide the unfinished recovery");
+  link.pending("clearTiltFault").reject(new HapticLinkError("cancelled", "Superseded by Stop"));
+  await turn();
+  assert.equal(element("device-clear").disabled, false);
+  assert.doesNotMatch(element("device-status").textContent, /確認が必要|Superseded/);
+  assert.equal(link.calls.some(call => call.name === "start" || call.name === "getState"), false);
+});
+
+test("an already dispatched clear may finish across priority Stop but its continuation only reads state", async () => {
+  const { demo, link, element } = fixture();
+  link.publish(snapshot({ tilt_servo: { fault: 3, state: 4 } }));
+  element("device-clear").click();
+  link.pending("stop").resolve({ result: "applied" });
+  await turn();
+  const stopping = demo.stop();
+  link.pending("clearTiltFault").resolve({ result: "applied" });
+  await turn();
+  assert.deepEqual(link.calls.map(call => call.name), ["stop", "clearTiltFault", "stop", "getState"]);
+  link.pending("stop").resolve({ result: "applied" });
+  await stopping;
+  assert.equal(element("device-start").disabled, true, "the recovery state request is still pending");
+  link.publish(snapshot());
+  link.pending("getState").resolve({ result: "applied" });
+  await turn();
+  assert.equal(element("device-clear").disabled, false);
+  assert.match(element("device-status").textContent, /IDLE.*振動 OFF.*傾き OFF/);
+  assert.equal(link.calls.some(call => call.name === "start"), false);
 });
 
 test("stale telemetry freezes content and pose without switching to local simulation", () => {

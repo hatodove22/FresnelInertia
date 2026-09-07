@@ -156,7 +156,7 @@ test("water uses smooth shared normals instead of a triangle-faceted free surfac
   assert.ok(duplicates > 100, "compares enough shared vertices to catch flat triangle shading");
 });
 
-test("pile slope owns retained bed geometry, while only flowing surface grains advance", () => {
+test("pile slope retains the bulk while actual flow transports a volume-preserving surface skin", () => {
   const scene = new ContainerScene();
   scene.setPreset(preset("Granular"), true);
   scene.setDeviceState({ ...state, pileSlope: 0.55, granularFlow: 0, phaseS: 0 });
@@ -170,10 +170,18 @@ test("pile slope owns retained bed geometry, while only flowing surface grains a
   tick(scene, 30);
   assert.deepEqual(bed.geometry.attributes.position.array, bedBefore);
   assert.deepEqual(grains.instanceMatrix.array, grainBefore);
-  scene.setDeviceState({ ...state, pileSlope: 0.55, granularFlow: 0.8, phaseS: 4 });
+  scene.setDeviceState({ ...state, pileSlope: 0.55, granularFlow: 0.8, velocityX: 0.2, phaseS: 3.02 });
   tick(scene);
   assert.notDeepEqual(grains.instanceMatrix.array, grainBefore);
-  assert.deepEqual(bed.geometry.attributes.position.array, bedBefore);
+  assert.notDeepEqual(bed.geometry.attributes.position.array, bedBefore);
+  close(meshVolume(scene.group.getObjectByName("content-sand-body").geometry, bed.geometry),
+    fullVolume * 0.96 ** 3 * state.fill, fullVolume * 5e-6);
+  const retained = Float32Array.from(bed.geometry.attributes.position.array);
+  const deposited = Float32Array.from(grains.instanceMatrix.array);
+  scene.setDeviceState({ ...state, pileSlope: 0.55, granularFlow: 0, phaseS: 3.04 });
+  tick(scene);
+  assert.deepEqual(bed.geometry.attributes.position.array, retained);
+  assert.deepEqual(grains.instanceMatrix.array, deposited);
 });
 
 test("sand grain shading is object-locked per fragment, not diagonal vertex-color bands", () => {

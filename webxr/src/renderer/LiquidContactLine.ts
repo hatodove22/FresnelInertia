@@ -59,7 +59,7 @@ export class LiquidContactLine {
       this.foamGeometry.setDrawRange(0, 0);
       return;
     }
-    const signature = [fill, amount, volume.offset, volume.normal.x, volume.normal.y, volume.normal.z].join(",");
+    const signature = [fill, amount, volume.offset, volume.normal.x, volume.normal.y, volume.normal.z, volume.revision].join(",");
     if (signature === this.signature) return;
     this.signature = signature;
     this.center.set(0, 0, 0);
@@ -89,7 +89,7 @@ export class LiquidContactLine {
       const distance = this.inward.length();
       this.vertex.copy(point);
       if (distance > 1e-12) this.vertex.addScaledVector(this.inward, Math.min(width * across * variation / distance, 0.48));
-      // The exact outer boundary stays on the physical plane; only the narrow
+      // The exact outer boundary follows the shared waterline; only the narrow
       // optical lip curves inward and upward, never outside the container.
       const lift = Math.sin(across * Math.PI) * height;
       this.vertex.addScaledVector(volume.normal, lift).clamp(volume.lower, volume.upper);
@@ -99,15 +99,18 @@ export class LiquidContactLine {
       data[cursor++] = this.vertex.z;
     };
     const boundary = volume.boundary;
+    // A moving waterline is already tessellated by its surface owner. Avoid
+    // multiplying those samples into a second high-density optical mesh.
+    const segments = boundary.length > 12 ? 1 : edgeSegments;
     for (let edge = 0; edge < boundary.length; edge++) {
       const a = boundary[edge], b = boundary[(edge + 1) % boundary.length];
-      for (let segment = 0; segment < edgeSegments; segment++) {
-        this.boundaryStart.copy(a).lerp(b, segment / edgeSegments);
-        this.boundaryEnd.copy(a).lerp(b, (segment + 1) / edgeSegments);
+      for (let segment = 0; segment < segments; segment++) {
+        this.boundaryStart.copy(a).lerp(b, segment / segments);
+        this.boundaryEnd.copy(a).lerp(b, (segment + 1) / segments);
         // Object-locked edge texture only. No event, time or particle simulation.
         const variationAt = (sample: number) => 1 - foam * 0.26 * (0.5 + 0.5 * Math.sin(sample * 2.399));
-        const startVariation = variationAt(edge * edgeSegments + segment);
-        const endVariation = variationAt((edge * edgeSegments + segment + 1) % (boundary.length * edgeSegments));
+        const startVariation = variationAt(edge * segments + segment);
+        const endVariation = variationAt((edge * segments + segment + 1) % (boundary.length * segments));
         for (let strip = 0; strip < ribbonSteps; strip++) {
           const outer = strip / ribbonSteps, inner = (strip + 1) / ribbonSteps;
           emit(this.boundaryStart, outer, startVariation);
