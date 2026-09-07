@@ -1,3 +1,5 @@
+import { sourceTimeStep } from "../SourceTime";
+
 export interface SandSurfaceFlowInput {
   timeS?: number;
   fill: number;
@@ -91,28 +93,28 @@ export class SandSurfaceFlow {
   }
 
   update(input: SandSurfaceFlowInput): void {
+    const sample = sourceTimeStep(this.lastTime, input.timeS);
     const validSize = [input.widthM, input.depthM, input.heightM].every(n => Number.isFinite(n) && n > 0);
-    if (!Number.isFinite(input.timeS) || !validSize || !Number.isFinite(input.fill) || !Number.isFinite(input.slope)) {
+    if (sample.kind === "missing" || !validSize || !Number.isFinite(input.fill) || !Number.isFinite(input.slope)) {
       this.quiet(); this.lastTime = undefined; return;
     }
     // A repeated accepted sample may be rendered arbitrarily often; even its
     // changed UI values cannot advance this layer while the source is paused.
-    if (input.timeS === this.lastTime) return;
-    const time = input.timeS!, dt = this.lastTime === undefined ? 0 : time - this.lastTime;
+    if (sample.kind === "duplicate") return;
+    const time = sample.timeS, dt = sample.elapsedS;
     const dimensions = `${input.widthM}/${input.depthM}/${input.heightM}`;
     const fill = clamp(input.fill, 0, 1);
     const allowance = Math.min(input.widthM * 0.018, input.depthM * 0.018, input.heightM * 0.012) *
       clamp(Math.min(fill / 0.12, (1 - fill) / 0.08), 0, 1);
     if (allowance !== this.maxDisplacement) { this.maxDisplacement = allowance; this.revision++; }
     const changedDimensions = this.dimensions !== "" && this.dimensions !== dimensions;
-    if (changedDimensions || dt < 0 || (fill <= 0 && !this.empty)) this.resetSurface();
+    if (changedDimensions || sample.kind === "rewind" || (fill <= 0 && !this.empty)) this.resetSurface();
     this.empty = fill <= 0;
     this.dimensions = dimensions;
     const slopeDelta = input.slope - this.lastSlope;
     this.lastSlope = input.slope;
-    const first = this.lastTime === undefined;
     this.lastTime = time;
-    if (first || changedDimensions || dt <= 0 || dt > 0.5 || fill <= 0) { this.quiet(); return; }
+    if (sample.kind !== "advance" || changedDimensions || fill <= 0) { this.quiet(); return; }
     const flow = Number.isFinite(input.flow) ? clamp(input.flow, 0, 1) : 0;
     if (flow === 0) { this.quiet(); return; }
     const velocity = Number.isFinite(input.velocityX) ? input.velocityX : 0;

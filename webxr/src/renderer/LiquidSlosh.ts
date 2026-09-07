@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { sourceTimeStep } from "../SourceTime";
 
 export interface LiquidSloshInput {
   timeS: number;
@@ -71,7 +72,8 @@ export class LiquidSlosh {
 
   update(input: LiquidSloshInput): LiquidSloshResult {
     // A repeated sample, even with changed ancillary fields, is not new motion.
-    if (!Number.isFinite(input.timeS) || input.timeS === this.lastTime) return this.result;
+    const sample = sourceTimeStep(this.lastTime, input.timeS);
+    if (sample.kind === "missing" || sample.kind === "duplicate") return this.result;
     this.target.set(clamp(finite(input.normal.x), -1e6, 1e6), clamp(finite(input.normal.y, 1), -1e6, 1e6), clamp(finite(input.normal.z), -1e6, 1e6));
     if (this.target.lengthSq() < 1e-12) this.target.set(0, 1, 0);
     this.target.normalize();
@@ -87,13 +89,13 @@ export class LiquidSlosh {
       clamp(finite(input.acceleration?.[1] ?? 0), -8, 8),
       clamp(finite(input.acceleration?.[2] ?? 0), -8, 8)
     );
-    const dt = this.lastTime === undefined ? 0 : input.timeS - this.lastTime;
+    const dt = sample.elapsedS;
     // The broad surge and its drawdown now deform the actual free surface;
     // there is no second plane, attached sheet or separate lifetime/volume.
     this.limit = Math.min(this.size.x, this.size.y, this.size.z) * 0.18 * Math.min(1, fill * 10, (1 - fill) * 10);
     this.result.maxDisplacement = this.limit;
 
-    if (this.lastTime === undefined || dt < 0 || dt > 0.5 || this.limit < 1e-12) {
+    if (sample.kind !== "advance" || this.limit < 1e-12) {
       // Entering a view, loading a preset or recovering stale telemetry must not
       // replay an unseen impulse. The next actual motion will excite the water.
       this.position.copy(this.target);
@@ -173,7 +175,7 @@ export class LiquidSlosh {
     this.previousVelocityY = vy;
     this.previousActivity = activity;
     this.previousAcceleration.copy(this.inputAcceleration);
-    this.lastTime = input.timeS;
+    this.lastTime = sample.timeS;
     this.result.revision++;
     return this.result;
   }

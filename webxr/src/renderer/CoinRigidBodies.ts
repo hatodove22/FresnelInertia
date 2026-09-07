@@ -1,4 +1,5 @@
 import type * as Rapier from "@dimforge/rapier3d-compat";
+import { sourceTimeStep } from "../SourceTime";
 
 type Vector = { x: number; y: number; z: number };
 type Rotation = { x: number; y: number; z: number; w: number };
@@ -141,14 +142,15 @@ export async function createCoinRigidBodies(
   return {
     update(input) {
       if (disposed) return poses;
-      if (!Number.isFinite(input.timeS)) { quiet(); lastTime = undefined; return poses; }
-      if (input.timeS === lastTime) return poses;
-      const time = input.timeS!, dt = lastTime === undefined ? 0 : time - lastTime;
-      if (dt < 0) {
+      const sample = sourceTimeStep(lastTime, input.timeS);
+      if (sample.kind === "missing") { quiet(); lastTime = undefined; return poses; }
+      if (sample.kind === "duplicate") return poses;
+      const time = sample.timeS, dt = sample.elapsedS;
+      if (sample.kind === "rewind") {
         world.free(); buildWorld(); remainder = 0; restingTime.fill(0); lastTime = time;
         return readPoses();
       }
-      if (lastTime === undefined || dt > 0.5 || !Number.isFinite(input.fill) || input.fill <= 0 || !finiteVector(input.gravity)) {
+      if (sample.kind !== "advance" || !Number.isFinite(input.fill) || input.fill <= 0 || !finiteVector(input.gravity)) {
         quiet(); lastTime = time; return poses;
       }
       lastTime = time;

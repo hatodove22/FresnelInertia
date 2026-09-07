@@ -1,3 +1,5 @@
+import { sourceTimeStep } from "../SourceTime";
+
 export interface SolidDepthInput {
   timeS?: number;
   /** Body-local unit gravity; positive points toward the +z wall. */
@@ -28,12 +30,12 @@ export class SolidDepthMotion {
   }
 
   update(input: SolidDepthInput) {
-    if (!Number.isFinite(input.timeS)) { this.reset(); return this.result; }
-    if (input.timeS === this.lastTime) return this.result;
-    const time = input.timeS!;
-    const dt = this.lastTime === undefined ? 0 : time - this.lastTime;
+    const sample = sourceTimeStep(this.lastTime, input.timeS);
+    if (sample.kind === "missing") { this.reset(); return this.result; }
+    if (sample.kind === "duplicate") return this.result;
+    const time = sample.timeS, dt = sample.elapsedS;
     const travel = clamp(finite(input.halfTravelM), 0, 1);
-    if (this.lastTime === undefined || dt < 0 || dt > 0.5 || travel < 1e-7 || finite(input.fill) <= 0) {
+    if (sample.kind !== "advance" || travel < 1e-7 || finite(input.fill) <= 0) {
       this.result.offsetM = this.result.velocityMps = 0;
       this.lastTime = time;
       return this.result;

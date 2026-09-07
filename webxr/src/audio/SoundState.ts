@@ -2,6 +2,7 @@ import type { HapticLinkState } from "../link/HapticLink";
 import type { PreviewFrame } from "../lab/PreviewEngine";
 import type { ContainerPreset, LocalContentState } from "../types";
 import { resolvedPresetFromSnapshot } from "../visualState";
+import { sourceTimeStep } from "../SourceTime";
 
 export type SoundMaterial = "coin" | "marble" | "sand" | "water" | "soda" | "hybrid";
 export interface SoundEvent { kind: "impact" | "scrape" | "pop"; strength: number; pan: number }
@@ -177,8 +178,9 @@ export class SoundTimeline {
       frame.step === this.interrupted.step) return null;
     this.interrupted = undefined;
     const previous = this.previous;
+    const sample = sourceTimeStep(previous?.timeS, frame.timeS);
     const reset = !previous || frame.source !== previous.source || frame.preset !== previous.preset ||
-      frame.timeS < previous.timeS || frame.timeS - previous.timeS > 0.5 ||
+      sample.kind === "rewind" || sample.kind === "gap" ||
       (frame.step !== undefined && previous.step !== undefined && frame.step < previous.step) ||
       (frame.source !== "preview" && (frame.serial < previous.serial || (frame.serial < 0) !== (previous.serial < 0)));
     const candidates = frame.events.filter(event => event && ["impact", "scrape", "pop"].includes(event.kind) &&
@@ -192,7 +194,7 @@ export class SoundTimeline {
       this.lastPop = frame.popSerial;
       return { frame, events: [], reset: true };
     }
-    if (frame.timeS === previous.timeS || (frame.step !== undefined && frame.step === previous.step)) {
+    if (sample.kind === "duplicate" || (frame.step !== undefined && frame.step === previous.step)) {
       // Consume duplicate counters too: a later timestamp must not replay an
       // event that arrived only as a same-time metadata refresh.
       if (frame.popSerial !== undefined) this.lastPop = frame.popSerial;

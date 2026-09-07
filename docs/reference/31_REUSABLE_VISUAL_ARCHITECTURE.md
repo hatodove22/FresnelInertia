@@ -15,6 +15,7 @@ material scene; broader material controls and Android tracking remain planned.
 | Owner | Responsibility | Current consumers |
 |---|---|---|
 | [visualState.ts](../../webxr/src/visualState.ts) | Pure snapshot adapters, applied descriptor, body-x/y particle layout and acceleration residual; no DOM, THREE runtime, transport implementation or clock | DeviceDemo, liquid renderer, particle renderer; pure contract tests |
+| [SourceTime](../../webxr/src/SourceTime.ts) | Pure classification of accepted sample time; no mutable clock or material reset policy | Liquid slosh, marble depth, sand surface, coin bodies and speaker timeline |
 | [DeviceDemo](../../webxr/src/deviceDemo.ts) | Accept snapshots, hold stale/missing state, filter gravity once per accepted sample, display actual applied configuration and coordinate explicit commands | Desktop HUD and the retained spatial panel |
 | [VisualSimulator](../../webxr/src/simulator.ts) | Browser-local approximate motion from preview tilt and `PreviewMotionTuning` | Existing touch/phone/scripted preview selected in main.ts |
 | [PreviewEngine](../../webxr/src/lab/PreviewEngine.ts) | Production C++ model via Wasm with synthetic body-frame input; no hardware link or output | Explicit output-free Lab, separate from the approximate preview |
@@ -129,6 +130,34 @@ Our small ordinal-logistic/Laplace implementation is not BoTorch's code or an
 exact reproduction of those experiments.
 
 ## Source authority and the pure adapter
+
+### Shared time classification, separate material state
+
+`sourceTimeStep(previousS, currentS)` classifies missing, initial, duplicate,
+advancing, rewound and long-gap samples. It returns the original elapsed time;
+only `advance` permits integration. Exactly 0.5 seconds still advances; a
+larger gap does not replay unseen motion. The function reads no clock, retains
+no state and cannot emit events or drive hardware. Each consumer owns its
+previous timestamp and source identity.
+
+This replaces repeated time arithmetic, **not** the different recovery policies:
+
+| Consumer | Missing time | Rewind / long gap |
+|---|---|---|
+| Water slosh | Hold surface and previous time | Quietly rebase to current orientation |
+| Marble depth | Clear offset/velocity and previous time | Clear to a new baseline |
+| Coin bodies | Keep poses, clear velocities and previous time | Rebuild initial poses on rewind; keep poses and quiet on gap |
+| Sand surface | Retain grains/deposit, clear flow and previous time | Clear deposit on rewind; retain it and quiet on gap |
+| Speaker timeline | Silence and remember interrupted identity | Establish a quiet baseline; no historical hits |
+
+Repeated visual timestamps do not advance dynamics. Sand still validates its
+geometry before that check. Sound still consumes same-time event counters and
+prioritizes source/preset/counter resets, preventing delayed duplicate hits.
+Those policies stay with the consumer, as do empty content and geometry changes.
+`visualSampleInterval` remains the distinct millisecond-wrap-aware device
+acceleration adapter; it is not a visual physics or sound clock.
+
+### Accepted device projection
 
 `DeviceVisualSink` is the small presentation contract used by DeviceDemo:
 `setPreset`, `setDeviceState`, `setDeviceOrientation`, and optional
