@@ -1,3 +1,6 @@
+import { parameterDefinitions, SAND_FRICTION_RATIO, tiltParameterDefinitions } from "../tuning/TuningParameterSpace";
+import { demoDefinitions } from "../tuning/RepresentativeDemos";
+
 /** StampC5 text/NDJSON transport. Connecting never arms physical output. */
 export type ConnectionState = "disconnected" | "connecting" | "connected";
 export type TransportKind = "serial" | "usb";
@@ -71,7 +74,7 @@ export function parseTiltGainReadback(detail: string): Record<string, number> | 
   if (fields.length !== 4 || fields.some(v => !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(v))) return null;
   const values = fields.map(Number);
   if (!values.every(Number.isFinite)) return null;
-  return Object.fromEntries(["tilt.max_tilt_deg", "tilt.k_cm", "tilt.k_tau", "tilt.k_phi"].map((key, i) => [key, values[i]]));
+  return Object.fromEntries(tiltParameterDefinitions().map(({ path }, i) => [path, values[i]]));
 }
 
 export function tiltGainsMatch(actual: Record<string, number> | null, requested: Record<string, number>): boolean {
@@ -386,25 +389,19 @@ export class HapticLink {
    * verify the four tilt readbacks after application. No automatic Start or rollback. */
   async applyTuning(preset: string, parameters: Record<string, number>): Promise<CommandAck[]> {
     const withTilt = record(parameters) && Reflect.ownKeys(parameters).length === 7;
-    const sand = preset === "granular_sand_pile_box";
-    const materialLimits: ReadonlyArray<readonly [string, number, number]> = sand ? [
-      ["mass.granular_static_friction", 0.2, 0.9],
+    const selectedDemo = demoDefinitions.find(definition => definition.preset === preset)?.id;
+    const sand = selectedDemo === "sand";
+    const material = withTilt ? selectedDemo ?? "water" : "water";
+    const limits = parameterDefinitions(withTilt ? "combined" : "water", material).map(definition =>
       // The static bound plus coupled-ratio check supplies the effective range;
-      // keep this broad so s*(7/11) and s*7/11 both pass at the endpoints.
-      ["mass.granular_dynamic_friction", 0, 2]
-    ] : [["mass.damping_ratio_x", 0.05, 1.5], ["mass.damping_ratio_y", 0.05, 1.5]];
-    const limits: ReadonlyArray<readonly [string, number, number]> = [
-      ["resonance.master_gain", 0.1, 1],
-      ...materialLimits,
-      ...(withTilt ? [["tilt.max_tilt_deg", 0, 10], ["tilt.k_cm", 0, 1], ["tilt.k_tau", 0, 1], ["tilt.k_phi", 0, 8]] as const : [])
-    ];
-    const allowedPreset = preset === "liquid_small_box" || (withTilt &&
-      (preset === "granular_single_marble_box" || sand));
+      // keep the remote bound broad so s*(7/11) and s*7/11 both pass at endpoints.
+      definition.path === "mass.granular_dynamic_friction" ? { ...definition, min: 0, max: 2 } : definition);
+    const allowedPreset = selectedDemo === "water" || (withTilt && selectedDemo !== undefined);
     if (!allowedPreset || !record(parameters) || Reflect.ownKeys(parameters).length !== limits.length) {
       throw new Error("Tuning requires water (three legacy values) or water, single marble or sand pile (seven current values)");
     }
     // Validate and copy the whole candidate before any IO, including Stop.
-    const values = limits.map(([path, minimum, maximum]) => {
+    const values = limits.map(({ path, min: minimum, max: maximum }) => {
       const value = parameters[path];
       if (!Object.hasOwn(parameters, path) || !Number.isFinite(value) || value < minimum || value > maximum) {
         throw new Error(`Invalid tuning parameter: ${path} (${minimum}..${maximum})`);
@@ -413,7 +410,7 @@ export class HapticLink {
     });
     // Validate the copied pair too. These are one search axis, not independent
     // values; tolerate only double-expression rounding in the 7/11 friction ratio.
-    if (withTilt && (sand ? Math.abs(values[2][1] - values[1][1] * 7 / 11) > 1e-12 : values[1][1] !== values[2][1])) {
+    if (withTilt && (sand ? Math.abs(values[2][1] - values[1][1] * SAND_FRICTION_RATIO.numerator / SAND_FRICTION_RATIO.denominator) > 1e-12 : values[1][1] !== values[2][1])) {
       throw new Error(sand ? "Sand tuning requires dynamic friction = static friction * 7/11" :
         "Water/marble tuning requires matching x/y damping");
     }

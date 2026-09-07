@@ -1,7 +1,8 @@
-import { axisDefinitions, demoDefinitions, getSessionDemo, getSessionPreset, parameterValues, parseSession,
-  type DemoId, type SessionMode, type TuningSession } from "./TuningSession";
+import { axisDefinitions, parameterDefinitions, tiltParameterDefinitions } from "./TuningParameterSpace";
+import { demoDefinitions, type DemoId } from "./RepresentativeDemos";
+import type { SessionMode } from "./TuningSession";
 
-export type { DemoId } from "./TuningSession";
+export type { DemoId } from "./RepresentativeDemos";
 export const PROFILE_STORAGE_PREFIX = "haptic-tuning-profile-v1:";
 export type ProfileReviewStatus = "rehearsal-only" | "not-evaluated" | "self-reported-preference";
 
@@ -23,7 +24,7 @@ export interface TuningProfile {
 }
 
 const MAX_PROFILE_BYTES = 16384;
-const COMMON_PATHS = ["resonance.master_gain", "tilt.max_tilt_deg", "tilt.k_cm", "tilt.k_tau", "tilt.k_phi"] as const;
+const COMMON_PATHS = [axisDefinitions("water")[0].key, ...tiltParameterDefinitions().map(definition => definition.path)];
 function invalid(message: string): never { throw new Error(`Invalid tuning profile: ${message}`); }
 function object(value: unknown, keys: readonly string[], name: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value) ||
@@ -44,7 +45,7 @@ function demo(value: unknown): DemoId {
   if (!definition) invalid("unsupported demo");
   return definition.id;
 }
-function reviewStatus(mode: SessionMode, count: number): ProfileReviewStatus {
+export function profileReviewStatus(mode: SessionMode, count: number): ProfileReviewStatus {
   return mode === "rehearsal" ? "rehearsal-only" : count === 0 ? "not-evaluated" : "self-reported-preference";
 }
 
@@ -53,11 +54,7 @@ function reviewStatus(mode: SessionMode, count: number): ProfileReviewStatus {
  * a material-specific pair. No values are clipped or numerically coerced. */
 function parameters(value: unknown, selectedDemo: DemoId, requireCoupled = true): Record<string, number> {
   const definitions = axisDefinitions("combined", selectedDemo);
-  const limits = definitions.flatMap(axis => axis.paths.map(path => {
-    const scale = axis.pathScale?.[path] ?? 1;
-    return { path, min: axis.min * scale, max: axis.max * scale };
-  }));
-  limits.push({ path: "tilt.k_phi", min: 0, max: 8 });
+  const limits = parameterDefinitions("combined", selectedDemo);
   if (limits.length !== 7 || new Set(limits.map(limit => limit.path)).size !== 7) invalid("unsupported parameter definition");
   const raw = object(value, limits.map(limit => limit.path), "parameters"), result: Record<string, number> = {};
   for (const { path, min, max } of limits) {
@@ -94,23 +91,11 @@ function validated(value: unknown): TuningProfile {
   if (!Number.isFinite(date.valueOf()) || date.toISOString() !== createdAt) invalid("createdAt must be a canonical ISO date");
   const count = raw.comparisonCount;
   if (typeof count !== "number" || !Number.isInteger(count) || count < 0 || count > 60) invalid("comparisonCount is outside 0..60");
-  const status = reviewStatus(source.mode, count);
+  const status = profileReviewStatus(source.mode, count);
   if (raw.reviewStatus !== status) invalid("reviewStatus disagrees with source mode or comparisonCount");
   return { format: "haptic-tuning-profile-v1", sourceSession: { id, version: source.version, mode: source.mode },
     demo: selectedDemo, preset, objective: text(raw.objective, "objective"), reference: text(raw.reference, "reference"),
     createdAt, comparisonCount: count, reviewStatus: status, parameters: parameters(raw.parameters, selectedDemo) };
-}
-
-/** V2 water and V3 material sessions are supported. V1 is deliberately rejected:
- * its three-value history never saved tilt settings, so reconstructing seven
- * selected values from today's defaults would invent historical information. */
-export function createProfile(session: TuningSession): TuningProfile {
-  const state = parseSession(JSON.stringify(session));
-  if (state.version === 1) invalid("legacy v1 has no saved tilt values; start a new session to export a complete profile");
-  return validated({ format: "haptic-tuning-profile-v1", sourceSession: { id: state.id, version: state.version, mode: state.mode },
-    demo: getSessionDemo(state), preset: getSessionPreset(state), objective: state.objective, reference: state.reference,
-    createdAt: state.createdAt, comparisonCount: state.observations.length,
-    reviewStatus: reviewStatus(state.mode, state.observations.length), parameters: parameterValues(state.incumbent, state) });
 }
 
 export function parseProfile(json: string): TuningProfile {

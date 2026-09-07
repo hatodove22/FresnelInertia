@@ -8,8 +8,9 @@ async function bundled(path) {
     platform: 'node', format: 'esm', write: false, logLevel: 'silent' });
   return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`);
 }
-const { createProfile, parseProfile, serializeProfile, profileParametersFor, PROFILE_STORAGE_PREFIX } =
+const { parseProfile, serializeProfile, profileParametersFor, PROFILE_STORAGE_PREFIX } =
   await bundled('../src/tuning/TuningProfile.ts');
+const { createProfile } = await bundled('../src/tuning/ProfileFromSession.ts');
 const { createSession, recordChoice, parameterValues, demoDefinitions } = await bundled('../src/tuning/TuningSession.ts');
 const { PreviewEngine } = await bundled('../src/lab/PreviewEngine.ts');
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -132,6 +133,25 @@ test('public pure helpers revalidate objects and target baselines without silent
   assert.throws(() => profileParametersFor(profile, 'sand', baseline), /unknown fields/);
   const badBaseline = { ...baseline, 'tilt.k_cm': 2 };
   assert.throws(() => profileParametersFor(profile, 'water', badBaseline), /bounds/);
+});
+
+test('portable profiles retain their own coupling tolerance and exact derived sand endpoint bounds', () => {
+  for (const demo of ['water', 'marble', 'sand']) {
+    const original = createProfile(create(demo));
+    const path = demo === 'sand' ? 'mass.granular_dynamic_friction' : 'mass.damping_ratio_y';
+    const near = clone(original); near.parameters[path] += 5e-10;
+    assert.equal(parseProfile(JSON.stringify(near)).parameters[path], near.parameters[path]);
+    const outside = clone(original); outside.parameters[path] += 2e-9;
+    assert.throws(() => parseProfile(JSON.stringify(outside)), /coupled/);
+  }
+  for (const friction of [.2, .9]) for (const dynamic of [friction * (7 / 11), friction * 7 / 11]) {
+    const value = createProfile(create('sand'));
+    value.parameters['mass.granular_static_friction'] = friction;
+    value.parameters['mass.granular_dynamic_friction'] = dynamic;
+    if (dynamic >= .2 * (7 / 11) && dynamic <= .9 * (7 / 11))
+      assert.equal(parseProfile(JSON.stringify(value)).parameters['mass.granular_dynamic_friction'], dynamic);
+    else assert.throws(() => parseProfile(JSON.stringify(value)), /bounds/);
+  }
 });
 
 test('actual shipped Wasm defaults are admissible target baselines for all three demos', async () => {

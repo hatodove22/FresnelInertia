@@ -54,6 +54,30 @@ rehearsal. They do not load THREE, the material sound bank, or another haptic
 model. The [operator guide](../../webxr/README.md#preference-tuning) owns the
 workflow, supported ranges and distinction between ACKs and numeric readback.
 
+[`TuningParameterSpace`](../../webxr/src/tuning/TuningParameterSpace.ts) owns
+axis meanings, ordered physical paths, bounds, material coupling and normalized
+coordinate conversion. Its explicit context is space/material/fixed values,
+not a session or DOM selection. The dependencies are:
+
+```text
+TuningParameterSpace -> TuningSession (history and proposals)
+                    -> TuningProfile (portable settings and reuse)
+                    -> HapticLink (validated stopped application)
+TuningSession -> ProfileFromSession -> TuningProfile
+```
+
+Here arrows mean "is consumed by". Ordinary profile readers do not import
+the session implementation or optimizer. This is a responsibility/consistency
+improvement, not a claimed rendering-speed or bundle-size improvement.
+
+Only definitions are shared. Boundary-specific acceptance remains explicit:
+legacy Link candidates permit unequal water damping, current candidates couple
+it; remote phi may be zero while search/profile phi is positive. Sand's remote
+dynamic-friction bound and tighter ratio tolerance differ from profile import.
+Profile reuse can accept an uncoupled target baseline without silently fitting
+it. Shared definitions do not replace any of these policies or the Stop/Start
+transaction. Session exports and saved v1/v2/v3 formats remain compatible.
+
 [`PreferenceOptimizer`](../../webxr/src/tuning/PreferenceOptimizer.ts) is a
 dependency-free preference GP on normalized coordinates. It uses a unit-variance
 RBF prior (length scale 0.30), a three-outcome ordered-logistic likelihood with
@@ -92,6 +116,9 @@ marble use coupled damping; sand replaces that coordinate with coupled
 static/dynamic friction because the pile path bypasses generic damping. A
 material change creates a separate session, not a pooled or relabeled posterior.
 
+[`ProfileFromSession`](../../webxr/src/tuning/ProfileFromSession.ts) explicitly
+converts a validated history into selected settings; `createProfile(session)`
+lives there rather than in the portable codec.
 [`TuningProfile`](../../webxr/src/tuning/TuningProfile.ts) serializes a selected
 seven-value configuration separately from the history. Source mode/session,
 material, comparison count and evaluation label travel with it, not likelihood

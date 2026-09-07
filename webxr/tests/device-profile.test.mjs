@@ -4,7 +4,7 @@ import { after, test } from 'node:test';
 import { setImmediate as turn } from 'node:timers/promises';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
-import { HapticLinkError } from '../src/link/HapticLink.ts';
+const { HapticLinkError } = await bundle('../src/link/HapticLink.ts');
 
 class FakeLink {
   state = { connection: 'disconnected', paired: null, stale: true, pendingCommand: null, telemetry: null, error: null };
@@ -49,7 +49,8 @@ const { DeviceDemo } = await bundle('../src/deviceDemo.ts', [{ name: 'profile-te
   build.onLoad({ filter: /.*/, namespace: 'profile-test' }, () => ({ loader: 'js', contents:
     'export const HapticLink=globalThis.__profileTestLink; export const HapticLinkError=globalThis.__profileTestError;' }));
 } }]);
-const { createProfile, serializeProfile, PROFILE_STORAGE_PREFIX } = await bundle('../src/tuning/TuningProfile.ts');
+const { serializeProfile, PROFILE_STORAGE_PREFIX } = await bundle('../src/tuning/TuningProfile.ts');
+const { createProfile } = await bundle('../src/tuning/ProfileFromSession.ts');
 const { createSession, demoDefinitions } = await bundle('../src/tuning/TuningSession.ts');
 const profile = (demo = 'water', mode = 'device') => createProfile(createSession(mode, [.5, .5, .5, .5, .5], '目標', '参照', 177,
   { space: 'combined', demo, fixed: { 'tilt.k_phi': 4 } }));

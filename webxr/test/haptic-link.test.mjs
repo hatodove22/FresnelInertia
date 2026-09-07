@@ -1,9 +1,14 @@
-// Node 24's native TypeScript stripping runs this without adding dependencies.
+// Bundle the TypeScript import graph with the project's existing build tooling.
 // Run: node --test webxr/test/haptic-link.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
 import { setImmediate as turn, setTimeout as delay } from "node:timers/promises";
-import { HapticLink, hapticLinkCapabilities, parseHapticLinkLine, parseTiltGainReadback, tiltGainsMatch } from "../src/link/HapticLink.ts";
+import { build } from "esbuild";
+import { fileURLToPath } from "node:url";
+const linkBundle = await build({ entryPoints: [fileURLToPath(new URL('../src/link/HapticLink.ts', import.meta.url))],
+  bundle: true, platform: 'node', format: 'esm', write: false, logLevel: 'silent' });
+const { HapticLink, hapticLinkCapabilities, parseHapticLinkLine, parseTiltGainReadback, tiltGainsMatch } =
+  await import(`data:text/javascript;base64,${Buffer.from(linkBundle.outputFiles[0].text).toString('base64')}`);
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -465,6 +470,22 @@ test("invalid tilt candidates cause zero IO", async t => {
       await assert.rejects(link.applyTuning("liquid_small_box", { ...fullTuningValues(), [key]: value }));
     }
   }
+  assert.deepEqual(wire.writes, before);
+});
+
+test("shared search definitions preserve remote zero-phi and stricter friction acceptance policies", async t => {
+  for (const [preset, base] of [["liquid_small_box", fullTuningValues()], ["granular_single_marble_box", fullTuningValues()],
+    ["granular_sand_pile_box", sandTuningValues()]]) {
+    const { wire, link } = await fixture(t); respondToTuning(wire);
+    const values = { ...base, "tilt.k_phi": 0 };
+    if (preset === "granular_sand_pile_box") values["mass.granular_dynamic_friction"] += 5e-13;
+    assert.equal((await link.applyTuning(preset, values)).length, 11);
+    assert.ok(!wire.writes.some(text => /^(live|audio on|tilt on)\n$/.test(text)));
+  }
+  const { wire, link } = await fixture(t), before = [...wire.writes];
+  await assert.rejects(link.applyTuning("granular_sand_pile_box", {
+    ...sandTuningValues(), "mass.granular_dynamic_friction": sandTuningValues()["mass.granular_dynamic_friction"] + 2e-12,
+  }), /7\/11/);
   assert.deepEqual(wire.writes, before);
 });
 

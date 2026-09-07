@@ -306,6 +306,13 @@ three fixed representative conditions with all five normalized coordinates propo
 The judgment concerns the combined vibration and fingertip-plane experience,
 not separately optimized output branches.
 
+The Web implementation owns these definitions in
+[`TuningParameterSpace`](../webxr/src/tuning/TuningParameterSpace.ts), independent
+of session history and inference. Session mapping, portable profiles and Haptic
+Link consume the same ordered paths and coupling definitions. Their distinct
+import/remote acceptance policies remain at each boundary; see the
+[dependency contract](reference/31_REUSABLE_VISUAL_ARCHITECTURE.md#preference-tuning-workspace).
+
 | Search coordinate | Applied field(s) | Range | Meaning in the coherent model |
 |---|---|---|---|
 | Vibration strength | `resonance.master_gain` | 0.10–1.00 | Four-channel vibration gain, not servo strength |

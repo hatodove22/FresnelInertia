@@ -52,20 +52,24 @@ PING, and StampC5 was absent/unpaired. The user ended hardware work at upload.
 This is a **dated observation, not the present connection, power or fault state**.
 Later phone feedback does not identify its exact installed firmware.
 No hardware was accessed, flashed or actuated during the latest software checks
-or this documentation consolidation.
+or Web refactoring.
 
 ## Latest software verification — 2026-09-08
 
-Web checks include the documentation/code-hygiene pass: unused IWSDK runtime
-dependencies/logging were removed and material labels reused from their registry.
-The development plugin and retained WebXR path remain. Firmware and policy
-results below are from the preceding three-representative/profile iteration;
-that code was unchanged during cleanup. Earlier counts belong to their dated
-revisions in the [ledger](archive/2026-09-08/16_DEVELOPMENT_LEDGER.md).
+Web results include two behavior-preserving refactors: shared source-time
+classification for five presentation consumers, and a session-independent
+parameter space for mapping, profiles and Haptic Link. Portable profile readers
+no longer import the session/optimizer implementation. Material recovery rules,
+parameter acceptance, output authority and saved formats are unchanged.
+Ownership is in the [visual contract](reference/31_REUSABLE_VISUAL_ARCHITECTURE.md).
+Firmware/policy results below remain from the preceding three-representative
+iteration; no firmware code changed during these refactors. Earlier counts
+describe their dated revisions, not installed hardware.
 
 | Check | Recorded result and scope |
 |---|---|
-| Web regression | **386/386 PASS**; TypeScript and production build PASS; existing large scene/physics chunk advisories remain |
+| Web regression | **397/397 PASS**; TypeScript and production build PASS; existing large scene/physics chunk advisories remain |
+| Refactor equivalence | Against `26b4582`: 896 presentation outputs / 144,721 numbers exactly equal; 5,956 parameter/profile/acceptance/command-order comparisons equal |
 | Baseline AtomS3 | `m5stack-atoms3-pipeline` build PASS; flash **624,145 B**, RAM **45,668 B** |
 | Integrated AtomS3 | `m5stack-atoms3-pipeline-tilt-espnow-monitor` build PASS; flash **1,073,121 B**, RAM **70,772 B** |
 | Remote tuning policy | C++/Wasm **192 assertions PASS**; valid three-preset transactions, bounds/pair rejection and cancellation covered |
@@ -76,7 +80,7 @@ The two firmware builds ran sequentially; neither image was uploaded.
 StampC5 was not rebuilt for this increment because its code/layout did not change.
 C++/Wasm checks are software execution, not measured actuator behavior.
 
-Prior Chromium rehearsal checks covered all three production-Wasm conditions,
+Repeated Chromium rehearsal checks covered all three production-Wasm conditions,
 joint proposals, left-hand controls, same/cross-material reuse without inherited
 votes, archive resume, profile JSON and malformed import, 412 px layout, quota
 failure and export after a failed same-key profile overwrite.
@@ -84,14 +88,15 @@ failure and export after a failed same-key profile overwrite.
 Chromium with injected Web Serial checked all three stopped applications,
 seven values/11 execution ACKs, Q/W presentation and A/D voting, friction
 receipts, JSON resume, foreign-material rejection, cancellation and v1/v2
-compatibility. Ordinary-demo regression was repeated after cleanup and passed
+compatibility. Ordinary-demo regression was repeated after refactoring and passed
 profile JSON roundtrip,
 exact seven-value stopped application, no auto-Start, delayed-set Stop
 cancellation/reapplication, keyboard/audio/recovery/mobile Stop/stale flows.
-Cleanup also checked the tuning page's C++ A/B rehearsal and keyboard answer
-advancing to the next comparison while stopped. There were no page errors.
-Mock transport, software WebGL and muted/silent
-audio are not physical USB, Android performance or listening evidence.
+The production Lab solid-depth browser check passed both pitch directions,
+pause/reset and mobile layout for marble, coins and single coin. Water/sand
+selection, motion and pause were also inspected. There were no page errors.
+Mock transport, software WebGL and muted/silent audio are not physical USB,
+Android performance or listening evidence.
 Reproduction commands are in the [Web guide](../webxr/README.md) and
 [development setup](reference/19_DEVELOPMENT_SETUP.md).
 

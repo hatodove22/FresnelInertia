@@ -1,16 +1,13 @@
 import { PreferenceOptimizer } from "./PreferenceOptimizer";
 import { demoDefinitions, type DemoId, type DemoPreset } from "./RepresentativeDemos";
+import { axisDefinitions as parameterAxes, fixedParameterValues, normalizedParameterValues, TuningParameterError,
+  type AxisDefinition, type TuningSpace } from "./TuningParameterSpace";
 export { demoDefinitions, type DemoId, type DemoDefinition, type DemoPreset } from "./RepresentativeDemos";
+export type { AxisDefinition, TuningSpace } from "./TuningParameterSpace";
 
 export type SessionMode = "rehearsal" | "device";
 export type Choice = "a" | "b" | "tie" | "skip";
 export type Point = number[];
-export type TuningSpace = "water" | "combined";
-export interface AxisDefinition {
-  key: string; label: string; min: number; max: number; paths: string[];
-  /** Multiply the axis value for a coupled path; omitted paths use one. */
-  pathScale?: Record<string, number>;
-}
 export interface TuningSessionOptions { space: "combined"; fixed: Record<string, number>; demo?: DemoId }
 export interface TuningTrial { id: number; a: Point; b: Point }
 export interface TuningObservation { a: Point; b: Point; preference: Exclude<Choice, "skip"> }
@@ -42,33 +39,14 @@ export type TuningSession = TuningSessionV1 | TuningSessionV2 | TuningSessionV3;
 export const MAX_SESSION_HISTORY = 60;
 const MAX_IMPORT_BYTES = 1024 * 1024;
 const MAX_TEXT_LENGTH = 300;
-const WATER_AXES: AxisDefinition[] = [
-  { key: "resonance.master_gain", label: "振動の強さ", min: 0.1, max: 1, paths: ["resonance.master_gain"] },
-  { key: "mass.damping_ratio_x", label: "水の減衰", min: 0.05, max: 1.5, paths: ["mass.damping_ratio_x", "mass.damping_ratio_y"] },
-];
-const AXES: Record<TuningSpace, AxisDefinition[]> = {
-  water: WATER_AXES,
-  combined: [
-    ...WATER_AXES,
-    // In the coherent law max_tilt_deg is the content-position cue gain, not
-    // the independent mechanical/output limit (max_total_cmd_deg).
-    { key: "tilt.max_tilt_deg", label: "内容物位置", min: 0, max: 10, paths: ["tilt.max_tilt_deg"] },
-    { key: "tilt.k_cm", label: "上下慣性", min: 0, max: 1, paths: ["tilt.k_cm"] },
-    { key: "tilt.k_tau", label: "重心・横慣性", min: 0, max: 1, paths: ["tilt.k_tau"] },
-  ],
-};
-const SAND_FRICTION: AxisDefinition = {
-  key: "mass.granular_static_friction", label: "砂の流れにくさ", min: 0.2, max: 0.9,
-  paths: ["mass.granular_static_friction", "mass.granular_dynamic_friction"],
-  pathScale: { "mass.granular_dynamic_friction": 7 / 11 },
-};
-// Water identifies phi*cm and phi*tau, not all three independently. Keep phi
-// explicitly fixed rather than adding a redundant sixth dimension.
-const FIXED_PHI: AxisDefinition = { key: "tilt.k_phi", label: "擬似力全体倍率", min: 0, max: 8, paths: ["tilt.k_phi"] };
 const copyPoint = (point: readonly number[]): Point => [...point];
 const samePoint = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((value, index) => value === b[index]);
 const copyTrial = (trial: TuningTrial): TuningTrial => ({ id: trial.id, a: copyPoint(trial.a), b: copyPoint(trial.b) });
 function invalid(message: string): never { throw new Error(`Invalid tuning session: ${message}`); }
+function inParameterSpace<T>(action: () => T): T {
+  try { return action(); }
+  catch (error) { if (error instanceof TuningParameterError) invalid(error.message); throw error; }
+}
 
 function text(value: unknown, name: string, maxLength = MAX_TEXT_LENGTH): string {
   if (typeof value !== "string" || value.length > maxLength) invalid(`${name} must be a string of at most ${maxLength} characters`);
@@ -105,10 +83,6 @@ function object(value: unknown, keys: readonly string[], name: string): Record<s
     invalid(`${name} contains missing or unknown fields`);
   return value as Record<string, unknown>;
 }
-function space(value: unknown): TuningSpace {
-  if (value !== "water" && value !== "combined") invalid("unknown exploration space");
-  return value;
-}
 function combinedSpace(value: unknown): "combined" {
   if (value !== "combined") invalid("joint sessions require the combined exploration space");
   return value;
@@ -117,16 +91,9 @@ function demo(value: unknown): DemoId {
   if (value !== "water" && value !== "marble" && value !== "sand") invalid("unknown representative demo");
   return value;
 }
-/** Definitions are copied so a UI cannot accidentally change persisted bounds. */
+/** Compatibility entry point; the definitions no longer belong to history. */
 export function axisDefinitions(exploration: TuningSpace, material: DemoId = "water"): AxisDefinition[] {
-  const selectedSpace = space(exploration), selectedDemo = demo(material);
-  if (selectedSpace === "water" && selectedDemo !== "water") invalid("legacy water space cannot select another demo");
-  return AXES[selectedSpace].map((axis, index) => {
-    const selected = index === 1 && selectedDemo === "sand" ? SAND_FRICTION : axis;
-    return { ...selected, paths: [...selected.paths],
-      ...(selectedDemo === "marble" && index === 1 ? { label: "転がりの減衰" } : {}),
-      ...(selected.pathScale ? { pathScale: { ...selected.pathScale } } : {}) };
-  });
+  return inParameterSpace(() => parameterAxes(exploration, material));
 }
 export function getSessionSpace(session: TuningSession): TuningSpace {
   if (session.version === 1) return "water";
@@ -144,18 +111,7 @@ export function getSessionPreset(session: TuningSession): DemoPreset {
   return demoDefinitions.find(definition => definition.id === material)!.preset;
 }
 function fixedParameters(value: unknown): Record<string, number> {
-  const fixedAxes = [FIXED_PHI];
-  const keys = fixedAxes.flatMap(axis => axis.paths), raw = object(value, keys, "fixed");
-  const result: Record<string, number> = {};
-  for (const axis of fixedAxes) for (const path of axis.paths) {
-    const number = raw[path];
-    if (typeof number !== "number" || !Number.isFinite(number) || number < axis.min || number > axis.max)
-      invalid(`fixed.${path} is outside its parameter bounds`);
-    if (number === 0)
-      invalid("fixed.tilt.k_phi must be positive so both inertia axes remain active");
-    result[path] = number;
-  }
-  return result;
+  return inParameterSpace(() => fixedParameterValues(value));
 }
 function sessionOptions(value: unknown): TuningSessionOptions {
   const withDemo = value !== null && typeof value === "object" && Object.hasOwn(value, "demo");
@@ -241,17 +197,8 @@ function mixedSeed(seed: number, trialId: number, stream: number): number {
  * This function cannot apply values or start any hardware output. */
 export function parameterValues(normalized: readonly number[], session?: TuningSession): Record<string, number> {
   const exploration = session ? getSessionSpace(session) : "water";
-  const axes = axisDefinitions(exploration, session ? getSessionDemo(session) : "water"), coordinates = point(normalized, "point", axes.length);
-  const values: Record<string, number> = session && session.version !== 1 ? fixedParameters(session.fixed) : {};
-  axes.forEach((axis, index) => {
-    const value = axis.min + coordinates[index] * (axis.max - axis.min);
-    for (const path of axis.paths) values[path] = value * (axis.pathScale?.[path] ?? 1);
-  });
-  // Stable physical-path ordering for both the legacy and combined contract.
-  const result: Record<string, number> = {};
-  for (const axis of [...axes, FIXED_PHI]) for (const path of axis.paths)
-    if (Object.hasOwn(values, path)) result[path] = values[path];
-  return result;
+  return inParameterSpace(() => normalizedParameterValues(normalized, exploration === "combined" && session && session.version !== 1
+    ? { space: exploration, demo: getSessionDemo(session), fixed: session.fixed } : { space: "water" }));
 }
 
 export function createSession(sessionMode: SessionMode, baseline: readonly number[], objective: string,

@@ -2,7 +2,9 @@ import "./style.css";
 import { HapticLink, parseTiltGainReadback, tiltGainsMatch, type DeviceSnapshot } from "../link/HapticLink";
 import { PreviewEngine } from "../lab/PreviewEngine";
 import { createSession, parseSession, parameterValues, recordChoice, axisDefinitions, getSessionSpace, getSessionDemo, getSessionPreset, demoDefinitions, type DemoId, type TuningSession, type SessionMode, type Point, type Choice } from "./TuningSession";
-import { createProfile, parseProfile, serializeProfile, profileParametersFor, PROFILE_STORAGE_PREFIX, type TuningProfile } from "./TuningProfile";
+import { parseProfile, serializeProfile, profileParametersFor, PROFILE_STORAGE_PREFIX, type TuningProfile } from "./TuningProfile";
+import { createProfile } from "./ProfileFromSession";
+import { tiltParameterDefinitions } from "./TuningParameterSpace";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const button = (id: string) => $<HTMLButtonElement>(id);
@@ -88,8 +90,8 @@ function readArchive(text: string): Archive {
       throw new Error("適用記録のパラメータが範囲外です");
     let actual: Record<string,number> | undefined;
     if (parsed.version !== 1) {
-      for (const [key, max] of [["tilt.max_tilt_deg",10],["tilt.k_cm",1],["tilt.k_tau",1],["tilt.k_phi",8]] as const) {
-        if (!Number.isFinite(p[key]) || p[key] < 0 || p[key] > max) throw new Error("傾き係数の記録が範囲外です");
+      for (const { path, min, max } of tiltParameterDefinitions()) {
+        if (!Number.isFinite(p[path]) || p[path] < min || p[path] > max) throw new Error("傾き係数の記録が範囲外です");
       }
       if (p["tilt.k_phi"] !== parsed.fixed["tilt.k_phi"] || !r.tiltReadback ||
         Object.keys(r.tiltReadback).sort().join() !== "tilt.k_cm,tilt.k_phi,tilt.k_tau,tilt.max_tilt_deg" || !tiltGainsMatch(r.tiltReadback,p))
