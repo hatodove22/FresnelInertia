@@ -1,157 +1,111 @@
 # 07 Demo Acceptance
 
-Updated: 2026-09-06. This is the active acceptance contract.
-[Plan](08_IMPLEMENTATION_PLAN.md) sets priorities; [status](16_PROGRESS_STATUS.md)
-records results. The [full historical record](archive/2026-09-05/07_TEST_AND_VALIDATION_FULL_RECORD.md)
-preserves earlier tests and observations; its old gates are not current prerequisites.
+This document defines meaningful end-to-end acceptance, not a test campaign.
+[00](00_DESIGN_SPECIFICATION.md) owns the concept,
+[08](08_IMPLEMENTATION_PLAN.md) owns priorities, and
+[16](16_PROGRESS_STATUS.md) alone owns results, deployment and host coverage.
+Earlier bring-up observations remain in the [archive](archive/README.md).
+A previous result applies to its recorded revision and condition; a skipped
+trial is not a pass.
 
-## What must work
+## Integrated demo quality
 
-The user handles one container and perceives its contents through coordinated
-four-channel texture/events and two-servo low-frequency tilt cues.
-The visual scene, applied material, container geometry, and felt response must
-tell the same story. Finish the standalone hardware experience first, then the
-StampC5-connected visual experience. Reuse the hardware and desktop evidence in
-16 rather than repeating completed bring-up. VR/Quest is on hold; Android is
-the planned mobile host and has not been verified. Build success alone proves
-neither physical handling nor target-host support.
+The core experience is one handheld container whose shared content state drives
+two fingertip planes and four vibration channels. Tilt conveys sustained
+direction, center-of-mass shift and inertia; vibration conveys contacts, flow
+and texture. They should feel like consequences of the same contents, not
+unrelated effects. This is a demo-quality judgment, not yet proof that combining
+the branches improves perception relative to either branch alone.
 
-| Acceptance | Required observation | Current evidence |
-|---|---|---|
-| Content response | Deliberate tilt/motion produces useful cues; holding still lets them settle. | Production four-channel settling and material distinctions passed. |
-| Spatial response | A change of motion direction produces the corresponding felt movement/contact. | Mounted wall identity and opposite-direction localization passed. |
-| Tilt response | Both gripped contact planes give clear, directionally coherent cues through handled motion. | Useful strength and common/differential basis passed; current combined run had no reported faults and desktop visual/felt direction matched. Smoothness remains imperfect. |
-| Simultaneous output | Production four-channel output and both servos remain usable together while handled. | Current production marble/sand runs completed without faults; operator reports improvement/no residual vibration, with smoothness still imperfect. See 16. |
-| Connected scene | Intended host connects through StampC5; selected and device-applied state agree. | Desktop applied state and visual/felt direction confirmed; Quest initial WebUSB connection and applied-state display confirmed by operator. Android is unverified; unfinished Quest MR handling is deferred. See 16. |
-| End/recover | Stop ends output; reconnect reports current state and permits deliberate restart. | Current run confirmed both torque-OFF readbacks; desktop Idle reconnect passed. Dedicated-demo reboot now automatically re-pairs with outputs OFF. Android recovery is unverified; Quest app recovery is deferred. See 16. |
+| Acceptance | What the handled demonstration must show |
+|---|---|
+| Causal content response | Deliberate tilt/motion produces legible movement, contact and settling. Holding still does not sustain unexplained chatter; retained sand bias may remain. |
+| Direction and simultaneous output | Both gripped contact planes and all four vibration channels remain usable together. Motion reversal and content movement give coherent directional cues without disruptive pauses or unwanted residual output. |
+| Material contrast | The same gesture reveals a meaningful difference between representative conditions, not only arbitrary loudness. Water, one marble and retained sand cover flow, collision and friction/CoG; choose the conditions relevant to the change. |
+| Connected presentation | The claimed host shows device-applied material, fill and dimensions, distinguishes pending/stale/preview state, and preserves a convincing visual/felt relation during handling. |
+| Stop and recovery | Stop quiets output. A material change or reconnect reports actual state and requires deliberate restart; stale data or a rejected command never appears as successful application. An affected recovery fix must work without relying on reboot as its success criterion. |
 
-## One short rehearsal
+The device model is a body x/y cross-section, not full 3D content dynamics.
+Visual marble depth, liquid detail and independent coin bodies enrich that
+presentation; they do not add body-z haptic contacts or measured device CoG.
+Individual visual coin landings need not equal the aggregate haptic contacts.
+Judge whether this approximation works for the claimed experience; do not
+describe convincing imagery alone as evidence of exact physical agreement.
+Optional speaker audio is another presentation branch, not the four-channel
+actuator signal or a lossless replay of every contact.
 
-Use the installed demo firmware, valid status for both servos,
-mounted mechanism, usual grip, and existing effective output limits.
-See [hardware setup](04_HARDWARE_AND_PIN_SPEC.md) and
-[interface contract](05_INTERFACE_SPEC.md) for current operation.
+## One focused rehearsal
 
-1. Begin in Idle with audio and tilt off; inspect current device/fault state.
-   After communication recovers, clear the fault in Safe Idle if needed,
-   then enter Live.
-2. Enable the intended outputs and handle the device for about 30 seconds:
-   briefly hold still, tilt in each direction, make one content-moving gesture,
-   then hold still again. Require clear content motion, coherent tilt cues,
-   settling, and no output interruption or accumulating communication fault.
-3. Compare at least two curated content conditions with the same gesture.
-   The operator must be able to describe a meaningful difference; retain only
-   conditions that help the demo. Perfect liquid realism is later tuning.
-4. Stop and confirm Idle, silenced audio, tilt disarmed, and fresh torque-off
-   status from both servos. Missing telemetry is an unknown result.
-5. Exercise the affected visual flow on the actual host being claimed as
-   supported. Reuse the existing desktop result for unchanged paths; the planned
-   Android client needs its own check when implemented. Confirm that Connect,
-   preset selection, Live, Audio, Tilt, and Stop act on the device.
-   Exercise one ordinary disconnect/reconnect and deliberate restart.
+Reuse completed hardware evidence for unchanged paths. Use the installed
+firmware, usual grip and existing effective limits; normal supervised testing
+does not require repeated power cycling.
 
-A laptop run establishes laptop support only. Mobile USB selection,
-read/write, and reconnect must pass on each host claimed as supported.
-A visual-only preview must be identifiable as a preview. The planned Android
-demo can use ordinary-screen rendering without AR. Hand-tracked AR remains an
-optional, unimplemented extension; if added, platform support for AR and USB
-separately does not establish their simultaneous operation with this dongle.
-Camera/AR and Quest-specific checks are not prerequisites for the non-AR demo.
+1. Identify the changed behavior, firmware/profile and host. Begin stopped and
+   inspect the actual connection/device state. Use the existing recovery action
+   only if a present fault requires it.
+2. Deliberately start simultaneous tilt and vibration. For about 30 seconds,
+   hold still, tilt/reverse, make a content-moving gesture, then settle. Judge
+   strength, direction, continuity and the shared cause of the two cues.
+3. Compare the relevant material conditions with the same gesture. For a
+   material-switch change, perform Stop -> selection/application -> explicit
+   Start once. For a recovery change, exercise its relevant interruption and
+   recovery, judging any catch-up as well as whether communication returns.
+4. On a connected run, check the applied scene and felt response on the actual
+   host being claimed. Test reconnect/restart when that path changed. Prior
+   desktop, phone or Quest evidence does not establish a different host,
+   untested flow or later firmware revision; use the recorded scope in 16.
+5. Stop and inspect fresh reported Idle/output-off state. Distinguish software
+   output status from actuator readback; missing confirmation is unknown, not
+   success. Record the short outcome and any remaining defect in 16.
 
-For the connected run, display a preset as applied only after device execution
-is confirmed. Check matching material, dimensions/fill, and coordinate mapping;
-visual-only bottle/cup presets and display scaling are not evidence of hardware
-agreement. Confirm that visible content and felt response agree during motion.
-A stale link or rejected command must not look like successful output.
-Stop/reconnect must not silently re-arm output.
-
-## When a run fails
-
-Record the action, observed sensation, and relevant state/counter change, then
-repair that failure and repeat the affected portion. Existing limits, local
-Stop, and fault handling remain in place. Changes to those mechanisms require
-a demonstrated problem and a focused regression, not a new qualification project.
-
-An earlier cable-free run exhausted bounded local DXL read retries and latched
-a communication fault while ESP-NOW remained paired. The model's 250 Hz value
-is an integration setting; servo goals target a 10 ms period. Actual command
-gaps were not measured. The 10 Hz observer stream does not establish smoothness.
-If that failure recurs, restore DXL continuity before judging trajectory quality;
-the later successful production run in 16 is not invalidated by this history.
+If a step fails, retain the action, observed sensation and relevant state change,
+repair that failure and repeat the affected portion. Do not restart unrelated
+bring-up. Hardware setup and operating commands belong in
+[04](04_HARDWARE_AND_PIN_SPEC.md) and [05](05_INTERFACE_SPEC.md).
+AR, hand tracking and Quest are not prerequisites for ordinary-screen use.
 
 ## Proportionate software checks
 
-| Changed area | Check |
+| Changed area | Relevant check |
 |---|---|
-| Documentation only | Read the diff, check active links and whitespace. |
-| Browser | Typecheck/build and exercise the affected user flow. |
-| Firmware | Build the affected AtomS3 or StampC5 environment; baseline when shared code/gates change. |
-| Protocol/state | Schema fixtures and relevant codec/state tests, plus sender/receiver builds. |
-| Motion/output logic | Relevant deterministic checks and the affected physical rehearsal. |
+| Documentation | Diff, consistency and affected local links. |
+| Web interaction or renderer | Typecheck/build, focused tests and the affected browser flow; inspect the actual scene for visual changes. |
+| Firmware/model | Affected build and deterministic regression; baseline when shared code or gates change. Follow with the changed handled behavior, not an exhaustive retest. |
+| Protocol/applied state | Valid/invalid and compatibility fixtures, sender/receiver builds, and the affected application/Stop path. |
+| Recovery/output logic | Reproduce the observed fault, test bounded recovery and Stop cancellation, then one representative handled check. |
 
-Run PlatformIO builds sequentially. Reuse valid results for unchanged paths.
+[Development setup](reference/19_DEVELOPMENT_SETUP.md) owns executable commands,
+including sequential PlatformIO builds and the isolated StampC5 cache.
+The [Web guide](../webxr/README.md) owns browser/Lab operation;
+the [explainer guide](../explainer/README.md) owns CAD, atlas and film checks.
+Those publication checks are not handheld-demo acceptance gates.
 
-The reuse boundaries have targeted regression commands:
+While handling is unavailable, use the output-free production-C++ Lab and
+mock-transport browser tests. They establish model, presentation and command
+behavior, not measured actuator response, touch quality or actual mobile USB.
+Build success, synthetic timing and test counts do not establish those results.
+Long soaks, exhaustive poses, old test matrices and evidence hashes are not
+routine prerequisites for a focused demo iteration.
 
-```powershell
-pio test -e native-layers
-pio test -e native-synthesis-core
-npm --prefix webxr test
-npm --prefix webxr run build
-npm --prefix explainer test
-npm --prefix explainer run build
-```
+## Research evaluation — not yet performed
 
-The synthesis suite compares pre-extraction orchestration and independently
-checks hold/reset/neutral intent. It shares leaf algorithms with production;
-it does not prove a future changed material law. The visual suite checks
-accepted-state authority, deterministic projections, source transitions,
-resource ownership and camera framing. Browser screenshots still matter:
-no DOM overflow does not imply a tilted object fits inside its WebGL canvas.
+The research question is whether shared-state fingertip tilt and spatial
+vibration provide useful complementary cues for a coherent contents experience.
+The implementation and positive operator reports motivate that question; they
+do not establish novelty, perceptual superiority, four independently perceived
+locations, a measured equivalent mass, or the contribution of each branch.
 
-The atlas browser flow uses `explainer/scripts/verify-atlas.mjs` against a local
-preview. It checks the three illustrative transitions, pause/step/reset,
-filters, source links, JSON download, reduced motion and narrow layouts.
-`explainer/scripts/verify.mjs` covers articulated CAD controls, synchronized
-viewports, keyboard interaction, responsive layout, and English film playback.
-`explainer/tests/device-rig.test.mjs` loads the actual GLB to check neutral-pose
-preservation, offset pivots, opposite gear rotation, fixed-frame invariance,
-and return to zero without drift. Movie verification includes a complete
-decode and inspection of encoded frames; CAD animation is not hardware motion
-capture or a physical clearance test.
-These sketches must remain explicitly separate from physical output and live
-telemetry. Their tests prove explanatory behavior, not perceptual feasibility.
+The three-material joint five-axis preference workspace is a tuning tool.
+Ordinary comparisons evaluate vibration and tilt together, preserve the
+baseline, and keep different materials and rehearsal/device votes separate.
+A selected setting is a recorded preference, not a validated optimum or a
+demonstration that the optimizer improves human performance.
 
-The legacy environment matrix, exhaustive static poses, strict evidence hashes,
-fault-injection campaigns, and long soaks are not routine demo prerequisites.
-
-## Material/model changes and the output-free Lab
-
-When the operator is away, do not connect, upload or actuate. Use the explicit
-C++ Lab to check material switching, tilt/return, shake, pause/reset and old/new
-sand comparison. Require contained liquid volume, retained sand slope and CG,
-one soda pop followed by decaying spray/remaining content, and display state
-that freezes with its model. Inspect actual browser rendering as well as tests.
-V4 encode/decode, invalid-field rejection and old-version compatibility are
-software requirements for the new shared state.
-
-These checks establish model/visual implementation only. The pre-kick baseline
-deployment, physical output-OFF v4 transport and positive overall handling
-report are already recorded in 16; do not repeat them merely to satisfy this
-section. Their exact per-material coverage was not itemized. The later recoil
-was flashed but not handled, and the integrated source revision has not been
-flashed. For a changed felt behavior, deliberately update only affected device
-images when needed, then make one short simultaneous tilt/vibration/view
-comparison. Judge pile direction or pop versus subsequent flow when that
-behavior is the subject of the change; do not restart general bring-up.
-
-## Deferred, not passed
-
-Recorder/Replay, the user-skipped switch trial, formal resonance identification,
-adjacent-wall/SOA tuning, full naturalness studies, long thermal/endurance runs,
-OTA, alternate transports, and security qualification remain outside this demo.
-A user-skipped trial is deferred even if the underlying function worked elsewhere.
-
-For each rehearsal, add one short result to [status](16_PROGRESS_STATUS.md):
-date, firmware/profile, host, presets, observed outcome, and the next actual
-blocker. Completion means the end-to-end experience above was observed working.
+If branch contributions or research efficacy are later evaluated, define a
+separate experimental protocol: a stated outcome, fixed gains/geometry/gesture
+conditions, presentation order, and control of visual/speaker and mechanical
+sound cues. A comparison with one branch removed answers a different question
+from finding a good combined setting. Participant counts and analysis belong
+to that future design; no ablation study is required by the present demo task.
+A fictional heartbeat or another expressive extension is a separate application,
+not evidence for the container model or a new core acceptance requirement.

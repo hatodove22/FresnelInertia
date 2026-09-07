@@ -6,10 +6,12 @@ Deliver a compelling, fully working handheld container-content demo aligned
 with the user's concept: fingertip-plane tilt conveys sustained direction,
 center-of-mass shift and inertia; four transducers convey collisions, flow and
 material texture. Both derive from the same on-device state. The shared Web
-client presents that state through Haptic Link. The next direction is richer
-ordinary-screen visuals and desktop tuning, then Android presentation without
-requiring AR; hand-tracked AR is optional later work. Quest/VR work is deferred. Planned features and
-physical checks remain distinct from implemented behavior and verified results.
+client presents that state through Haptic Link. Preserve the integrated
+desktop/Android ordinary-screen experience and refine its combined feel using
+the existing joint tuning tools. Tuning infrastructure and richer visuals serve
+the research question; they are not its objective. Hand-tracked AR is optional
+and Quest/VR work is deferred. Planned features, implementation, physical checks
+and evidence for a research claim remain distinct.
 
 Read docs/00_DESIGN_SPECIFICATION.md for the experience,
 docs/16_PROGRESS_STATUS.md for facts, and docs/08_IMPLEMENTATION_PLAN.md for the
@@ -71,7 +73,9 @@ component tests alone do not establish this.
 - docs/07: demo acceptance; 08: only active plan; 16: current facts.
 - docs/reference/: optional technical detail and future design.
 - docs/archive/: historical evidence; never active instructions.
-- Record a fact once and link to it. Avoid new handoff or process documents.
+- Record a fact once and link to it. Keep 16 a compact current-state summary;
+  retain superseded detailed evidence in the archive, not the active plan.
+  Avoid new handoff or process documents.
 - Preserve uncommitted work and unique evidence during cleanup.
 - Do not format device storage or erase evidence as a housekeeping step.
 - Run PlatformIO builds sequentially; follow the isolated pioarduino cache

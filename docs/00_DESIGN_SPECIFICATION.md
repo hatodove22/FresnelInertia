@@ -1,155 +1,115 @@
-# 00 Demo Concept
+# 00 Research Concept
 
-## What the user should experience
+## The experience we are building
 
-Hold a small container between thumb and index finger. Tilt or move it and feel
-its contents shift, roll, flow, and strike the walls. The contact planes give a
-sustained directional/inertial cue; short vibrations make contact and material
-changes tangible. When a display is attached, the visible container and
-contents agree with what the hand feels.
+Make a small object feel as though it contains something that moves:
+tilting or shaking it produces a shift of contents, contact with a wall, flow,
+and eventual rest. The hand should feel **one coherent object**, not a servo
+effect and a vibration effect played alongside an animation.
 
-The demonstration must make the contribution of **two tilting fingertip planes
-plus four vibration channels acting together** apparent. A successful command
-console alone does not demonstrate that concept.
+Two fingertip contact planes convey sustained direction, apparent center-of-mass
+shift and inertia. Four vibration channels convey localized contacts, flow and
+texture. Their relationship under the user's own motion is the core of the
+research; more presets, a more elaborate simulator, or a prettier screen are
+means to improve that relationship, not the research objective.
 
-## Shared state, complementary outputs
+## Research question and scope of the claim
+
+**Can coordinated contact-plane tilting and spatially distributed vibration
+convey the behavior and material character of moving contents in a compact
+handheld device?**
+
+The working hypothesis is that a continuous directional cue and transient
+material cues, derived from the same evolving state, can be perceived as one
+causal sequence. We want to establish:
+
+- Coherence: moving contents lead into contacts and settling with intelligible
+  direction and timing.
+- Material character: water, a rigid inclusion and sand differ by more than
+  overall stimulus strength.
+- Useful integration: both output branches contribute to the intended
+  experience while remaining usable together in the actual grasp.
+
+These are design aims and questions, not established perceptual advantages.
+Operator reports and software checks are valuable but do not establish
+comparative superiority, novelty against prior art, or a general realism score.
+[Current evidence](16_PROGRESS_STATUS.md) and
+[demo acceptance versus research evaluation](07_TEST_AND_VALIDATION.md) stay distinct.
+
+The supplied VRSJ 2026 manuscript, *A Handheld Haptic Device Integrating Fingertip
+Contact-plane Tilting and Four-channel Vibrotactile Stimulation*, is the design
+anchor. Gravity Grabber and pseudo-weight-shifting/material work are related
+design inputs, not interchangeable mechanisms or transferable motor signs.
+The [source notes](reference/10_REFERENCES.md) retain those distinctions.
+
+## One source of haptic state
 
 ```text
 IMU -> body-frame motion -> shared content state
-  |-> Mass -> Event -> Texture -> Resonance -> Spatial4 -> four transducers
-  |-> motion + content state -> low-frequency tilt model -> two XL330 servos
-  `-> low-rate telemetry -> connected Web visualization
+  |-> Mass Motion -> Event -> Texture -> Resonance -> Spatial4 -> 4 transducers
+  |-> motion + content state -> low-frequency tilt model -> 2 XL330 servos
+  `-> telemetry -> Web presentation (visuals and optional speaker sound)
 ```
 
-Material families use this same pipeline. Geometry influences travel and
-collision density. Short contact events express impacts/rolling/scraping;
-low-frequency tilt expresses the slower directional cue. The physical device
-continues to compute locally when a host is absent.
+AtomS3 owns the content model and physical output commands. Material and
+container geometry affect that model's movement and contacts. StampC5 carries
+high-level commands and reported state; the held device needs no USB cable.
 
-SystemParams owns applied configuration. TelemetrySnapshot owns reported state;
-DriveFrame4 keeps spatial output independent of the audio transport.
-HapticPipeline applies commands; radio callbacks only queue them.
-
-The hardware-free `HapticSynthesisCore` now owns the composition of the existing
-layers and parallel tilt model. `HapticPipeline` retains runtime authority,
-sensor acquisition, Stop, faults, calibration, telemetry and physical dispatch.
-The browser's pure state projections and separate liquid/particle renderers
-consume accepted device state; they do not advance device dynamics. See the
+The hardware-free synthesis core composes the existing layers. HapticPipeline
+retains sensor input, configuration, Stop/recovery and actuator dispatch.
+The Web client presents accepted state, never a second source of actuator
+commands. Exact boundaries belong in the
 [firmware](reference/30_REUSABLE_FIRMWARE_CORE.md) and
-[visual](reference/31_REUSABLE_VISUAL_ARCHITECTURE.md) reuse contracts.
+[visual](reference/31_REUSABLE_VISUAL_ARCHITECTURE.md) contracts.
 
-## Research alignment
+## Representative experiences
 
-The supplied paper, *A Handheld Haptic Device Integrating Fingertip Contact-plane
-Tilting and Four-channel Vibrotactile Stimulation* (VRSJ 2026), motivates a
-coherent experience from motion to collision, with both outputs generated from
-shared internal state. Its section 3.2 describes content position and vertical
-inertia in common motion, and center-of-mass shift and horizontal inertia in
-differential motion.
+| Condition | What should be legible in the combined feel |
+|---|---|
+| One marble | Travel, a distinct wall contact, and return/rest |
+| Water | Lag, sloshing and a sustained change of apparent load |
+| Retained sand | Yielding/flow, friction and a residual center-of-mass offset |
 
-The assembled profile now enables a coherent reduced model: content position
-enters common motion, while CoG/inertia supplies the differential component.
-The complete composed angle is filtered and slew-limited. Actual wall contacts
-from the same moving state create vibration, rather than an independent impact
-clock. Generic profiles retain the earlier model. Mounted relative motor
-directions are checked; current handling feedback is recorded in [16](16_PROGRESS_STATUS.md).
-The paper is design evidence, not perceptual proof.
+These three organize tuning and comparison; they do not limit the available
+demo presets. Carbonation is an expressive extension of the same principle:
+shared charge/burst state coordinates a pop, recoil and diminishing flow.
+The fictional heartbeat proposal is a separate later demo, not a calibration
+condition or a new main research direction.
 
-The current content state is a body x/y cross-section aligned with the servos'
-z-axis rotation. Body z is acquired and transformed but does not produce
-independent fore/aft content travel or collisions. The connected view may show
-pitch; do not describe that as full 3D haptic content dynamics.
+Judge vibration and tilt together when tuning a material. The five-dimensional
+preference search is a tool for choosing useful settings, not itself proof of
+a haptic contribution. Retain the starting setting and judgments; a transferred
+profile is another material's starting point, not evidence that it is optimized.
+Effective coordinates and reuse semantics belong in [06](06_PARAMETER_MODEL.md).
 
-The paper also describes FSR-based grip gain. The current firmware uses nominal
-grip-force parameters; it has no measured FSR feedback path. That extension is
-not needed to finish the presently requested demonstration.
+## Fidelity boundaries that matter
 
-## Demo experience
+- The FW content model is a reduced body x/y cross-section, with servo rotation
+  around body z. Acquiring all three IMU axes does not make it a 3D haptic model.
+- Richer visual liquid motion, marble depth and individual coin physics are
+  presentation detail. They use accepted input/source time but are not measured
+  content positions or individually synchronized haptic collisions.
+- Speaker sound is optional Web presentation, not the transducers' output PCM.
+  Aggregate telemetry cannot reproduce every contact sample-accurately.
+- Contact-plane motion represents apparent weight/inertia; it does not add
+  actual mass or arbitrary net force. Grip force is nominal, not FSR-measured.
+  Four electrical channels do not by themselves prove four perceptually
+  independent locations.
 
-1. **Pick up and explore.** Start with one rigid inclusion: a clearly moving
-   object, brief wall contact, then rest. Include both tilt and vibration.
-2. **Change the contents.** Compare a fine granular condition with a liquid or
-   hybrid condition that has the clearest currently available contrast.
-3. **Show the same object.** The optional client displays the device's applied
-   material, fill and dimensions, and responds coherently to actual handling.
-4. **Stop and resume.** Ending the experience quiets output. A deliberate start
-   restores the selected condition without stale commands or an unexpected jump.
+These limitations guide interpretation, not a demand to implement full fluid
+physics, tracking or force sensing. Add model detail only when a concrete
+mismatch prevents the intended sensation. Do not hide a tactile mismatch with
+an unrelated visual effect or equate stronger output with greater realism.
 
-A small curated set can make the first rehearsal readable; do not remove useful
-preset/property controls or permanently cap the project at three presets.
-Naturalness must be adequate to communicate the concept. Detailed perceptual
-fitting can follow that demonstration.
+## Experience and development priorities
 
-## Visual and device agreement
+Preserve useful stimulus strength and the positively handled baseline.
+A person should be able to pick up the device, compare contents, see a compatible
+response on desktop/Android, and stop/restart without disrupting the demonstration.
+Ordinary-screen Android is sufficient; hand-tracked AR is optional and Quest/VR
+work is deferred. An attractive display supports the tactile concept, not replaces it.
 
-The client owns presentation and any host-side tracking. AtomS3 owns physical
-motion, content response and applied material parameters. PC/shared Web is the
-current focus, followed by rich ordinary-screen Android presentation. A flat
-screen may still use the shared WebGL renderer; a separate 2D engine is not
-implied. Android AR is optional later work. VR/Quest integration is retained but paused.
-
-- Selecting a preset updates the visible object only after device acceptance.
-- Displayed fill and dimensions correspond to the physical model. The existing
-  visual-only 7 cm normalization is bypassed in connected mode; the renderer
-  uses actual resolved dimensions and the camera provides the close view.
-- Use reported motion/content state to inform the view. Do not present an
-  unrelated scripted animation as live device behavior.
-- Presentation can be richer than the reduced firmware model. Bounded liquid
-  lag, overshoot and secondary waves may respond to reported orientation and
-  content changes, including pitch, while preserving fill and container bounds.
-  These visual dynamics are not reported physical state, a replacement haptic
-  model or a source of actuator commands. Their source-snapshot clock freezes
-  with stale telemetry or Lab pause; visual CoG is not the device's voiced CoG.
-- Distinguish physical input, visual-only preview, pending changes and
-  disconnected state.
-- The offline Lab runs the production C++ content/tilt/vibration layers as
-  WebAssembly with synthetic motion input and the shared renderer. Its model
-  output is not measured actuator output or evidence of a new physical feel.
-- If Android hand-following AR is pursued, MediaPipe hand tracking is the primary
-  approach and device IMU tilt supplying the container angle. A marker, including
-  the AtomS3 screen, is optional for alignment, not a prerequisite for following
-  the hand. Hand-relative landmarks alone are not absolute AR placement.
-- Ordinary-screen Android operation needs validation on the chosen device,
-  including USB and rendering performance. Camera/AR concurrency is relevant
-  only if that optional presentation is added; it is not a gate for a non-AR
-  demo. Desktop or earlier Quest checks establish neither Android flow.
-
-## Scope discipline
-
-Build on the demonstrated shared-state, simultaneous-output desktop experience.
-The current software adds container-constrained liquid, a granular accumulation
-surface and an offline production-model Lab. The gated sand-pile model holds
-residual slope/CoG through static and dynamic friction; the gated carbonation
-effect progresses from sealed charge through a pop/burst to spent contents.
-Visuals use those model states with the presentation-only detail described above.
-The explicit sand-pile preset is additional;
-the existing normal-sand preset and accepted marble behavior are preserved.
-The pre-integration material images were flashed; output-OFF v4 checks and the
-subsequent positive overall handling report are recorded in [16](16_PROGRESS_STATUS.md).
-The merged source revision is not yet installed on hardware. Preserve
-the current tested experience as the exhibition baseline; fine tuning takes
-priority over new subsystems. The report does not itemize every material.
-
-Use short offline/handled comparisons for a specific parameter change.
-The fuller tuning studio (A/B, saved settings and applied
-values) and Android hand tracking remain planned, not current Lab capabilities.
-Organize the existing dynamic-CG mapping rather than calling it an absent
-subsystem. Detailed priorities belong in [08](08_IMPLEMENTATION_PLAN.md).
-
-Preserve the existing preview and diagnostic tools. Add a narrowly scoped effect
-or adjustment when it materially improves the demonstration; no architecture
-expansion is needed merely to expose controls.
-
-Formal localization/psychophysics, grip sensing, automatic resonance fitting,
-recorder/replay recovery, OTA, product security, multi-client sessions and new
-transports remain later work. The explanatory site, films and concept atlas
-are delivered; further publication assets are optional. Additional collision/cracker
-applications remain possible extensions beyond the current carbonation effect.
-
-The [interaction atlas](reference/32_INTERACTION_DESIGN_SPACE.md) maps 12 future
-experiences onto these boundaries, with required additions and comparisons.
-Its three browser sketches are explanatory models, not new device capabilities.
-
-Current facts: [16](16_PROGRESS_STATUS.md).
-Next work: [08](08_IMPLEMENTATION_PLAN.md).
-Demo completion: [07](07_TEST_AND_VALIDATION.md).
+For every proposed change ask: **which observable or felt mismatch does this
+resolve, and how will we tell?** Prefer a short end-to-end comparison over more
+infrastructure. Keep current facts in [16](16_PROGRESS_STATUS.md), the next
+actions in [08](08_IMPLEMENTATION_PLAN.md), and acceptance in [07](07_TEST_AND_VALIDATION.md).

@@ -4,26 +4,24 @@ Start with [the concept](00_DESIGN_SPECIFICATION.md),
 [current facts](16_PROGRESS_STATUS.md), and [next work](08_IMPLEMENTATION_PLAN.md).
 These are the normal context for continuing the project.
 
-The active direction is preserving the accepted desktop experience and focused
-parameter tuning. Rich WebGL/Lab and reusable-core work are integrated;
-further model refinement and Android presentation are optional follow-ons. AR is optional
-later work, not a prerequisite; VR/Quest is on hold. Planned functionality and target-host validation
-are distinct from the implemented demo; follow 08 for scope and 16 for evidence.
+The research focus is the coherent combined sensation, not the number of demos
+or the tuning infrastructure. Read technical detail for the task at hand;
+do not load the entire archive or treat reference proposals as active work.
 
 ## Active documents
 
 | Document | Owns |
 |---|---|
-| [00](00_DESIGN_SPECIFICATION.md) | Intended experience, shared-state architecture and paper alignment |
+| [00](00_DESIGN_SPECIFICATION.md) | Research question, intended experience and limits of the claim |
 | [04](04_HARDWARE_AND_PIN_SPEC.md) | Assembled hardware, grasp frame and current output settings |
 | [05](05_INTERFACE_SPEC.md) | Current control/telemetry contracts and connected-client requirements |
 | [06](06_PARAMETER_MODEL.md) | Effective parameters, limits and configuration ownership; lookup only |
-| [07](07_TEST_AND_VALIDATION.md) | Minimum meaningful demo acceptance and proportionate checks |
+| [07](07_TEST_AND_VALIDATION.md) | Integrated demo acceptance, proportionate checks and distinction from research evaluation |
 | [08](08_IMPLEMENTATION_PLAN.md) | The only active priority list and deferrals |
-| [16](16_PROGRESS_STATUS.md) | Dated results, unresolved issues and last known bench state |
+| [16](16_PROGRESS_STATUS.md) | Current facts, source versus installed FW, evidence scope and unresolved issues |
 
-The eighth top-level document is this index. AGENTS.md keeps contributor rules.
-Record a fact in its owner and link to it.
+AGENTS.md keeps contributor rules. Record a contract or fact in its owner and
+link to it. Status is a current summary, not a running implementation diary.
 
 ## Read technical detail only when needed
 
@@ -45,11 +43,15 @@ Record a fact in its owner and link to it.
 - [FW physical-model research, algorithm comparisons and tuning (Japanese)](reference/34_FW_MODEL_RESEARCH.md)
 
 Technical references explain implementations or explicitly future designs.
-Their historical status notes do not override 16, and they add no demo gate.
+In particular, 17 and the dated audit/proposals in 34 are not descriptions of
+every current model. Their historical status notes do not override 16, and
+they add no demo gate. Exact operator workflows belong in the Web guide, not 08.
 
 ## Historical evidence
 
 [Archive index](archive/README.md) retains unique bring-up and test observations.
+The full development ledger and previous expanded plan were archived on
+2026-09-08; no original observation was converted into a new pass or discarded.
 Old requirements, estimates, pending tasks and power-switch procedures are
 historical context only.
 

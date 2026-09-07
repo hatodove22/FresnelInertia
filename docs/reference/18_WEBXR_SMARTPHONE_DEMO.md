@@ -83,7 +83,8 @@ Current operating instructions are in [webxr/README.md](../../webxr/README.md).
 - Connected mode uses the shared scene with the device HUD and actual device state.
 - Preview retains the same local scene and controls as the phone-sized view.
 - Useful for visual iteration and Playwright smoke checks.
-- IWSDK/IWER dependencies are present for development alignment, but the current runtime bridge remains a small isolated adapter.
+- The IWSDK Vite plugin retains IWER development emulation; runtime XR uses the
+  isolated Three.js/native WebXR bridge, not IWSDK ECS.
 
 ## 2.1 Retained preview visual baseline
 
@@ -184,7 +185,8 @@ visual simulator or firmware protocol.
 The existing web dependencies remain separate from firmware:
 
 - `@iwsdk/vite-plugin-dev` provides the local development and IWER emulation path.
-- `@iwsdk/core` and `@iwsdk/xr-input` are included as the IWSDK foundation packages.
+- The unused `@iwsdk/core` and `@iwsdk/xr-input` runtime dependencies were removed;
+  the client does not use their ECS/input APIs.
 - The small WebXR bridge is isolated in the client. No deeper ECS/UI framework
   migration is required or scheduled by this reference.
 - Local development uses HTTPS because WebXR requires a secure origin.

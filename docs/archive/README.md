@@ -7,6 +7,14 @@ and [demo acceptance](../07_TEST_AND_VALIDATION.md).
 
 ## Retained evidence
 
+- [Development ledger through 2026-09-08](2026-09-08/16_DEVELOPMENT_LEDGER.md):
+  the complete former 16 status log, including superseded implementations,
+  user feedback, failed approaches and revision-specific checks. Original
+  section anchors are retained; relative links are rebased, with historical
+  plan links directed to the companion snapshot.
+- [Active-plan snapshot before consolidation](2026-09-08/08_ACTIVE_PLAN_SNAPSHOT.md):
+  the former 08 plan, preserved as historical context rather than an active
+  checklist. Use the current 08 for priorities.
 - [Full validation record](2026-09-05/07_TEST_AND_VALIDATION_FULL_RECORD.md):
   the previous validation document, preserved without semantic edits.
 - [Environment bring-up](2026-09-05/15_ENVIRONMENT_BRINGUP_NOTES.md).
@@ -27,6 +35,14 @@ have been superseded. A passed diagnostic is evidence for that diagnostic, not
 automatic acceptance of the current integrated demonstration.
 
 ## Cleanup and recovery
+
+On 2026-09-08 the development diary in 16 and repeated implementation history
+in 08 were replaced by a compact current-facts page and one active plan. Their
+complete prior texts are retained above; no unique evidence was discarded.
+Accompanying Web hygiene removed unused runtime dependencies/logging and reused
+the existing material labels. Firmware, control laws and protocol were unchanged;
+no hardware was accessed. Dated software results still describe their tested
+revisions, not newly verified installed firmware.
 
 On 2026-09-05 the active requirements/architecture/walkthrough documents 01,
 02 and 12 were consolidated into 00, 05 and 06. Workflow 25 was consolidated

@@ -1,92 +1,66 @@
 # Fresnel Inertia — Container Haptics
 
-A handheld demonstration in which the contents feel as though they move inside
-the object: two fingertip planes provide sustained directional/inertial cues,
-and four transducers provide impacts, flow and texture from the same state.
+A compact handheld device that makes moving contents tangible through
+**two tilting fingertip contact planes and four vibration channels acting together**.
+The aim is one coherent sensation of shifting, contacting and flowing contents,
+not independent effects or a visual simulation alone.
 
-AtomS3 runs the shared Mass -> Event -> Texture -> Resonance -> Spatial4 pipeline
-and the parallel XL330 tilt branch. A StampC5 ESP-NOW dongle connects the Web
-client without a USB cable on the held device.
+AtomS3 owns the shared content model and actuator commands. A StampC5 ESP-NOW
+dongle connects the Web client without a USB cable on the held device.
+Desktop/phone operation and encouraging handled feedback are recorded, but
+later source changes and research claims have distinct verification status.
 
-The prototype has demonstrated simultaneous tilt/vibration through its radio
-dongle and operator-confirmed visual/felt agreement on desktop. Current work
-centers on preserving that accepted experience and fine parameter tuning.
-The shared synthesis core, output-free production-C++ Lab, reusable material
-renderers, retained sand pile, rich liquid/soda visuals and desktop placement
-cues are implemented. Their two development lines are integrated;
-earlier handling evidence is revision-specific, and the later flashed soda
-tilt kick has not been handled. The full tuning studio and ordinary-screen
-Android presentation are follow-on options; hand-tracked AR is not required.
-VR/Quest work is on hold and actual Android hardware/USB operation is unverified.
-See [current status](docs/16_PROGRESS_STATUS.md) and
-[next work](docs/08_IMPLEMENTATION_PLAN.md).
+## Understand the project
 
-For a hardware-free comparison, launch the [Web client](webxr/README.md) and
-choose **実機なしラボを開く**, or append `?lab=1` to its URL. Tilt, return,
-shake and compare computed haptic commands without connecting any device.
+Read these three documents, in order:
 
-## Start here
+1. [Concept](docs/00_DESIGN_SPECIFICATION.md): the experience, research question and limits.
+2. [Current facts](docs/16_PROGRESS_STATUS.md): what works, what was physically checked and what remains unverified.
+3. [Active plan](docs/08_IMPLEMENTATION_PLAN.md): the next short iteration, not a catalogue of completed work.
 
-1. [Concept and experience](docs/00_DESIGN_SPECIFICATION.md)
-2. [Current facts](docs/16_PROGRESS_STATUS.md)
-3. [Next work](docs/08_IMPLEMENTATION_PLAN.md)
-4. [Demo acceptance](docs/07_TEST_AND_VALIDATION.md)
+[Demo acceptance](docs/07_TEST_AND_VALIDATION.md) distinguishes a working
+experience from evidence for a research claim. Exact hardware, interfaces,
+parameters and optional technical detail are routed by the [documentation index](docs/README.md).
 
-[AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) guide development.
-The [documentation index](docs/README.md) routes hardware, protocol and parameter
-work to their owning references.
+## Use the Web client
 
-## Main build targets
-
-| Environment | Role |
+| Entry | Purpose |
 |---|---|
-| m5stack-atoms3-pipeline | Haptic baseline |
-| m5stack-atoms3-pipeline-tilt-espnow-monitor | Current integrated device firmware |
-| m5stack-stampc5-espnow-bridge | USB/radio dongle |
+| `/` | Ordinary desktop/Android presentation; connect StampC5 for device-driven operation, or use the explicit local preview |
+| `/?lab=1` | Hardware-free production-C++/Wasm Lab with synthetic input and calculated outputs |
+| `/tune.html` | Joint vibration/tilt preference search for water, one marble and sand; save/reuse selected profiles |
+| `/webusb.html` | Separate USB diagnostic probe, not the demo |
 
-Build commands, including the separate pioarduino cache for StampC5, are in
-[development setup](docs/reference/19_DEVELOPMENT_SETUP.md).
-Visual-client instructions are in [webxr/README.md](webxr/README.md).
-Run checks for the affected path; documentation changes do not need the full
-firmware matrix.
+Start/build instructions and controls are in the [Web guide](webxr/README.md).
+Lab/rehearsal is not measured haptic output. Ordinary-screen Android does not
+require AR; retained Quest/WebXR work is deferred.
 
-## Layout
+## Source map
 
-- src/ and include/haptics/: firmware and interfaces
-- webxr/: visual client and USB feasibility probe
-- explainer/: independent Japanese principle/film site and interactive concept atlas
-- presets/ and schemas/: material and protocol data
-- test/ and tools/: reusable validation and build helpers
-- docs/: eight active concept/contract/status documents including the index
-- docs/reference/: technical detail read on demand
-- docs/archive/: historical bench evidence, not current work instructions
-- hardware/: publication boundary for future design assets
+| Location | Responsibility |
+|---|---|
+| `src/`, `include/haptics/` | Shared synthesis, runtime authority, hardware drivers |
+| `webxr/` | Presentation, Haptic Link, Lab and preference workspace |
+| `presets/`, `schemas/` | Material configuration and observable contracts |
+| `test/`, `tools/` | Reusable firmware/protocol checks and build helpers |
+| `docs/` | Current concept, contracts, acceptance, plan and facts |
+| `docs/reference/`, `docs/archive/` | On-demand detail and historical evidence; not extra active tasks |
+| `explainer/` | Independent explanation, films and concept sketches; no device control |
 
-Source hardware assets and final licenses are not published; see
-[hardware/README.md](hardware/README.md) and [LICENSE_TODO.md](LICENSE_TODO.md).
+The preserved baseline is `m5stack-atoms3-pipeline`; the integrated device is
+`m5stack-atoms3-pipeline-tilt-espnow-monitor`; the dongle is
+`m5stack-stampc5-espnow-bridge`. Use the sequential builds and isolated StampC5
+package store in [development setup](docs/reference/19_DEVELOPMENT_SETUP.md).
 
-## Visual explanation
+Follow [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+Make focused changes, preserve working defaults and unique evidence, and
+verify the affected behavior rather than rerunning all historical bring-up.
 
-The independent [Japanese explainer](explainer/README.md) presents the principle
-with articulated Fusion CAD, same/opposite contact-plane motion, a transparent
-mechanism view, four transducer highlights, and an English narrated film.
-The website remains Japanese. It does not connect to or control the device.
-See the [explanation and media reference](docs/reference/29_EXPLAINER_SITE_AND_FILM.md)
-for asset provenance, model boundaries, and validation.
+## Explanation and publication
 
-The [interactive possibility atlas](https://fresnel-inertia-explained.hatodove.chatgpt.site/atlas.html)
-adds 12 research-grounded future demos and three manipulable design sketches.
-Each recipe identifies the shared state, slow/fast cues, required additions,
-limitations and first comparison. These are proposals, not new hardware modes.
-
-## Reuse and extension
-
-- [Firmware synthesis core](docs/reference/30_REUSABLE_FIRMWARE_CORE.md): the
-  production layer composition can run without hardware; runtime authority
-  and output drivers remain in `HapticPipeline`.
-- [Visual architecture](docs/reference/31_REUSABLE_VISUAL_ARCHITECTURE.md): pure
-  accepted-state projections and reusable liquid/particle ingredients with
-  explicit resource ownership.
-- [Interaction design space](docs/reference/32_INTERACTION_DESIGN_SPACE.md)
-  and [primary-source audit](docs/reference/33_INTERACTION_RESEARCH_SOURCES.md):
-  what to build, where it belongs, and what the cited studies actually support.
+The [explainer](explainer/README.md) presents articulated CAD, the principle,
+films and an interaction atlas. Those are explanations/proposals, not additional
+implemented haptic modes. [Media provenance](docs/reference/29_EXPLAINER_SITE_AND_FILM.md)
+and [research source limits](docs/reference/33_INTERACTION_RESEARCH_SOURCES.md)
+are retained. Hardware source assets and final licenses are not published;
+see [hardware](hardware/README.md) and [license status](LICENSE_TODO.md).
