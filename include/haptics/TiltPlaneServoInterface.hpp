@@ -47,13 +47,19 @@ class TiltPlaneServoInterface {
   bool preflight();
   bool arm();
   bool readDeviceStatus(std::size_t index, bool include_identity);
-  bool deviceStatusSafe(std::size_t index, bool require_torque_off);
+  bool deviceStatusSafe(const TiltServoDeviceStatus& device,
+                        bool require_torque_off);
   bool writeGoalPositions();
   void refreshAges(uint32_t now_ms);
 #if HAPTICS_ENABLE_TILT_SERVO && HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND
   void cancelHealthRead();
   bool startHealthRead(uint32_t now_ms);
   void serviceHealthRead(uint32_t now_ms);
+  void completeHealthRead(uint32_t now_ms);
+  void noteCommunicationFailure(uint32_t now_ms, uint8_t device_mask,
+                                bool read_failure);
+  void cancelCommunicationRecovery();
+  bool serviceCommunicationRecovery(uint32_t now_ms);
 
   // Runtime RX is incremental; no reply wait runs on the haptic thread.
   std::array<uint8_t, 128> health_rx_{};
@@ -67,6 +73,13 @@ class TiltPlaneServoInterface {
   bool health_active_ = false;
   bool health_pending_ = false;
   bool fault_torque_off_pending_ = false;
+  bool communication_recovering_ = false;
+  uint32_t recovery_started_ms_ = 0;
+  uint8_t recovery_valid_mask_ = 0;
+  uint8_t recovery_failed_reads_ = 0;
+  bool recovery_uart_restarted_ = false;
+  uint8_t recovery_uart_phase_ = 0;
+  uint32_t recovery_uart_phase_ms_ = 0;
 #endif
 
   SystemParams params_{};

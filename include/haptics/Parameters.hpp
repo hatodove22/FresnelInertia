@@ -215,6 +215,10 @@ struct TiltPlaneParams {
   uint16_t command_period_ms = 10;
   uint16_t health_poll_period_ms = 100;
   uint16_t command_timeout_ms = 350;
+  // Zero preserves immediate/three-read fault latching. The assembled profile
+  // may tolerate a brief UART outage while retaining the current Live intent.
+  // Runtime additionally caps this interval at 750 ms.
+  uint16_t communication_recovery_ms = 0;
 };
 
 struct InterfaceParams {
@@ -345,6 +349,18 @@ inline SystemParams makeDefaultGranularSandPreset() {
   params.event.impact_rate_hz = 28.0f;
   params.event.roll_rate_hz = 10.0f;
   params.event.scrape_threshold = 0.55f;
+  return params;
+}
+
+// One hard inclusion with the existing coin material and container response.
+// The tilt model multiplies full-content mass by fill: 0.125 * 0.04 = 5 g.
+inline SystemParams makeDefaultGranularSingleCoinPreset() {
+  SystemParams params = makeDefaultGranularPreset();
+  std::strncpy(params.preset_name, "granular_single_coin_box", sizeof(params.preset_name) - 1);
+  params.container.content_mass_full_kg = 0.125f;
+  params.container.fill = 0.04f;
+  params.container.headspace = 0.96f;
+  params.container.particle_count = 0.03f;
   return params;
 }
 

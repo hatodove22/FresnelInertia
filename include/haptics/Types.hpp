@@ -234,6 +234,8 @@ struct TiltPlaneCommand {
 
 enum class TiltServoState : uint8_t {
   Disabled = 0,
+  // Also used for bounded live link retry: Communication + runtime_requested.
+  // FaultLatched, not the fault code alone, denotes a stopped latched fault.
   Checking = 1,
   ReadyTorqueOff = 2,
   Arming = 3,

@@ -75,7 +75,14 @@
       { "name": "applied_frame_counter", "offset": 16, "type": "uint64" },
       { "name": "detail", "offset": 24, "type": "char[60]", "encoding": "UTF-8/ASCII, NUL-terminated" },
       { "name": "crc32", "offset": 84, "type": "uint32" }
-    ]
+    ],
+    "get_state_detail": {
+      "format": "tilt_v1=%.6g,%.6g,%.6g,%.6g",
+      "ordered_parameters": ["tilt.max_tilt_deg", "tilt.k_cm", "tilt.k_tau", "tilt.k_phi"],
+      "meaning": "Actual current settings, not requested values or measured servo output; six significant digits fit within the existing ACK; compare with 1e-5 relative or 1e-6 absolute tolerance",
+      "unavailable": "tilt_v1_unavailable",
+      "compatibility": "Uses the unchanged char[60] detail field. Older firmware omits this prefix; clients must detect valid readback before offering remote tilt-gain tuning. Legacy clients may ignore detail."
+    }
   },
   "pairing": {
     "activation": "AtomS3 link must first be enabled locally in Safe Idle",
@@ -87,12 +94,12 @@
   },
   "implemented_policy": {
     "hello": "Safe Idle only",
-    "get_state": "paired session",
+    "get_state": "paired session; reports actual tilt gains in the response detail without changing output state",
     "safe_idle": "paired session",
     "set_run_mode": "Idle or Live only; Live does not arm audio",
     "set_audio_enabled": "disable anytime; enable only in Live and subject to existing physical-arm interlocks",
     "load_preset": "Safe Idle only",
-    "set_param": "Safe Idle, numeric value, fixed demo-property allowlist only",
+    "set_param": "Safe Idle, finite numeric value, fixed demo-property allowlist only; tilt.max_tilt_deg requires 0..10, tilt.k_phi requires 0..8 and tilt.k_cm/k_tau require 0..1; mass.granular_static_friction and mass.granular_dynamic_friction each require 0..2; these fields reject rather than clamp out-of-range remote values; max_tilt_deg is the content-position gain, not the unchanged max_total_cmd_deg actuator bound",
     "set_tilt_enabled": "disable anytime; enable only in Live when the dedicated remote-arm build flag and all tilt safety interlocks allow it",
     "clear_tilt_fault": "Safe Idle only; reruns the complete torque-off preflight",
     "trigger_event_reserved": "returns unsupported until the external-event pipeline ingress exists"

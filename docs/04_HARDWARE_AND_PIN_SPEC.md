@@ -119,13 +119,16 @@ Both present positions become session homes during preflight.
 | Model signs / raw directions, thumb and index | -1 / -1; +1 / +1 |
 | Current / temperature abort | 1200 mA / 60 C |
 | Voltage range / bus watchdog | 4.5–5.6 V / 1 second |
+| Live communication retry window | 500 ms from the first failed transaction; generic defaults retain 0 (disabled) |
 
 These are gripped-demo software settings, not physical end-stop measurements.
 Mounted ±10-degree motion was clearly perceptible; an application sample near
 +5.32/-5.60 degrees tracked within one encoder pulse, with intensity accepted.
 A direct full-range step previously overshot and triggered the position guard.
 The new assembled coherent model filters and slew-limits the complete composed
-command, including the mass-position base, at the existing 80 degrees/s bound.
+command, including the mass-position base, ordinarily at 80 degrees/s. The
+brief soda opening uses the phase-gated, absolute-velocity-bounded shaping in
+[06](06_PARAMETER_MODEL.md); it does not change bus profiles or mechanical travel.
 The accepted strength and travel settings above are unchanged. The current
 production handling run showed clear improvement, with some smoothness issues
 remaining; the operator's observations are recorded in 16.
@@ -145,11 +148,40 @@ and does not clock the nominal 100 Hz servo command stream.
 `stop` / `idle` or the AtomS3 button hold silences audio, resets the model,
 and requests servo torque-off. The existing 300 ms stale-IMU stop, servo
 watchdog, and feedback limits remain implemented. Runtime feedback is now an
-incremental two-block receive state machine, with up to three 45 ms attempts.
+incremental receive state machine. Generic defaults retain up to three 45 ms
+attempts; the assembled profile adds the bounded live retry described below.
 Waiting for a reply does not block the haptic pipeline; goal writes wait until
 the outstanding read finishes or times out. Preflight, arm and explicit Stop
 verification remain synchronous. A missing reply cannot verify torque-off;
 failed Stop verification invalidates feedback instead of reporting confirmed OFF.
+
+### Brief live DYNAMIXEL interruptions
+
+The assembled profile allows a 500 ms communication-recovery window from the
+first observed failed transaction, while the already-running model, vibration
+and latest bounded tilt intent continue. Generic defaults disable this window;
+the runtime caps any configured window at 750 ms.
+Missing replies and temporary TX backpressure enter retry instead of immediately
+latching a stop. RX parsing remains bounded but examines waiting complete
+replies before declaring a transaction timeout. One UART-only restart is allowed
+per outage, with its settling advanced over service ticks rather than `delay()`.
+This is not a servo reboot, torque cycle, new home calibration or automatic arm.
+
+Both servos must provide fresh complete healthy feedback before recovery is
+reported. A responding servo cannot conceal the other one's continued loss.
+Any further failed transaction discards its partial sample without extending
+the original recovery deadline.
+Recovery additionally reads Bus Watchdog (98): a latched watchdog can reject
+goal writes even when torque still reads ON. It is not automatically cleared.
+See the [ROBOTIS XL330-M077 watchdog contract](https://emanual.robotis.com/docs/en/dxl/x/xl330-m077/#bus-watchdog98).
+
+Stop/disarm cancels retry. IMU/command-source faults, confirmed torque OFF,
+hardware errors and out-of-range feedback still stop the servo branch; an outage
+beyond the window also latches Communication. These cases require explicit
+recovery and Start. This change concerns the local servo bus, not USB/radio
+reconnection or output replay. It cannot maintain physical motion while a cable
+is actually disconnected, nor establish smooth tactile catch-up without a
+handled check. Deployment and verification status belong in [16](16_PROGRESS_STATUS.md).
 
 Local `tilt diagnose` is available only in Safe Idle. It sends one PING to each
 configured ID on the current UART and reports accepted TX bytes, observed RX

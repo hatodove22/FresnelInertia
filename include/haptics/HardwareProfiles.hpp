@@ -84,6 +84,7 @@ inline void applyAsBuiltAtomS3Profile(SystemParams& params) {
   params.tilt.position_p_gain = 2000;
   params.tilt.goal_pwm_limit = 600;
   params.tilt.bus_watchdog_20ms = 50;
+  params.tilt.communication_recovery_ms = 500;
   params.tilt.abort_current_ma = 1200;
   params.tilt.abort_temperature_c = 60;
   params.tilt.min_voltage_decivolt = 45;

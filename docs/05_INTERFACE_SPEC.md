@@ -53,8 +53,19 @@ StampC5 uses USB at 115200 baud and accepts:
 The property allowlist is:
 
 - `container.{fill,headspace,viscosity,particle_count,particle_hardness,span_x_m,span_y_m,span_z_m}`;
-- `mass.{damping_ratio_x,damping_ratio_y,energy_decay_s}`;
-- `resonance.master_gain`.
+- `mass.{damping_ratio_x,damping_ratio_y,energy_decay_s,granular_static_friction,granular_dynamic_friction}`;
+- `resonance.master_gain`;
+- `tilt.{max_tilt_deg,k_cm,k_tau,k_phi}` in the updated AtomS3 image.
+
+The added remote tilt ranges are respectively 0–10, 0–1, 0–1 and 0–8;
+nonfinite/out-of-range requests are rejected, not silently clamped. These are
+rendering coefficients, not servo PID/current, calibrated directions or
+mechanical bounds. `max_tilt_deg` scales the base content-position cue; the
+separate final `max_total_cmd_deg` is unchanged. Existing properties and the
+local USB setters retain their prior semantics. The two newly exposed remote
+granular friction fields each reject nonfinite/out-of-range values outside
+0–2; local setters clamp to 0–2. Their narrower coupled exploration range is
+owned by [06](06_PARAMETER_MODEL.md#joint-preference-search).
 
 Normal content change is Stop -> preset/properties -> applied ACK -> deliberate
 Live and desired output enables. Connecting, reconnecting or choosing a preset
@@ -72,6 +83,34 @@ A radio send result is not an execution result. Requests carry a session and
 request ID; the AtomS3 returns applied/rejected/unsupported or another explicit
 result with its frame counter. The host must associate an ACK with the request
 and distinguish rejection, timeout and stale state from success.
+
+The updated AtomS3's `get state` ACK also returns actual tilt configuration in
+its existing opaque `detail` string:
+
+```text
+tilt_v1=10,0.35,0.25,4
+```
+
+Order: `max_tilt_deg,k_cm,k_tau,k_phi`, each formatted as `%.6g`. Compare with
+`max(1e-6, abs(requested) * 1e-5)` tolerance. Reported values are not clamped to
+the remote search ranges; nonfinite/unrepresentable configuration returns
+`tilt_v1_unavailable` instead of a valid prefix. This is parameter readback,
+not encoder position or proof of felt output. The existing 60-byte detail,
+88-byte ACK, 140-byte command and telemetry packets are unchanged; StampC5
+already forwards the opaque string and needs no update for this addition.
+
+The [joint tuning workspace](../webxr/README.md#preference-tuning) probes this
+capability after Stop and before preset/set writes, then verifies all four tilt
+values after applying its complete seven-value candidate. An old FW without
+the prefix is rejected before changing parameters. V3 supports the three
+representative presets in [06](06_PARAMETER_MODEL.md#joint-preference-search);
+the selected material pair replaces water damping for sand. A tilt-capable
+older image may still reject the newly added sand setters: rejection stops
+the transaction without Start, but does not roll back an already loaded preset.
+The vibration/material values still have execution ACKs only, not numeric
+readback. Before an explicit v2/v3
+Start the client rechecks tilt values and stopped configuration. Existing v1
+two-axis sessions keep their three-value transaction and can use old firmware.
 
 | Contract | Bytes |
 |---|---:|
@@ -99,6 +138,16 @@ communication count, command/status age and per-servo validity, torque,
 home/goal/actual position, current, voltage, temperature and mode.
 A model command is not a measured position. An invalid or stale readback is
 unknown, not a physical zero or confirmed torque-off.
+
+Bounded live servo-link retry uses the existing values `tilt_servo.state=1`
+(Checking), `fault=2` (Communication), with `run_mode=live` and
+`safety.tilt_disarmed=false`. The local runtime request remains enabled; a
+missed device's feedback is invalidated. This is not `state=5` (FaultLatched).
+After both servos have fresh healthy feedback, the state returns to Armed (4)
+and fault None (0), without a new browser command. The client labels retry and
+temporarily unknown tilt feedback, and keeps Stop available. The wire layout,
+reserved bits, enums and packet versions are unchanged; no new bridge image is
+needed. The policy and its bounds are owned by [04](04_HARDWARE_AND_PIN_SPEC.md).
 
 V3 adds `resolved.family`, `resolved.container` (three spans, fill, headspace,
 viscosity, particle count/hardness), and `resolved.model`
@@ -209,6 +258,9 @@ evidence that a remote Stop executed.
 The implemented stale-IMU stop, servo watchdog, feedback limits and output
 bounds remain. Software disarm and an applied Stop ACK must not be represented
 as verified physical torque-off when a servo reply is missing.
+Explicit Stop cancels the live servo-link retry; it never schedules an automatic
+arm or delayed restart. USB/ESP-NOW reconnection likewise remains distinct from
+the bounded, on-device DYNAMIXEL retry.
 
 Recorder/replay, calibration and strict host-lab evidence formats remain
 available in source and historical records. They are not prerequisites for

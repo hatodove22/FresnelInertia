@@ -1,4 +1,5 @@
 #include "haptics/HapticPipeline.hpp"
+#include "haptics/HapticLinkTuning.hpp"
 
 #include <Arduino.h>
 
@@ -63,32 +64,6 @@ bool layoutAllowsWall(AudioOutputLayout layout, WallId wall) {
     return wall == WallId::Front || wall == WallId::Back || wall == WallId::Top || wall == WallId::Bottom;
   }
   return wall == WallId::Front || wall == WallId::Back;
-}
-
-bool isHapticLinkTunablePath(const char* path) {
-  if (path == nullptr) {
-    return false;
-  }
-  constexpr const char* kAllowedPaths[]{
-      "container.fill",
-      "container.headspace",
-      "container.viscosity",
-      "container.particle_count",
-      "container.particle_hardness",
-      "container.span_x_m",
-      "container.span_y_m",
-      "container.span_z_m",
-      "mass.damping_ratio_x",
-      "mass.damping_ratio_y",
-      "mass.energy_decay_s",
-      "resonance.master_gain",
-  };
-  for (const char* allowed : kAllowedPaths) {
-    if (std::strcmp(path, allowed) == 0) {
-      return true;
-    }
-  }
-  return false;
 }
 
 const char* controlResultDetail(EspNowControlResult result) {
@@ -339,6 +314,7 @@ void HapticPipeline::processEspNowControlRequests() {
     const auto operation =
         static_cast<EspNowControlOperation>(request.packet.operation);
     const char* detail = controlResultDetail(result);
+    char state_detail[sizeof(EspNowControlResponseV1{}.detail)]{};
     bool publish_now = false;
 
     if (result == EspNowControlResult::Applied) {
@@ -347,6 +323,8 @@ void HapticPipeline::processEspNowControlRequests() {
           detail = "paired";
           break;
         case EspNowControlOperation::GetState:
+          detail = formatHapticLinkTiltState(params_.tilt, state_detail, sizeof(state_detail))
+                       ? state_detail : "tilt_v1_unavailable";
           publish_now = true;
           break;
         case EspNowControlOperation::SafeIdle:
@@ -421,6 +399,11 @@ void HapticPipeline::processEspNowControlRequests() {
               !isHapticLinkTunablePath(request.packet.path)) {
             result = EspNowControlResult::InvalidRequest;
             detail = "parameter_not_allowlisted";
+            break;
+          }
+          if (!isHapticLinkTunableNumber(request.packet.path, request.packet.number)) {
+            result = EspNowControlResult::InvalidRequest;
+            detail = "parameter_out_of_range";
             break;
           }
           ControlValue value{};
@@ -888,6 +871,10 @@ bool HapticPipeline::applyParamPath(const char* path, const ControlValue& value)
     params_.mass.damping_ratio_x = clampf(value.number, 0.0f, 2.0f);
   } else if (std::strcmp(path, "mass.damping_ratio_y") == 0 && value.has_number) {
     params_.mass.damping_ratio_y = clampf(value.number, 0.0f, 2.0f);
+  } else if (std::strcmp(path, "mass.granular_static_friction") == 0 && value.has_number) {
+    params_.mass.granular_static_friction = clampf(value.number, 0.0f, 2.0f);
+  } else if (std::strcmp(path, "mass.granular_dynamic_friction") == 0 && value.has_number) {
+    params_.mass.granular_dynamic_friction = clampf(value.number, 0.0f, 2.0f);
   } else if (std::strcmp(path, "mass.energy_decay_s") == 0 && value.has_number) {
     params_.mass.energy_decay_s = clampf(value.number, 0.001f, 10.0f);
   } else if (std::strcmp(path, "mass.accel_to_energy_gain") == 0 && value.has_number) {

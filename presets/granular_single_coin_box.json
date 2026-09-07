@@ -1,0 +1,22 @@
+{
+  "preset": "granular_single_coin_box",
+  "family": "Granular",
+  "container": {
+    "span_x_m": 0.05,
+    "span_y_m": 0.05,
+    "span_z_m": 0.03,
+    "shell_mass_kg": 0.075,
+    "content_mass_full_kg": 0.125,
+    "shell_cg_y_m": -0.007,
+    "fill": 0.04,
+    "headspace": 0.96,
+    "viscosity": 0.05,
+    "particle_count": 0.03,
+    "particle_hardness": 0.90
+  },
+  "event": {
+    "impact_rate_hz": 22.0,
+    "roll_rate_hz": 8.0,
+    "scrape_threshold": 0.40
+  }
+}

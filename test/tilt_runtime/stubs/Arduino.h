@@ -24,21 +24,24 @@ class HardwareSerial {
   std::deque<uint8_t> rx;
   std::vector<std::vector<uint8_t>> writes;
   unsigned flush_calls = 0;
+  unsigned begin_calls = 0;
+  unsigned end_calls = 0;
   bool confirm_torque_off = false;
   int tx_capacity = 256;
+  bool is_open = true;
 
-  int available() const { return static_cast<int>(rx.size()); }
-  int availableForWrite() const { return tx_capacity; }
+  int available() const { return is_open ? static_cast<int>(rx.size()) : 0; }
+  int availableForWrite() const { return is_open ? tx_capacity : 0; }
   int read() {
-    if (rx.empty()) return -1;
+    if (!is_open || rx.empty()) return -1;
     const int value = rx.front();
     rx.pop_front();
     return value;
   }
   std::size_t write(const uint8_t* bytes, std::size_t length);
   void flush() { ++flush_calls; }
-  void end() {}
-  void begin(uint32_t, int, int, int) {}
+  void end() { ++end_calls; is_open = false; rx.clear(); }
+  void begin(uint32_t, int, int, int) { ++begin_calls; is_open = true; }
   void setRxBufferSize(std::size_t) {}
 };
 

@@ -98,6 +98,33 @@ void testVersionsAndPrefix() {
   CHECK(v3.mass_fill == source.mass.fill);
 }
 
+void testServoRetryUsesExistingWireFields() {
+  auto source = snapshot();
+  source.tilt_servo.state = TiltServoState::Checking;
+  source.tilt_servo.fault = TiltServoFault::Communication;
+  source.tilt_servo.runtime_requested = true;
+  source.tilt_servo.communication_errors = 3;
+  source.tilt_servo.devices[0].status_valid = false;
+  source.safety.tilt_disarmed = false;
+  const auto v2 = encodeEspNowTelemetryPacketV2(source, 78U);
+  const auto v3 = encodeEspNowTelemetryPacketV3(source, 78U, makeEspNowResolvedState(params()));
+  const auto v4 = encodeEspNowTelemetryPacketV4(source, 78U, makeEspNowResolvedState(params()));
+  CHECK(validateEspNowTelemetryPacketV2(&v2, sizeof(v2)));
+  CHECK(validateEspNowTelemetryPacketV3(&v3, sizeof(v3)));
+  CHECK(validateEspNowTelemetryPacketV4(&v4, sizeof(v4)));
+  CHECK(v2.tilt_servo_state == 1 && v2.tilt_servo_fault == 2);
+  CHECK(v2.safety_tilt_disarmed == 0 && v2.tilt_communication_errors == 3);
+  CHECK((v2.tilt_device_flags & 1U) == 0);  // Missing feedback is not healthy.
+  CHECK(v2.tilt_reserved == 0 && v3.tilt_reserved == 0 && v4.tilt_reserved == 0);
+  CHECK(v3.tilt_servo_state == v2.tilt_servo_state && v4.tilt_servo_fault == v2.tilt_servo_fault);
+  // A hard stop remains distinct without extending enums or the 250-byte wire.
+  source.tilt_servo.state = TiltServoState::FaultLatched;
+  source.safety.tilt_disarmed = true;
+  const auto stopped = encodeEspNowTelemetryPacketV3(source, 79U, makeEspNowResolvedState(params()));
+  CHECK(validateEspNowTelemetryPacketV3(&stopped, sizeof(stopped)));
+  CHECK(stopped.tilt_servo_state == 5 && stopped.tilt_servo_fault == 2 && stopped.safety_tilt_disarmed == 1);
+}
+
 void testResolvedConfigurationAndOffsets() {
   const auto value = packet();
   const auto& r = value.resolved;
@@ -312,6 +339,7 @@ void testCanonicalDemoJson() {
 
 int main() {
   testVersionsAndPrefix();
+  testServoRetryUsesExistingWireFields();
   testResolvedConfigurationAndOffsets();
   testEnvelopeAndCrc();
   testNumericValidation();
@@ -321,6 +349,6 @@ int main() {
 #ifdef HAPTICS_TEST_DEMO_JSON
   testCanonicalDemoJson();
 #endif
-  std::puts("ESP-NOW v3/v4: 7 regression groups passed (v1/v2/v3 compatibility retained).");
+  std::puts("ESP-NOW v3/v4: 8 regression groups passed (v1/v2/v3 compatibility retained).");
   return 0;
 }

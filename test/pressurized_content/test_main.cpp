@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -168,12 +169,12 @@ void test_recoil_profile_fill_and_late_join() {
   mass.pressure.phase = PressurePhase::Burst;
   mass.pressure.charge = 1.0f;
   mass.pressure.burst_sequence = 1;
-  CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.042f) < kTolerance);
-  mass.pressure.phase_s = 0.08f;
-  CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.042f) < kTolerance);
-  mass.pressure.phase_s = 0.15f;
-  CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.0245f) < kTolerance);
-  mass.pressure.phase_s = 0.22f;
+  CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.055f) < kTolerance);
+  mass.pressure.phase_s = 0.05f;
+  CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.055f) < kTolerance);
+  mass.pressure.phase_s = 0.105f;
+  CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.031f) < kTolerance);
+  mass.pressure.phase_s = 0.16f;
   CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.007f) < kTolerance);
   // A consumer first observing an old Burst sees its tail, not a new kick.
   mass.pressure.phase_s = 1.0f;
@@ -182,9 +183,9 @@ void test_recoil_profile_fill_and_late_join() {
   mass.pressure.phase_s = 0.0f;
   mass.pressure.charge = 1.0f;
   mass.fill = 0.31f;
-  CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.021f) < kTolerance);
+  CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.0275f) < kTolerance);
   mass.fill = 1.0f;
-  CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.042f) < kTolerance);
+  CHECK(std::fabs(freshRecoil(params, mass).common_force_n + 0.055f) < kTolerance);
 }
 
 void test_recoil_gates_preserve_baseline() {
@@ -234,8 +235,7 @@ void test_recoil_retains_as_built_common_direction_slew_and_travel() {
   mass.pressure.phase = PressurePhase::Burst;
   mass.pressure.burst_sequence = 1;
   float peak = 0.0f;
-  const float max_step = std::fmin(params.tilt.max_velocity_deg_s,
-                                  params.tilt.pseudoforce_slew_deg_s) * kDt;
+  const float max_step = params.tilt.max_velocity_deg_s * kDt;
   for (int frame = 0; frame < 400; ++frame) {
     mass.pressure.phase_s = frame * kDt;
     mass.pressure.charge = std::exp(-mass.pressure.phase_s / 0.70f);
@@ -250,8 +250,141 @@ void test_recoil_retains_as_built_common_direction_slew_and_travel() {
     previous = cmd;
   }
   // A model-level amplitude check only; physical salience is handled feedback.
-  CHECK(peak > 4.0f && peak < 5.0f);
+  CHECK(peak > 4.85f && peak <= 5.0f + kTolerance);
   std::printf("recoil as-built filtered peak: %.3f deg\n", peak);
+}
+
+float filteredReference(float previous, float target, float dt, float cutoff, float slew) {
+  constexpr float pi = 3.14159265358979323846f;
+  const float alpha = dt / (1.0f / (2.0f * pi * cutoff) + dt);
+  return std::clamp(previous + alpha * (target - previous),
+                    previous - slew * dt, previous + slew * dt);
+}
+
+// Frozen pre-sharpening reference for the isolated, centered as-built cue.
+// This deliberately does not duplicate the production pressure/CG model.
+float originalOpeningReference(float previous, float age, float dt) {
+  constexpr float pi = 3.14159265358979323846f;
+  const float release = std::clamp((age - 0.080f) / 0.140f, 0.0f, 1.0f);
+  const float kick = age >= 0.220f ? 0.0f : 0.5f * (1.0f + std::cos(pi * release));
+  const float force = 0.042f * kick + 0.007f * std::exp(-age / 0.70f) * (1.0f - kick);
+  const float target = std::min(5.0f, std::atan(2.0f * force / 1.000001f) * 180.0f / pi);
+  return filteredReference(previous, target, dt, 6.0f, 80.0f);
+}
+
+void test_opening_attack_is_sharper_at_model_and_dispatch_intervals() {
+  for (const float dt : {0.002f, 0.004f, 0.010f}) {
+    auto params = makeDefaultSodaPreset();
+    applyAsBuiltAtomS3Profile(params);
+    TiltPseudoForceModel tilt;
+    tilt.configure(params);
+    auto mass = centeredSoda(params);
+    tilt.update(gravity(), mass, dt);
+    mass.pressure.phase = PressurePhase::Burst;
+    mass.pressure.burst_sequence = 1;
+    float original = 0.0f, old20 = 0.0f, old40 = 0.0f, new20 = 0.0f, new40 = 0.0f;
+    float old90 = 0.0f, new90 = 0.0f, peak = 0.0f;
+    const int sample20 = static_cast<int>(std::lround(0.020f / dt));
+    const int sample40 = static_cast<int>(std::lround(0.040f / dt));
+    for (int step = 1; step <= static_cast<int>(std::lround(0.4f / dt)); ++step) {
+      mass.pressure.phase_s = (step - 1) * dt;
+      mass.pressure.charge = std::exp(-mass.pressure.phase_s / 0.70f);
+      const auto command = tilt.update(gravity(), mass, dt);
+      original = originalOpeningReference(original, mass.pressure.phase_s, dt);
+      const float angle = command.thumb_angle_deg;
+      CHECK(std::fabs(angle - command.index_angle_deg) < kTolerance);
+      peak = std::max(peak, angle);
+      if (new90 == 0.0f && angle >= 4.5f) new90 = step * dt;
+      if (old90 == 0.0f && original >= 4.80157f * 0.9f) old90 = step * dt;
+      if (step == sample20) { old20 = original; new20 = angle; }
+      if (step == sample40) { old40 = original; new40 = angle; }
+    }
+    CHECK(new20 > old20 * 1.4f && new20 >= 2.35f);
+    CHECK(new40 > old40 + 1.0f && new40 >= 4.3f);
+    CHECK(new90 > 0.0f && new90 <= 0.050f + kTolerance);
+    CHECK(old90 - new90 >= 0.020f - kTolerance);
+    CHECK(peak > 4.85f && peak <= 5.0f + kTolerance);
+    std::printf("opening dt=%.0fms: old/new at20ms %.3f/%.3f deg, at40ms %.3f/%.3f deg, 90%% %.0f/%.0f ms, peak %.3f deg\n",
+                dt * 1000.0f, old20, new20, old40, new40, old90 * 1000.0f, new90 * 1000.0f, peak);
+  }
+}
+
+void test_nonopening_cg_changes_keep_the_ordinary_command_filter() {
+  for (int gate = 0; gate < 5; ++gate) {
+    auto params = makeDefaultSodaPreset();
+    applyAsBuiltAtomS3Profile(params);
+    if (gate == 0) params.features.enable_pressurized_demo = false;
+    if (gate == 4) params.tilt.enable_pseudoforce = false;
+    TiltPseudoForceModel tilt;
+    tilt.configure(params);
+    auto mass = centeredSoda(params);
+    mass.pressure.burst_sequence = 1;
+    float expected_thumb = 0.0f, expected_index = 0.0f;
+    for (int step = 0; step < 80; ++step) {
+      mass.pressure.phase = gate == 1 ? PressurePhase::Sealed :
+                            gate == 2 ? PressurePhase::Spent : PressurePhase::Burst;
+      mass.pressure.phase_s = (gate == 3 ? 0.160f : 0.0f) + step * kDt;
+      mass.pressure.charge = std::exp(-mass.pressure.phase_s / 0.70f);
+      mass.pos_norm.x = step < 40 ? 0.65f : -0.35f;
+      const auto command = tilt.update(gravity(), mass, kDt);
+      // Compare the full position+CG+vent target with the ordinary 6 Hz / 80
+      // deg/s boundary, including late vent's real force rather than muting it.
+      float thumb = params.tilt.sign_thumb * (command.thumb_base_deg + command.thumb_delta_deg);
+      float index = params.tilt.sign_index * (command.index_base_deg + command.index_delta_deg);
+      const float scale = std::min(1.0f, params.tilt.max_total_cmd_deg /
+          std::max(0.000001f, std::max(std::fabs(thumb), std::fabs(index))));
+      thumb *= scale; index *= scale;
+      const float slew = std::min(params.tilt.max_velocity_deg_s, params.tilt.pseudoforce_slew_deg_s);
+      expected_thumb = filteredReference(expected_thumb, thumb, kDt, params.tilt.command_cutoff_hz, slew);
+      expected_index = filteredReference(expected_index, index, kDt, params.tilt.command_cutoff_hz, slew);
+      CHECK(std::fabs(command.thumb_angle_deg - expected_thumb) < kTolerance);
+      CHECK(std::fabs(command.index_angle_deg - expected_index) < kTolerance);
+    }
+  }
+}
+
+void test_opening_respects_lower_velocity_and_remaining_travel() {
+  auto params = makeDefaultSodaPreset();
+  applyAsBuiltAtomS3Profile(params);
+  params.tilt.max_velocity_deg_s = 30.0f;
+  TiltPseudoForceModel limited;
+  limited.configure(params);
+  auto mass = centeredSoda(params);
+  auto previous = limited.update(gravity(), mass, kDt);
+  mass.pressure.phase = PressurePhase::Burst;
+  mass.pressure.burst_sequence = 1;
+  for (int step = 0; step < 80; ++step) {
+    mass.pressure.phase_s = step * kDt;
+    mass.pressure.charge = std::exp(-mass.pressure.phase_s / 0.70f);
+    const auto command = limited.update(gravity(), mass, kDt);
+    CHECK(std::fabs(command.thumb_angle_deg - previous.thumb_angle_deg) <= 30.0f * kDt + kTolerance);
+    CHECK(std::fabs(command.index_angle_deg - previous.index_angle_deg) <= 30.0f * kDt + kTolerance);
+    if (step == 9) CHECK(command.thumb_angle_deg > 1.1f && command.thumb_angle_deg <= 1.2f + kTolerance);
+    previous = command;
+  }
+  // A sharper opening still cannot demand more than the existing travel when
+  // a same-direction position cue already occupies eight or ten degrees.
+  params.tilt.max_velocity_deg_s = 120.0f;
+  params.tilt.k_tau = 0.0f;
+  for (const float baseline : {8.0f, 10.0f}) {
+    TiltPseudoForceModel occupied;
+    occupied.configure(params);
+    mass = centeredSoda(params);
+    mass.pos_norm.x = -baseline / 10.0f;
+    for (int step = 0; step < 500; ++step) previous = occupied.update(gravity(), mass, kDt);
+    CHECK(std::fabs(previous.thumb_angle_deg - baseline) < kTolerance);
+    mass.pressure.phase = PressurePhase::Burst;
+    mass.pressure.burst_sequence = 1;
+    for (int step = 0; step < 40; ++step) {
+      mass.pressure.phase_s = step * kDt;
+      mass.pressure.charge = std::exp(-mass.pressure.phase_s / 0.70f);
+      const auto command = occupied.update(gravity(), mass, kDt);
+      CHECK(command.thumb_angle_deg <= 10.0f + kTolerance);
+      CHECK(command.index_angle_deg <= 10.0f + kTolerance);
+      if (step == 9 && baseline == 8.0f) CHECK(command.thumb_angle_deg - baseline > 1.9f);
+      if (baseline == 10.0f) CHECK(std::fabs(command.thumb_angle_deg - baseline) < kTolerance);
+    }
+  }
 }
 }  // namespace
 
@@ -321,5 +454,8 @@ int main() {
   test_recoil_profile_fill_and_late_join();
   test_recoil_gates_preserve_baseline();
   test_recoil_retains_as_built_common_direction_slew_and_travel();
-  std::puts("PASS pressure: original behavior (5), recoil phase/tail, synchronized pop/reset, invalid time, profile/fill/late join, gates/baseline, as-built command bounds (11 groups)");
+  test_opening_attack_is_sharper_at_model_and_dispatch_intervals();
+  test_nonopening_cg_changes_keep_the_ordinary_command_filter();
+  test_opening_respects_lower_velocity_and_remaining_travel();
+  std::puts("PASS pressure: original behavior (5), recoil phase/tail, synchronized pop/reset, invalid time, profile/fill/late join, gates/baseline, as-built bounds, sharper attack at 2/4/10ms, ordinary CG filter, lower velocity/occupied travel (14 groups)");
 }

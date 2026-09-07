@@ -39,7 +39,7 @@ than exposing every filter coefficient.
 
 `particle_count` is a normalized 0..1 population proxy, not a literal particle
 count. The sparse hard-particle corner uses `knock_ping`; a single-marble
-preset therefore does not require a separate engine. In the retained legacy
+preset or single-coin preset therefore does not require a separate engine. In the retained legacy
 path, `wall_threshold` adjusts the active wall zone and `splash_threshold` is
 an activity reference. The coherent path below uses actual contacts instead.
 
@@ -69,6 +69,26 @@ it; explicit new pile/pressure presets require and enable the coherent path.
   reported activity tail. Do not tune an inactive field expecting a new effect.
 
 ## Opt-in material demonstrations
+
+`granular_single_coin_box` adds an explicit one-coin comparison based on
+`granular_coin_box`. It retains the 50 x 50 x 30 mm container, 75 g shell,
+viscosity 0.05, hardness 0.90 and existing coin response/output settings.
+Its fill is 0.04, headspace 0.96 and normalized `particle_count` 0.03, selecting
+the existing sparse hard-inclusion path (`particle_count <= 0.10`, hardness
+`>= 0.80`). Coherent wall contacts become individual `WallHit` events rather
+than bulk `ImpactCluster` events; no new dynamics or control law is added.
+`content_mass_full_kg=0.125` multiplied by fill gives 0.005 kg effective content
+mass, not a 125 g coin. The [JSON metadata](../presets/granular_single_coin_box.json)
+matches this new built-in. Existing coin, marble and sand presets are unchanged.
+
+The Lab runs both coin conditions through the production C++ model. Connected
+single-coin selection needs the next AtomS3 firmware upload containing this
+built-in; an older image can reject the name, and the client keeps the actual
+applied material visible. Existing generic preset-name transport and resolved
+configuration carry it without a new wire format or StampC5 update. The richer
+coin rendering is Web presentation only; single-coin model checks do not
+establish its physical feel. Visual ownership is described in
+[31](reference/31_REUSABLE_VISUAL_ARCHITECTURE.md).
 
 Generic defaults and the existing marble/sand presets are unchanged. Built-ins
 `granular_sand_pile_box` and `liquid_soda_bottle` select new behavior explicitly.
@@ -120,6 +140,13 @@ gaps separately. Runtime servo feedback now advances without blocking that loop;
 preflight, arm and explicit Stop verification remain synchronous.
 Those implementation details are not independent demo acceptance gates.
 
+`tilt.communication_recovery_ms` is profile-owned: 0 in generic defaults
+(retain the existing terminal communication-fault policy), 500 ms in the
+assembled AtomS3 profile, with a runtime hard cap of 750 ms. It is not a remote
+setter or material parameter and survives preset selection with the other tilt
+configuration. It grants a bounded live DYNAMIXEL retry window, not permission to restart after Stop or a
+hardware/IMU fault. [04](04_HARDWARE_AND_PIN_SPEC.md) owns the recovery behavior.
+
 ## Audio
 
 | Setting | Assembled profile |
@@ -147,6 +174,7 @@ the software zero assertion, not the manual S1 position.
 
 | Purpose | Parameters |
 |---|---|
+| Content-position base cue | `tilt.max_tilt_deg` (coherent law; not the final mechanical command bound) |
 | Shell/content mass and CoG | `container.shell_mass_kg/content_mass_full_kg/shell_cg_x_m/shell_cg_y_m` |
 | Enable model correction | `tilt.enable_pseudoforce` |
 | Force/torque conversion | `tilt.k_cm/k_tau/k_phi/w_eff_m/Ft_nom_thumb_N/Ft_nom_index_N` |
@@ -166,20 +194,36 @@ the differential load/inertia cue. This remains a reduced x/y model, not full
 The coherent model combines common content position with pseudo-force and
 differential CoG/inertia. It scales both angles together to the travel bound,
 then low-passes and slew-limits the complete command using the smaller of
-`max_velocity_deg_s` and `pseudoforce_slew_deg_s`. The assembled value is 80
-degrees/s. No hard correction deadband is applied in this path. Generic legacy
+`max_velocity_deg_s` and `pseudoforce_slew_deg_s`. The ordinary assembled value
+is 80 degrees/s; the brief soda opening has the bounded exception below.
+No hard correction deadband is applied in this path. Generic legacy
 behavior still filters only the correction and uses a differential position base.
 
 The opt-in coherent liquid pressure effect adds an authored negative-body-Y
 recoil to the common-force term during `Burst`, opposite the body +Y outlet.
 In [TiltPseudoForceModel.cpp](../src/TiltPseudoForceModel.cpp), the cue holds
-`-0.042 N` for 80 ms, then cosine-blends to `-0.007 N * charge` by 220 ms;
+`-0.055 N` for 50 ms, then cosine-blends to `-0.007 N * charge` by 160 ms;
 the whole cue scales by `clamp(fill / 0.62, 0, 1)`. These are fixed tactile
 coefficients, not measured thrust or new remotely adjustable parameters.
 It uses shared `pressure.phase_s`, not a timer restarted when tilt is enabled.
 The existing `common_force_n` now includes this term after `k_cm` inertia
-scaling; the existing signs, common-angle cap, full-command filter and slew
-still apply. CG, pressure evolution, wire fields and other materials are unchanged.
+scaling; the existing signs, common-angle cap and full-command travel scaling
+still apply. To sharpen the opening without changing ordinary response, its
+fill-scaled cosine envelope also blends the positive command cutoff toward at
+least 24 Hz and multiplies `pseudoforce_slew_deg_s` by up to 1.5, still capped
+by `max_velocity_deg_s`. At full soda fill this is 24 Hz / 120 degrees/s on the
+assembled profile, returning to 6 Hz / 80 degrees/s by 160 ms. An intentionally
+disabled (nonpositive) filter remains disabled; a higher cutoff is not reduced.
+The boost requires enabled pseudoforce and a valid opening, not charge alone
+or the whole vent phase. No new independent clock or event is introduced.
+
+The shaping remains after full-command composition, so simultaneous CG motion
+also passes through that brief faster filter. Outside the opening its response
+is unchanged. Existing +/-10-degree total travel and 5-degree common correction
+remain: an already saturated same-direction pose has no additional kick room.
+Pressure evolution, vibration excitation, wire fields, current/PWM and servo
+bus/profile settings are unchanged. A physical feel judgment needs the updated
+AtomS3; rebuilding/refreshing the Web page changes only the output-free Lab.
 
 `sign_thumb/sign_index` calibrate the complete coherent command (only the
 correction in legacy mode). The
@@ -248,15 +292,57 @@ independent. Other allowlisted properties remain available through the dongle
 commands. Preset/fill edits first Stop; execution ACKs and reported applied state
 separate a requested change from success. Start then enables the user's selected
 outputs explicitly. Client build/parser tests do not establish physical
-Android transfer or perceptual agreement; that mobile path remains planned
-and unverified. Existing desktop and initial Quest evidence is retained in 16;
+Android transfer or perceptual agreement. The latest positive smartphone report
+and its unitemized device/flow coverage are recorded in
+[16](16_PROGRESS_STATUS.md); it does not verify the newly added coin condition.
+Existing desktop and initial Quest evidence is retained there;
 VR/Quest work is on hold.
 
-The proposed tuning studio, perceptual-axis controls, A/B comparison and saving
-of tuned configurations are not implemented client features. They are distinct
-from the existing dynamic CG model and device-driven content visualization.
-Their next steps belong in [08](08_IMPLEMENTATION_PLAN.md); this field catalog
-does not imply that every underlying parameter is already a UI control.
+## Joint preference search
+
+The [preference workspace](../webxr/README.md#preference-tuning) compares
+three fixed representative conditions with all five normalized coordinates proposed together:
+`liquid_small_box`, `granular_single_marble_box` and `granular_sand_pile_box`.
+The judgment concerns the combined vibration and fingertip-plane experience,
+not separately optimized output branches.
+
+| Search coordinate | Applied field(s) | Range | Meaning in the coherent model |
+|---|---|---|---|
+| Vibration strength | `resonance.master_gain` | 0.10–1.00 | Four-channel vibration gain, not servo strength |
+| Material response (water / marble) | `mass.damping_ratio_x/y` (equal values) | 0.05–1.50 | Slosh / single-particle drag and downstream cues |
+| Material response (sand instead of damping) | `mass.granular_static_friction`, `mass.granular_dynamic_friction` | static 0.20–0.90; dynamic = static × 7/11 | Collapse threshold, flow and retained center of mass |
+| Content position | `tilt.max_tilt_deg` | 0–10 degrees | Base angle from content position, not a mechanical travel limit |
+| Vertical inertia | `tilt.k_cm` | 0–1 | Common pseudo-force contribution |
+| CoG / horizontal inertia | `tilt.k_tau` | 0–1 | Differential torque contribution |
+
+`tilt.k_phi` is saved as a fixed, positive value no greater than 8. For this
+ordinary coherent conditions the force/torque gains depend on `k_phi*k_cm` and
+`k_phi*k_tau`; searching all three would add a redundant scale. It is not a
+sixth search coordinate. Each current v3 candidate therefore applies exactly
+seven numeric fields, including this fixed multiplier and the material pair.
+The pile path bypasses the generic damping calculation; searching damping for
+that condition would have no effect. Its friction axis replaces damping, so
+each material still has five dimensions, not six. High friction can prevent a
+collapse during a moderate tilt; that is an intended candidate behavior.
+The control law, preset/default values, correction limits, `max_total_cmd_deg`
+and hardware limits are unchanged. Existing v1 sessions remain two-dimensional
+and apply only their original vibration/damping fields; import never invents
+tilt values for an old comparison. V2 retains the original joint water meaning.
+V3 records a material identity and keeps votes separate for each session.
+
+Current candidate application requires the new AtomS3 firmware extension,
+which is implemented but not yet flashed; StampC5 needs no change. Before a
+preset or parameter write, the client checks support using the existing state
+request. The four tilt coefficients are read back as applied numbers with
+`%.6g` precision; vibration and damping/friction values still have execution ACKs only.
+Wire/application details belong in [05](05_INTERFACE_SPEC.md), current checks
+and deployment facts in [16](16_PROGRESS_STATUS.md). Session JSON retains
+the exploration history; a separate selected-profile JSON retains just the
+seven settings and source/evaluation labels. Same-material reuse is exact;
+cross-material reuse copies only vibration and the four tilt coefficients onto
+the target's own material baseline. It never imports votes. Neither format
+is a persistent device preset write. Perceptual-shape controls and arbitrary
+material editing remain planned in [08](08_IMPLEMENTATION_PLAN.md).
 
 Preset loads preserve hardware/session gates, transport, interface/recorder
 settings and calibrated carriers. For the demo, record the actual target and

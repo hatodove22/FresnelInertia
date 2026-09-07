@@ -45,7 +45,12 @@ float rateLimit(float target, float current, float slew_deg_s, float dt_s) {
 // Authored common-force cue opposite the soda's body +Y outlet. Use the same
 // burst age as vibration/visuals: enabling tilt partway through venting must
 // not start another opening kick. These are tactile gains, not fluid thrust.
-float sodaRecoilForceN(const SystemParams& params, const MassState& mass) {
+struct SodaRecoilCue {
+  float force_n = 0.0f;
+  float opening = 0.0f;
+};
+
+SodaRecoilCue sodaRecoil(const SystemParams& params, const MassState& mass) {
   if (!params.features.enable_coherent_container_demo ||
       !params.features.enable_pressurized_demo || !mass.pressure.enabled ||
       mass.family != MaterialFamily::Liquid ||
@@ -53,20 +58,23 @@ float sodaRecoilForceN(const SystemParams& params, const MassState& mass) {
       !std::isfinite(mass.fill) || mass.fill <= 0.0f ||
       !std::isfinite(mass.pressure.phase_s) || mass.pressure.phase_s < 0.0f ||
       !std::isfinite(mass.pressure.charge)) {
-    return 0.0f;
+    return {};
   }
 
-  constexpr float kick_force_n = 0.042f;
+  constexpr float kick_force_n = 0.055f;
   constexpr float vent_force_n = 0.007f;
-  constexpr float kick_hold_s = 0.080f;
-  constexpr float kick_end_s = 0.220f;
+  constexpr float kick_hold_s = 0.050f;
+  constexpr float kick_end_s = 0.160f;
   const float age_s = mass.pressure.phase_s;
   const float release = clamp01((age_s - kick_hold_s) / (kick_end_s - kick_hold_s));
   const float kick = age_s >= kick_end_s ? 0.0f :
       0.5f * (1.0f + std::cos(kPi * release));
   const float amount = clamp01(mass.fill / 0.62f);
-  return -amount * (kick_force_n * kick +
-                    vent_force_n * clamp01(mass.pressure.charge) * (1.0f - kick));
+  SodaRecoilCue cue{};
+  cue.force_n = -amount * (kick_force_n * kick +
+                          vent_force_n * clamp01(mass.pressure.charge) * (1.0f - kick));
+  cue.opening = amount * kick;
+  return cue;
 }
 
 }  // namespace
@@ -181,8 +189,8 @@ TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const Mas
   const float f_app_x = m_app * (g_qs_ms2_.x - a_dyn_ms2_.x);
   const float f_app_y = m_app * (g_qs_ms2_.y - a_dyn_ms2_.y);
   const float tau_z = r_cg_x * f_app_y - r_cg_y * f_app_x;
-  const float f_cm = params_.tilt.k_cm * (-m_app * a_dyn_ms2_.y) +
-                     sodaRecoilForceN(params_, mass);
+  const auto recoil = sodaRecoil(params_, mass);
+  const float f_cm = params_.tilt.k_cm * (-m_app * a_dyn_ms2_.y) + recoil.force_n;
   const float t_df = params_.tilt.k_tau * tau_z;
 
   const float phi_cm_thumb_rad = std::atan(params_.tilt.k_phi * (0.5f * f_cm) / (params_.tilt.Ft_nom_thumb_N + eps));
@@ -252,13 +260,22 @@ TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const Mas
     const float scale = std::min(1.0f, params_.tilt.max_total_cmd_deg / std::max(eps, peak));
     target.x *= scale;
     target.y *= scale;
+    // An opening is a short impact, not sustained mass travel. Sharpen just
+    // that shared envelope, blending back to the ordinary filter on release.
+    // Keep the existing absolute velocity, angle, common-angle and travel
+    // caps; do not change the bus profile or create another kick timer.
+    const float opening = params_.tilt.enable_pseudoforce ? recoil.opening : 0.0f;
+    const float cutoff = params_.tilt.command_cutoff_hz <= 0.0f
+        ? params_.tilt.command_cutoff_hz
+        : params_.tilt.command_cutoff_hz + opening *
+            std::max(0.0f, 24.0f - params_.tilt.command_cutoff_hz);
     const float slew = std::min(params_.tilt.max_velocity_deg_s,
-                                params_.tilt.pseudoforce_slew_deg_s);
+                                params_.tilt.pseudoforce_slew_deg_s * (1.0f + 0.5f * opening));
     command_deg_.x = rateLimit(
-        lowPassStep(command_deg_.x, target.x, params_.tilt.command_cutoff_hz, dt_s),
+        lowPassStep(command_deg_.x, target.x, cutoff, dt_s),
         command_deg_.x, slew, dt_s);
     command_deg_.y = rateLimit(
-        lowPassStep(command_deg_.y, target.y, params_.tilt.command_cutoff_hz, dt_s),
+        lowPassStep(command_deg_.y, target.y, cutoff, dt_s),
         command_deg_.y, slew, dt_s);
     thumb_rel_deg = command_deg_.x;
     index_rel_deg = command_deg_.y;

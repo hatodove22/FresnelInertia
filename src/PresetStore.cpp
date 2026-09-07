@@ -23,6 +23,7 @@ constexpr BuiltinPreset kBuiltinPresets[] = {
     {"liquid_half_tube", MaterialFamily::Liquid, &makeDefaultLiquidHalfTubePreset},
     {"liquid_soda_bottle", MaterialFamily::Liquid, &makeDefaultSodaPreset},
     {"granular_coin_box", MaterialFamily::Granular, &makeDefaultGranularPreset},
+    {"granular_single_coin_box", MaterialFamily::Granular, &makeDefaultGranularSingleCoinPreset},
     {"granular_sand_box", MaterialFamily::Granular, &makeDefaultGranularSandPreset},
     {"granular_sand_pile_box", MaterialFamily::Granular, &makeDefaultGranularPilePreset},
     {"granular_bead_box", MaterialFamily::Granular, &makeDefaultGranularBeadPreset},

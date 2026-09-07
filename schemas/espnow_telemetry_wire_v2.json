@@ -13,6 +13,7 @@
     "covered_byte_count": 196
   },
   "tilt_extension": {
+    "runtime_retry_semantics": "During bounded servo-link retry, state=checking(1), fault=communication(2), run_mode=live and safety_tilt_disarmed=0. No new enum, reserved bit or packet version is used. fault_latched(5) is a stopped fault requiring explicit recovery; invalid device flags remain unknown feedback, not confirmed OFF.",
     "offset": 160,
     "fields": [
       {"name": "tilt_servo_state", "offset": 160, "type": "uint8", "enum": {"0": "disabled", "1": "checking", "2": "ready_torque_off", "3": "arming", "4": "armed", "5": "fault_latched"}},

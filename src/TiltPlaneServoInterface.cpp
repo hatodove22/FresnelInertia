@@ -60,6 +60,9 @@ constexpr uint32_t kStatusTimeoutMs = 45;
 // Startup uses synchronous retries. Runtime uses the same limits incrementally
 // so a missing reply never stalls the shared haptic pipeline.
 constexpr uint8_t kReadTransactionAttempts = 3;
+constexpr uint32_t kRuntimeUartRestartAfterMs =
+    kStatusTimeoutMs * kReadTransactionAttempts;
+constexpr uint16_t kMaxCommunicationRecoveryMs = 750;
 constexpr uint8_t kBootPreflightAttempts = 3;
 constexpr uint32_t kBootPreflightSettleMs = 120;
 constexpr std::size_t kPacketCapacity = 128;
@@ -115,19 +118,26 @@ void writeLe32(uint8_t* output, uint32_t value) {
 }
 
 void drainInput() {
-  while (kTiltSerial.available() > 0) {
+  // Match the configured RX ring, without letting continuous external traffic
+  // turn a nonblocking runtime write/restart into an unbounded drain loop.
+  std::size_t budget = 512U;
+  while (budget-- > 0U && kTiltSerial.available() > 0) {
     kTiltSerial.read();
   }
 }
 
-void restartDxlBus(const SystemParams& params) {
-  kTiltSerial.end();
-  delay(2);
+void startDxlBus(const SystemParams& params) {
   pinMode(params.pins.dynamixel_tx, OUTPUT);
   digitalWrite(params.pins.dynamixel_tx, HIGH);
   kTiltSerial.setRxBufferSize(512);
   kTiltSerial.begin(params.tilt.bus_baud, SERIAL_8N1,
                     params.pins.dynamixel_rx, params.pins.dynamixel_tx);
+}
+
+void restartDxlBus(const SystemParams& params) {
+  kTiltSerial.end();
+  delay(2);
+  startDxlBus(params);
   delay(3);
   drainInput();
 }
@@ -275,6 +285,7 @@ bool readFrame(RawFrame& frame, uint32_t timeout_ms) {
 bool waitForStatus(
     uint8_t expected_id,
     StatusPacket& status,
+    std::size_t expected_param_length,
     uint32_t timeout_ms = kStatusTimeoutMs) {
   const uint32_t start_ms = millis();
   while (millis() - start_ms < timeout_ms) {
@@ -283,9 +294,13 @@ bool waitForStatus(
     if (!readFrame(frame, std::max<uint32_t>(1U, timeout_ms - elapsed_ms))) {
       return false;
     }
-    if (decodeStatusPacket(frame.bytes.data(), frame.size, expected_id, status)) {
+    if (decodeStatusPacket(frame.bytes.data(), frame.size, expected_id, status) &&
+        status.param_length == expected_param_length) {
       return true;
     }
+    // A cancelled runtime health read may arrive during Stop/arm. DXL status
+    // packets carry no register address; only an exact response length can
+    // distinguish its 7/31-byte payload from a one-byte torque readback or ACK.
   }
   return false;
 }
@@ -295,8 +310,7 @@ bool ping(uint8_t id, uint16_t& model_number) {
     return false;
   }
   StatusPacket status{};
-  if (!waitForStatus(id, status) || status.error != 0U ||
-      status.param_length < 3U) {
+  if (!waitForStatus(id, status, 3U) || status.error != 0U) {
     return false;
   }
   model_number = readLe16(status.params.data());
@@ -322,8 +336,7 @@ bool readRegisterOnce(
     return false;
   }
   StatusPacket status{};
-  if (!waitForStatus(id, status) || status.error != 0U ||
-      status.param_length < length) {
+  if (!waitForStatus(id, status, length) || status.error != 0U) {
     return false;
   }
   std::memcpy(output, status.params.data(), length);
@@ -366,7 +379,7 @@ bool writeRegisterVerified(
     return false;
   }
   StatusPacket ignored{};
-  waitForStatus(id, ignored, 15U);
+  waitForStatus(id, ignored, 0U, 15U);
   std::array<uint8_t, 4> readback{};
   return readRegister(id, address, static_cast<uint16_t>(value_length),
                       readback.data(), readback.size()) &&
@@ -555,6 +568,7 @@ bool TiltPlaneServoInterface::begin(const SystemParams& params) {
   // RX active during TX, so idle-high TX and enough RX buffering are required
   // before the automatic half-duplex UART is started.
   cancelHealthRead();
+  cancelCommunicationRecovery();
   fault_torque_off_pending_ = false;
   restartDxlBus(params_);
   // Optional tilt failure must not take down the four-channel haptic path.
@@ -598,6 +612,7 @@ bool TiltPlaneServoInterface::setRuntimeEnabled(bool enabled) {
   if (!requested) {
 #if HAPTICS_ENABLE_TILT_SERVO && HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND
     cancelHealthRead();
+    cancelCommunicationRecovery();
     fault_torque_off_pending_ = false;
 #endif
 #if HAPTICS_ENABLE_TILT_SERVO
@@ -716,7 +731,8 @@ void TiltPlaneServoInterface::service(
     fault_torque_off_pending_ = !broadcastTorqueOff(false);
     return;
   }
-  if (!runtime_enabled_ || status_.state != TiltServoState::Armed) {
+  if (!runtime_enabled_ ||
+      (status_.state != TiltServoState::Armed && !communication_recovering_)) {
     return;
   }
   if (!command_source_healthy) {
@@ -727,9 +743,15 @@ void TiltPlaneServoInterface::service(
     latchFault(TiltServoFault::CommandTimeout);
     return;
   }
+  if (communication_recovering_ && serviceCommunicationRecovery(now_ms)) {
+    return;
+  }
   if (health_pending_) {
     serviceHealthRead(now_ms);
     if (!runtime_enabled_ || health_pending_) {
+      return;
+    }
+    if (communication_recovering_ && serviceCommunicationRecovery(now_ms)) {
       return;
     }
   }
@@ -737,14 +759,19 @@ void TiltPlaneServoInterface::service(
   // priority between reads/retries, and only the latest submitted goal is sent.
   if (now_ms - last_command_write_ms_ >= params_.tilt.command_period_ms) {
     if (!writeGoalPositions()) {
-      ++status_.communication_errors;
-      latchFault(TiltServoFault::Communication);
+      if (params_.tilt.communication_recovery_ms != 0U) {
+        noteCommunicationFailure(now_ms, 0x03U, false);
+      } else {
+        ++status_.communication_errors;
+        latchFault(TiltServoFault::Communication);
+      }
       return;
     }
     last_command_write_ms_ = now_ms;
   }
   if (!health_active_ &&
-      now_ms - last_health_poll_ms_ >= params_.tilt.health_poll_period_ms) {
+      (communication_recovering_ ||
+       now_ms - last_health_poll_ms_ >= params_.tilt.health_poll_period_ms)) {
     health_device_ = next_health_device_;
     next_health_device_ = static_cast<uint8_t>((next_health_device_ + 1U) % 2U);
     last_health_poll_ms_ = now_ms;
@@ -771,31 +798,121 @@ void TiltPlaneServoInterface::cancelHealthRead() {
   health_rx_expected_ = 0U;
 }
 
+void TiltPlaneServoInterface::cancelCommunicationRecovery() {
+  // Stop/fault can arrive between UART end() and begin(). Reopen only so the
+  // caller can send OFF; cancellation never schedules a later motion restart.
+  if (recovery_uart_phase_ == 1U) {
+    startDxlBus(params_);
+  }
+  communication_recovering_ = false;
+  recovery_valid_mask_ = 0U;
+  recovery_failed_reads_ = 0U;
+  recovery_uart_restarted_ = false;
+  recovery_uart_phase_ = 0U;
+}
+
+void TiltPlaneServoInterface::noteCommunicationFailure(
+    uint32_t now_ms, uint8_t device_mask, bool read_failure) {
+  if (!communication_recovering_) {
+    communication_recovering_ = true;
+    recovery_started_ms_ = now_ms;
+    recovery_valid_mask_ = 0U;
+    recovery_failed_reads_ = 0U;
+    recovery_uart_restarted_ = false;
+    ++status_.communication_errors;
+  } else if (read_failure) {
+    ++status_.communication_errors;
+  }
+  if (read_failure && recovery_failed_reads_ < UINT8_MAX) {
+    ++recovery_failed_reads_;
+  }
+  // Every interrupted sample restarts at control, even within an existing
+  // recovery episode. A later watchdog reply must not validate torque/motion
+  // captured before a servo reset. Keep the original episode deadline and
+  // attempt counters; fresh partial replies cannot extend the recovery budget.
+  if (health_active_) {
+    health_stage_ = 0U;
+    health_candidate_ = status_.devices[health_device_];
+  }
+  recovery_valid_mask_ &= static_cast<uint8_t>(~device_mask);
+  for (std::size_t index = 0; index < status_.devices.size(); ++index) {
+    if ((device_mask & (1U << index)) != 0U) {
+      status_.devices[index].status_valid = false;
+    }
+  }
+  // Existing wire values distinguish active checking from a latched stop.
+  status_.state = TiltServoState::Checking;
+  status_.fault = TiltServoFault::Communication;
+  status_.runtime_requested = true;
+}
+
+bool TiltPlaneServoInterface::serviceCommunicationRecovery(uint32_t now_ms) {
+  const uint16_t recovery_limit_ms = std::min(
+      params_.tilt.communication_recovery_ms, kMaxCommunicationRecoveryMs);
+  if (now_ms - recovery_started_ms_ >= recovery_limit_ms) {
+    latchFault(TiltServoFault::Communication);
+    return true;
+  }
+  if (recovery_uart_phase_ == 1U) {
+    if (now_ms - recovery_uart_phase_ms_ >= 2U) {
+      startDxlBus(params_);
+      recovery_uart_phase_ = 2U;
+      recovery_uart_phase_ms_ = now_ms;
+    }
+    return true;
+  }
+  if (recovery_uart_phase_ == 2U) {
+    if (now_ms - recovery_uart_phase_ms_ < 3U) return true;
+    drainInput();
+    recovery_uart_phase_ = 0U;
+  }
+  if (!recovery_uart_restarted_ && !health_pending_ &&
+      (recovery_failed_reads_ >= kReadTransactionAttempts ||
+       now_ms - recovery_started_ms_ >= kRuntimeUartRestartAfterMs)) {
+    // UART recovery only: no torque cycling, home recapture or synchronous
+    // readback. Both servos must then provide fresh complete status samples.
+    cancelHealthRead();
+    recovery_valid_mask_ = 0U;
+    recovery_uart_restarted_ = true;
+    kTiltSerial.end();
+    recovery_uart_phase_ = 1U;
+    recovery_uart_phase_ms_ = now_ms;
+    return true;
+  }
+  return false;
+}
+
 bool TiltPlaneServoInterface::startHealthRead(uint32_t now_ms) {
   const uint16_t address = health_stage_ == 0U ? kAddrTorqueEnable
-                                               : kAddrGoalPosition;
+                          : health_stage_ == 1U ? kAddrGoalPosition
+                                                : kAddrBusWatchdog;
   const uint16_t length = health_stage_ == 0U ? kControlStatusLength
-                                              : kMotionStatusLength;
+                         : health_stage_ == 1U ? kMotionStatusLength : 1U;
   std::array<uint8_t, 4> request{};
   writeLe16(request.data(), address);
   writeLe16(&request[2], length);
   health_rx_size_ = 0U;
   health_rx_expected_ = 0U;
-  ++health_attempt_;
   if (!sendInstruction(health_candidate_.id, kInstructionRead, request.data(),
                        request.size(), false)) {
-    status_.devices[health_device_].status_valid = false;
-    ++status_.communication_errors;
-    latchFault(TiltServoFault::Communication);
+    if (params_.tilt.communication_recovery_ms != 0U) {
+      noteCommunicationFailure(now_ms,
+          static_cast<uint8_t>(1U << health_device_), false);
+    } else {
+      status_.devices[health_device_].status_valid = false;
+      ++status_.communication_errors;
+      latchFault(TiltServoFault::Communication);
+    }
     return false;
   }
+  ++health_attempt_;
   health_read_started_ms_ = now_ms;
   health_pending_ = true;
   return true;
 }
 
 void TiltPlaneServoInterface::serviceHealthRead(uint32_t now_ms) {
-  bool failed = now_ms - health_read_started_ms_ >= kStatusTimeoutMs;
+  bool failed = false;
   // Bound parser work even if the bus carries unexpected traffic. Fragments
   // remain buffered across ticks; echoed TX, wrong ID/length, and bad CRC do
   // not complete the outstanding transaction.
@@ -815,13 +932,18 @@ void TiltPlaneServoInterface::serviceHealthRead(uint32_t now_ms) {
                             health_candidate_.id, packet)) {
       continue;
     }
+    if ((packet.error & 0x80U) != 0U) {
+      // A CRC-checked device alert is not an absent UART reply. Do not hide a
+      // real actuator hardware fault behind the communications grace period.
+      latchFault(TiltServoFault::HardwareError);
+      return;
+    }
     if (packet.error != 0U) {
       failed = true;
       break;
     }
     const std::size_t expected_length = health_stage_ == 0U
-                                            ? kControlStatusLength
-                                            : kMotionStatusLength;
+        ? kControlStatusLength : health_stage_ == 1U ? kMotionStatusLength : 1U;
     if (packet.param_length != expected_length) {
       continue;
     }
@@ -830,7 +952,30 @@ void TiltPlaneServoInterface::serviceHealthRead(uint32_t now_ms) {
     if (health_stage_ == 0U) {
       health_candidate_.torque_enabled = packet.params[0] != 0U;
       health_candidate_.hardware_error = packet.params[6];
+      if (health_candidate_.hardware_error != 0U ||
+          !health_candidate_.torque_enabled) {
+        // Keep this fresh control observation, but do not label the old motion
+        // half of the sample as newly validated.
+        auto& device = status_.devices[health_device_];
+        device.torque_enabled = health_candidate_.torque_enabled;
+        device.hardware_error = health_candidate_.hardware_error;
+        device.status_valid = false;
+        latchFault(health_candidate_.hardware_error != 0U
+                       ? TiltServoFault::HardwareError : TiltServoFault::TorqueState);
+        return;
+      }
       health_stage_ = 1U;
+      return;
+    }
+    if (health_stage_ == 2U) {
+      // Watchdog expiry leaves goals read-only even with torque still ON.
+      // Never call such a device recovered or automatically clear its latch.
+      if (packet.params[0] == 0xFFU) {
+        status_.devices[health_device_].status_valid = false;
+        latchFault(TiltServoFault::Communication);
+        return;
+      }
+      completeHealthRead(now_ms);
       return;
     }
     // 116..146: the same control-table fields as the startup readback path.
@@ -842,31 +987,60 @@ void TiltPlaneServoInterface::serviceHealthRead(uint32_t now_ms) {
     health_candidate_.input_voltage_decivolt = readLe16(&motion[28]);
     health_candidate_.temperature_c = motion[30];
     health_candidate_.status_valid = true;
-    auto& device = status_.devices[health_device_];
-    // Goals may have advanced between the two reads; retain the current intent.
-    health_candidate_.commanded_position_raw = device.commanded_position_raw;
-    device = health_candidate_;
-    last_status_ms_ = now_ms;
-    const std::size_t completed_device = health_device_;
-    cancelHealthRead();
-    if (!device.torque_enabled) {
-      latchFault(TiltServoFault::TorqueState);
-    } else {
-      deviceStatusSafe(completed_device, false);
+    if (!deviceStatusSafe(health_candidate_, false)) {
+      // Report the actual fresh fault sample even if the recovery-only
+      // watchdog read would otherwise be missing. Never defer physical faults.
+      health_candidate_.commanded_position_raw =
+          status_.devices[health_device_].commanded_position_raw;
+      status_.devices[health_device_] = health_candidate_;
+      return;
     }
-    refreshAges(now_ms);
+    if (communication_recovering_) {
+      health_stage_ = 2U;
+    } else {
+      completeHealthRead(now_ms);
+    }
     return;
   }
+  // A matching packet already buffered at a delayed service tick is usable;
+  // timeout bounds a missing reply, not the scheduler's opportunity to read it.
+  failed = failed || now_ms - health_read_started_ms_ >= kStatusTimeoutMs;
   if (failed) {
     health_pending_ = false;
     health_rx_size_ = health_rx_expected_ = 0U;
-    if (health_attempt_ >= kReadTransactionAttempts) {
+    if (params_.tilt.communication_recovery_ms != 0U) {
+      noteCommunicationFailure(now_ms,
+          static_cast<uint8_t>(1U << health_device_), true);
+      if (health_attempt_ >= kReadTransactionAttempts) {
+        cancelHealthRead();
+      }
+    } else if (health_attempt_ >= kReadTransactionAttempts) {
       status_.devices[health_device_].status_valid = false;
       ++status_.communication_errors;
       latchFault(TiltServoFault::Communication);
     }
     // Otherwise service() can send a due goal before starting the next retry.
   }
+}
+
+void TiltPlaneServoInterface::completeHealthRead(uint32_t now_ms) {
+  health_candidate_.status_valid = true;
+  auto& device = status_.devices[health_device_];
+  // Goals may advance during readback; never replay a buffered old target.
+  health_candidate_.commanded_position_raw = device.commanded_position_raw;
+  device = health_candidate_;
+  last_status_ms_ = now_ms;
+  const std::size_t completed_device = health_device_;
+  cancelHealthRead();
+  if (communication_recovering_) {
+    recovery_valid_mask_ |= static_cast<uint8_t>(1U << completed_device);
+    if (recovery_valid_mask_ == 0x03U) {
+      cancelCommunicationRecovery();
+      status_.state = TiltServoState::Armed;
+      status_.fault = TiltServoFault::None;
+    }
+  }
+  refreshAges(now_ms);
 }
 #endif
 
@@ -877,6 +1051,7 @@ void TiltPlaneServoInterface::latchFault(TiltServoFault fault) {
   runtime_enabled_ = false;
 #if HAPTICS_ENABLE_TILT_SERVO && HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND
   cancelHealthRead();
+  cancelCommunicationRecovery();
   // Runtime faults issue torque-off without waiting on a disconnected bus.
   fault_torque_off_pending_ = !broadcastTorqueOff(false);
   if (fault_torque_off_pending_) {
@@ -895,6 +1070,7 @@ bool TiltPlaneServoInterface::clearFault() {
   runtime_enabled_ = false;
 #if HAPTICS_ENABLE_TILT_SERVO && HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND
   cancelHealthRead();
+  cancelCommunicationRecovery();
   fault_torque_off_pending_ = false;
   broadcastTorqueOff();
   // Draining bytes was insufficient to recover one observed UART failure.
@@ -1007,6 +1183,7 @@ void TiltPlaneServoInterface::zeroCurrents() {
 bool TiltPlaneServoInterface::preflight() {
 #if HAPTICS_ENABLE_TILT_SERVO && HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND
   cancelHealthRead();
+  cancelCommunicationRecovery();
   fault_torque_off_pending_ = false;
   status_.state = TiltServoState::Checking;
   status_.fault = TiltServoFault::None;
@@ -1051,7 +1228,7 @@ bool TiltPlaneServoInterface::preflight() {
       latchFault(TiltServoFault::TorqueState);
       return false;
     }
-    if (!deviceStatusSafe(index, true)) {
+    if (!deviceStatusSafe(device, true)) {
       return false;
     }
     if (device.present_position_raw < params_.tilt.max_travel_pulses ||
@@ -1132,7 +1309,7 @@ bool TiltPlaneServoInterface::arm() {
       latchFault(TiltServoFault::TorqueState);
       return false;
     }
-    if (!deviceStatusSafe(index, false)) {
+    if (!deviceStatusSafe(status_.devices[index], false)) {
       return false;
     }
   }
@@ -1209,10 +1386,9 @@ bool TiltPlaneServoInterface::readDeviceStatus(
 }
 
 bool TiltPlaneServoInterface::deviceStatusSafe(
-    std::size_t index,
+    const TiltServoDeviceStatus& device,
     bool require_torque_off) {
 #if HAPTICS_ENABLE_TILT_SERVO && HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND
-  const auto& device = status_.devices[index];
   TiltServoFault fault = TiltServoFault::None;
   if (!device.status_valid) {
     fault = TiltServoFault::Communication;
@@ -1249,7 +1425,7 @@ bool TiltPlaneServoInterface::deviceStatusSafe(
     return false;
   }
 #else
-  (void)index;
+  (void)device;
   (void)require_torque_off;
 #endif
   return true;
