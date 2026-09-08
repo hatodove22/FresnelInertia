@@ -136,7 +136,8 @@ resonance and Spatial4. The contraction adds opposed logical plane deltas
 inside existing calibrated signs, angle/velocity bounds and output authority.
 That logical mapping is not yet a handled perceptual result.
 
-The Wasm API exposes bounded experimental heartbeat setters; ordinary remote
+The Wasm API exposes experimental heartbeat setters bounded to 40–140 BPM,
+0–1 pulse/secondary gains and 0–10° contraction; ordinary remote
 commands do not expose these extra knobs. This is not part of the three-material
 joint preference space and measures neither grip force nor biological heart rate.
 Connected use needs both AtomS3 and StampC5 v5 support ([05](05_INTERFACE_SPEC.md)).

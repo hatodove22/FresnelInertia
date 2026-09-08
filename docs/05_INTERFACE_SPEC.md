@@ -20,8 +20,8 @@ The `webxr/` client now has an optional connected demo alongside its local
 preview: desktop Web Serial and a WebUSB path, explicit output
 controls, applied preset/fill and device-driven visuals. The implementation has
 software tests, actual desktop handling and operator-reported initial Quest
-USB/state access. VR/Quest work is now on hold; Android is the planned mobile
-host, not a verified client. Reuse the desktop path while tuning. See
+USB/state access and later positive ordinary-screen Android use. VR/Quest work
+is now on hold; the latest installed-PWA USB/resume flow is still unchecked. See
 [16](16_PROGRESS_STATUS.md) for actual connection and handling evidence.
 No additional BLE, OSC, cloud or general transport framework is required.
 
@@ -172,7 +172,8 @@ the short burst onset; the model owns the event and output scheduling.
 V5 replaces the 20-byte optional extension, not the unchanged v3 prefix or its
 resolved configuration. It carries named `mass.heartbeat`: `enabled`, normalized
 `phase` [0,1), `primary`, `secondary`, `contraction` [0,1], `bpm` [40,140], and
-unsigned 32-bit `beat_sequence`. Phase/envelopes use UNORM16 and BPM hundredths;
+unsigned 32-bit `beat_sequence`. Phase and BPM use float32; the three envelopes
+use UNORM16;
 CRC and exact version/length distinguish it from v4. There is no synthetic
 pile/pressure object in v5 and no guessed heartbeat in legacy telemetry.
 `HeartbeatPulse` is event type 8 with `WallId::None`, explicitly routed across
@@ -194,7 +195,7 @@ Full local USB/remote JSON and recordings also expose
 Front, Back, Top, Bottom. Contact is 0..1; impact is positive pre-bounce approach
 speed in normalized distances/s for the current integration step. Low-rate
 snapshots can miss brief impacts; event counters remain the occurrence record.
-These contact arrays are not included in the compact radio v1-v4 subsets.
+These contact arrays are not included in the compact radio v1-v5 subsets.
 
 Canonical JSON contracts are
 [control](../schemas/control_message.schema.json) and
@@ -227,9 +228,9 @@ roll/pitch, not absolute yaw. The view is a lightweight visualization of the
 shared state, not a second physical haptic solver. Phone tilt, stimulus scripts
 and preview-only tuning do not drive connected hardware.
 
-The planned Android presentation need not use AR: ordinary-screen rendering
-shares this same applied-state/command contract and still needs target-phone
-USB verification. Optional hand-tracked camera AR remains unimplemented.
+Android ordinary-screen rendering shares this applied-state/command contract
+and has earlier operator-reported use. New installed-PWA USB/resume behavior
+still needs a target-phone check. Optional hand-tracked camera AR remains unimplemented.
 For that extension, MediaPipe-style hand landmarks are the primary position
 reference; device IMU owns tilt. Hand-centered landmarks are not absolute AR
 anchors, so camera/hand/device alignment and scale still need implementation.

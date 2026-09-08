@@ -27,6 +27,8 @@ No human-optimized profiles or demonstrated tactile benefit from tuning exist.
 | Ordinary desktop/phone view | Applied-state controls, pinned Start/Stop, richer water/sand/ice, visual coin contacts and marble depth | Earlier desktop direction agreement and phone use reported; latest audiovisual/tactile fit and phone performance unmeasured |
 | Lab and speaker branch | Output-free production C++/Wasm Lab; separate opt-in source-driven sound with recorded water/soda and authored solid Foley | Recorded water sound approved; newer soda/sand changes have no user acceptance yet |
 | Preference workspace and profiles | Joint five-axis A/B for three representative materials, save/resume, seven-value selected profiles and explicit stopped demo application | Software/mock checked only; no real A/B ratings or optimized gains established |
+| Fictional heartbeat | Shared C++ primary/secondary pulse and contraction; explicit body-wide texture, bounded tilt, v5 state, Web soft-body rendering and named-event sound | Model/software/mock tested only; both AtomS3 and StampC5 updates and a short handled check remain pending |
+| Standalone distribution | Static GitHub Pages workflow and quality-preserving PWA; full-release cache including lazy sound/physics/Wasm and explicit cache repair | Desktop offline/update/recovery tested; actual Android installed-mode USB/resume not yet checked |
 
 Implementation ownership and limits are in [05](05_INTERFACE_SPEC.md),
 [06](06_PARAMETER_MODEL.md), the [firmware core](reference/30_REUSABLE_FIRMWARE_CORE.md)
@@ -44,6 +46,8 @@ Refreshing the Web client updates presentation/Lab, not installed device code.
 Unflashed AtomS3 changes include exact-length servo reply matching, bounded live
 retry, the single-coin preset, sharper soda opening and three-material tuning
 setters/four tilt readbacks. These additions do not require a StampC5 update.
+The heartbeat addition additionally requires both devices to be updated for its
+named v5 state. No new image was uploaded during this implementation.
 Existing preset defaults, physical output bounds and Stop remain preserved.
 
 The last directly captured bench snapshot followed that recoil upload: AtomS3
@@ -54,7 +58,44 @@ Later phone feedback does not identify its exact installed firmware.
 No hardware was accessed, flashed or actuated during the latest software checks
 or Web refactoring.
 
-## Latest software verification — 2026-09-08
+## Heartbeat and standalone distribution — 2026-09-08
+
+The selected extension is implemented, not physically accepted. A named C++
+state drives a 72 BPM doublet, slower contraction, four-channel output and
+bounded opposed logical plane deltas. The same state reaches the regenerated
+Wasm Lab and v5 client. The visible soft body has no independent beat clock;
+optional speaker sound voices the named events with an authored short thud,
+not recorded biological heart sounds. Ordinary presets and v1-v4 remain intact.
+
+Focused C++ core/wire integration passed **55,659 assertions**; existing synthesis
+tests passed **12/12** across 61,521 frames. Shipped-Wasm heartbeat tests passed
+3/3 and existing engine checks 17/17. Protocol tests cover v1-v5 lengths/CRC,
+invalid fields, canonical JSON, Stop and return to ordinary v3/v4 state.
+Chromium with mocked USB/Serial checked real WebGL contraction, main/secondary
+speaker scheduling, duplicate suppression, stale freeze/silence, recovery and
+explicit Stop. No physical device APIs were used.
+
+The final local Web suite passed **416/416**, with TypeScript and production
+build PASS (existing large physics/scene chunk advisories remain). Sequential
+firmware builds passed: baseline AtomS3 **625,761 B flash / 45,996 B RAM**;
+integrated AtomS3 **1,075,265 B / 71,100 B**; StampC5 **1,046,295 B / 54,124 B**.
+All are software build results; none of these images was uploaded.
+
+The PWA caches the exact complete release (about 6.3 MiB), including unvisited
+Rapier, Wasm and PCM assets. Desktop Chromium checked all three routes and real
+Lab execution offline, a waiting update without hot takeover, next-launch
+activation with local records preserved, and explicit repair of missing cached
+assets without reloading the active demo. This is not an actual Android
+installation, USB connection, listening judgment or performance benchmark.
+The permanent [HTTPS demo](https://hatodove22.github.io/FresnelInertia/) is live.
+[Pages deployment](https://github.com/hatodove22/FresnelInertia/actions/runs/34175503089)
+succeeded for Web revision `8fe9b7e`. Desktop Chromium opened the public
+[heartbeat Lab](https://hatodove22.github.io/FresnelInertia/?lab=1&preset=heartbeat_soft_object),
+rendered its shared-state contraction without page errors and reported the full
+release saved for offline use. The public origin was secure and exposed WebUSB;
+this does not establish actual phone installation or device connection.
+
+## Previous refactor verification — 2026-09-08
 
 Web results include two behavior-preserving refactors: shared source-time
 classification for five presentation consumers, and a session-independent
@@ -153,8 +194,8 @@ Dynamic CG already exists as a reduced estimate combined with shell CG.
 The position-based common cue is empirical; grip gain uses nominal force,
 not measured FSR input. Calculated tilt commands are not measured force or angle.
 The soda charge/recoil is authored, not a thermodynamic/medical model.
-The fictional heartbeat remains unimplemented; it has no pulse telemetry or
-biometric/grip-sensing path. Research proposals and illustrative atlas sketches
+The fictional heartbeat has pulse telemetry but no biometric/grip-sensing path
+or demonstrated tactile acceptance. Research proposals and illustrative atlas sketches
 are not deployed capabilities or perceptual results.
 
 The previous 1,381-line status ledger is preserved in full under

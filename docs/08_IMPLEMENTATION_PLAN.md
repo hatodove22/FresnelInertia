@@ -16,6 +16,12 @@ settings, and clear evidence about what the user can actually feel.
 Keep the accepted baseline available. No current software-only result closes
 a physical check, and no tuning session establishes a general research claim.
 
+The shared-state heartbeat demo and permanent HTTPS/PWA distribution are
+implemented, software-checked and publicly available; [16](16_PROGRESS_STATUS.md)
+records the results and URL. Next are the short handled checks below. Desktop/
+offline browser verification is not phone installation, physical USB or tactile
+acceptance.
+
 ## Next sequence
 
 | Priority | Work | Completion evidence |
@@ -31,8 +37,9 @@ Existing evidence and exactly which source changes remain unflashed are in
 
 ### 1. Restore a dependable exhibition flow
 
-Upload only the affected integrated AtomS3 image when the user resumes hardware
-work. Gain tuning and the current servo fixes need no new StampC5 image.
+Upload the affected integrated AtomS3 image when the user resumes hardware
+work. Gain tuning and the servo fixes alone need no new StampC5 image; the
+heartbeat demo additionally requires the compatible StampC5 v5 bridge.
 Preserve ordinary powered, supervised testing; do not actuate unattended hardware.
 
 Use one short handling sequence to check the observed fault and any catch-up
@@ -83,21 +90,19 @@ publication claim about the combined method is next, define the comparison
 and evidence separately using [07](07_TEST_AND_VALIDATION.md); do not build a
 study-management platform or force separate-branch tuning into this workflow.
 
+### Focused acceptance for the selected extension
+
+Use one short attended heartbeat run to judge
+whether the main/softer second pulse, plane contraction, visible object and
+optional sound feel like one beat; then switch back to water and Stop/restart.
+Check the actual Android PWA once: install/save online, close/reopen offline,
+explicit USB connection and sound unlock. Preserve selected profiles by JSON
+when moving from the old localhost/tunnel origin to the permanent URL.
+Heartbeat remains a separate expressive demonstration, not a fourth joint
+tuning condition or a biometric/medical simulation. Its contract is in
+[06](06_PARAMETER_MODEL.md#fictional-heartbeat); current results belong in 16.
+
 ## Later choices — not current completion gates
-
-### Separate expressive demo: heartbeat (planned, not implemented)
-
-A fictional heart-like object could combine a main/softer second pulse,
-slower fingertip-plane motion and visible contraction. It is a separate
-expressive demonstration of coordinated cues, not another gain-calibration
-condition or a biometric/medical simulation.
-
-Implement a named shared C++ pulse state if this is selected next; route it
-through the existing output boundaries. Do not disguise pulses as collisions
-or give the browser an independent beat clock. Existing v4 telemetry is full,
-so define compatible state/bridge support before physical deployment. Preserve
-ordinary presets and use their existing output bounds. Detailed initial
-considerations are in the [dated plan](archive/2026-09-08/08_ACTIVE_PLAN_SNAPSHOT.md#separate-expressive-demo-heartbeat-planned-not-implemented).
 
 ### Conditional model and presentation work
 

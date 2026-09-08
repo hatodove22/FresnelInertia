@@ -73,8 +73,10 @@ commands. Exact boundaries belong in the
 These three organize tuning and comparison; they do not limit the available
 demo presets. Carbonation is an expressive extension of the same principle:
 shared charge/burst state coordinates a pop, recoil and diminishing flow.
-The fictional heartbeat proposal is a separate later demo, not a calibration
-condition or a new main research direction.
+The fictional heartbeat is a separate expressive demo: one shared pulse state
+coordinates a main/softer second pulse, contact-plane motion and visible
+contraction. It is not a calibration condition, biometric/medical simulation,
+or a new main research direction.
 
 Judge vibration and tilt together when tuning a material. The five-dimensional
 preference search is a tool for choosing useful settings, not itself proof of

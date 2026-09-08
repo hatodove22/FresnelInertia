@@ -49,6 +49,9 @@ try {
 ```
 
 The same isolated store is needed for later StampC5 upload commands.
+For heartbeat, build all three targets above; v5 requires the updated bridge as
+well as AtomS3. Web/PWA updates alone do not require flashing. Permanent phone
+launch and offline setup are in the [Web guide](../../webxr/README.md#phone-launch-and-offline-installation).
 Inspect current port identities; COM numbers in old logs are not permanent.
 A successful build is not permission to upload or actuate unrelated hardware.
 
@@ -183,6 +186,7 @@ the Wasm SDK was absent on that host. Choose the available route:
 & .\tools\test_cpp_wasm.ps1 -Name granular-pile -TestSource test/granular_pile/test_main.cpp -Source @('src/MassMotionLayer.cpp','src/EventLayer.cpp')
 & .\tools\test_cpp_wasm.ps1 -Name pressurized-content -TestSource test/pressurized_content/test_main.cpp -Source @('src/EventLayer.cpp','src/TextureLayer.cpp','src/ResonanceLayer.cpp','src/SpatialRenderer4.cpp','src/TiltPseudoForceModel.cpp') -WithoutUnity
 & .\tools\test_cpp_wasm.ps1 -Name espnow-resolved -TestSource test/espnow_resolved/test_main.cpp -Source @('src/EspNowTelemetryProtocol.cpp') -WithoutUnity
+& .\tools\test_cpp_wasm.ps1 -Name heartbeat -TestSource test/heartbeat/test_main.cpp -Source @('src/EspNowTelemetryProtocol.cpp','src/HapticSynthesisCore.cpp','src/MassMotionLayer.cpp','src/MotionActivityFilter.cpp','src/EventLayer.cpp','src/TextureLayer.cpp','src/ResonanceLayer.cpp','src/SpatialRenderer4.cpp','src/TiltPseudoForceModel.cpp') -WithoutUnity
 & .\tools\test_cpp_wasm.ps1 -Name tilt-runtime -TestSource test/tilt_runtime/test_main.cpp -Source @('src/TiltPlaneServoInterface.cpp') -IncludeDirectory @('test/tilt_runtime/stubs') -Define @('HAPTICS_ENABLE_TILT_SERVO=1','HAPTICS_ENABLE_ATOMS3_DXL2_BACKEND=1','HAPTICS_ATOMS3_CUSTOM_BOARD_PROFILE=1') -WithoutUnity
 ```
 

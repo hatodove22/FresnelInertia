@@ -26,6 +26,7 @@ material scene; broader material controls and Android tracking remain planned.
 | [ParticleContentRenderer](../../webxr/src/renderer/ParticleContentRenderer.ts) | Solid instances; reported x/y projection with visual-only marble depth, otherwise grain integration only in preview | Non-coin Granular, including the single marble |
 | [CoinContentRenderer](../../webxr/src/renderer/CoinContentRenderer.ts) | Minted discs with source-clock 3D contact physics from accepted IMU input | Granular coin and explicit single-coin presets |
 | [IceContentRenderer](../../webxr/src/renderer/IceContentRenderer.ts) | Rounded clear ice, internal inclusions and bounded placement on the existing water surface | Hybrid ice/water |
+| [HeartbeatContentRenderer](../../webxr/src/renderer/HeartbeatContentRenderer.ts) | One soft body's deformation from named contraction, no independent beat clock or glass shell | Explicit Custom heartbeat; device v5 and production Lab |
 | [SoundState](../../webxr/src/audio/SoundState.ts) / [MaterialSound](../../webxr/src/audio/MaterialSound.ts) | Pure source/event selection, then optional speaker synthesis; never device commands | Device snapshots, production C++ Lab, explicitly approximate preview |
 
 `main.ts` still owns animation timing, placement and input selection. It already
@@ -44,6 +45,13 @@ firmware events, haptic CG or actuator commands. Independent bulk-grain
 integration remains preview-only. The connected pile instead uses reported
 aggregate slope/flow with source-driven surface-grain detail; this detail is
 not an independent bulk or body-z haptic model. Soda follows reported pressure state.
+
+Heartbeat is an explicit soft-object presentation, not a new wall-collision
+interpretation. Its C++ phase/envelopes drive the body and named pulse events
+drive optional short speaker thuds. No source state means no inferred rhythm.
+The installable PWA only distributes/caches the same app and assets; it has no
+Haptic Link or output authority. Its offline/update semantics belong in the
+[operator guide](../../webxr/README.md#phone-launch-and-offline-installation).
 
 ## Preference tuning workspace
 
