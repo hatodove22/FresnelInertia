@@ -163,6 +163,8 @@ void MassMotionLayer::configure(const SystemParams& params) {
   pile_angle_rad_ = 0.0f;
   pile_velocity_rad_s_ = 0.0f;
   pressure_model_.configure(params);
+  heartbeat_model_.configure(params);
+  state_.heartbeat = heartbeat_model_.state();
   state_.container_x_m = params.container.span_x_m;
   state_.container_y_m = params.container.span_y_m;
   state_.container_z_m = params.container.span_z_m;
@@ -205,6 +207,13 @@ MassState MassMotionLayer::updateImpl(const ImuSample& raw_sample,
                                       const ImuSample& activity_sample,
                                       float dt_s,
                                       bool gravity_separated_activity) {
+  if (params_.features.enable_heartbeat_demo) {
+    // A held soft object has no free point-mass travel or wall collisions.
+    // Sensor validity and Stop remain owned by the existing synthesis boundary.
+    if (raw_sample.valid) state_.heartbeat = heartbeat_model_.update(dt_s);
+    state_.energy = std::max(state_.heartbeat.primary, state_.heartbeat.secondary);
+    return state_;
+  }
   if (params_.features.enable_coherent_container_demo) {
     updateCoherent(raw_sample, activity_sample, dt_s);
     pressure_model_.update(raw_sample, activity_sample, dt_s, state_,

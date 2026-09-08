@@ -37,6 +37,7 @@ struct FeatureFlags {
   bool enable_coherent_container_demo = false;
   bool enable_granular_pile_demo = false;
   bool enable_pressurized_demo = false;
+  bool enable_heartbeat_demo = false;
   bool allow_remote_tilt_arm = false;
 };
 
@@ -234,6 +235,13 @@ struct InterfaceParams {
   uint16_t telemetry_period_ms = 100;
 };
 
+struct HeartbeatParams {
+  float bpm = 72.0f;
+  float pulse_gain = 0.95f;
+  float secondary_gain = 0.58f;
+  float contraction_deg = 4.0f;
+};
+
 struct SystemParams {
   char preset_name[32] = "liquid_small_box";
   char preset_source[16] = "builtin";
@@ -252,6 +260,7 @@ struct SystemParams {
   RecorderParams recorder{};
   TiltPlaneParams tilt{};
   InterfaceParams iface{};
+  HeartbeatParams heartbeat{};
 };
 
 inline SystemParams makeDefaultLiquidPreset() {
@@ -477,6 +486,24 @@ inline SystemParams makeDefaultGranularPilePreset() {
   std::strncpy(params.preset_name, "granular_sand_pile_box", sizeof(params.preset_name) - 1);
   params.features.enable_coherent_container_demo = true;
   params.features.enable_granular_pile_demo = true;
+  return params;
+}
+
+// A separate expressive preset: no container impacts, grip sensor or medical model.
+inline SystemParams makeDefaultHeartbeatPreset() {
+  SystemParams params = makeDefaultLiquidPreset();
+  std::strncpy(params.preset_name, "heartbeat_soft_object", sizeof(params.preset_name) - 1);
+  params.container.family = MaterialFamily::Custom;
+  params.container.span_x_m = 0.065f;
+  params.container.span_y_m = 0.085f;
+  params.container.span_z_m = 0.050f;
+  params.container.fill = 1.0f;
+  params.container.headspace = 0.0f;
+  params.container.content_mass_full_kg = 0.100f;
+  params.container.shell_cg_y_m = 0.0f;
+  params.features.enable_coherent_container_demo = true;
+  params.features.enable_heartbeat_demo = true;
+  params.resonance.master_gain = 0.65f;
   return params;
 }
 

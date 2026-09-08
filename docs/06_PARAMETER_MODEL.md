@@ -120,6 +120,27 @@ The mass-layer pile centroid is geometric; the tilt branch still applies its
 accepted material voicing, CG span and filtering. Do not label that filtered
 tilt-model CG as the exact visible pile centroid or a measured force.
 
+### Fictional heartbeat
+
+`heartbeat_soft_object` is a built-in Custom preset, explicitly enabling
+`features.enable_heartbeat_demo`; all existing presets keep it disabled.
+The shared `HeartbeatModel` owns phase and envelopes, not the browser or an
+independent servo timer. Its dimensions are 65 × 85 × 50 mm, fill 1, and
+`resonance.master_gain=0.65`.
+
+`heartbeat.bpm=72`, `pulse_gain=0.95`, `secondary_gain=0.58` and
+`contraction_deg=4` are authored defaults. Primary/secondary sin² windows start
+at cycle phases 0.06/0.28 with widths 0.15/0.12; the slower contraction starts
+at 0.06 with width 0.43. The explicit pulse event passes through texture,
+resonance and Spatial4. The contraction adds opposed logical plane deltas
+inside existing calibrated signs, angle/velocity bounds and output authority.
+That logical mapping is not yet a handled perceptual result.
+
+The Wasm API exposes bounded experimental heartbeat setters; ordinary remote
+commands do not expose these extra knobs. This is not part of the three-material
+joint preference space and measures neither grip force nor biological heart rate.
+Connected use needs both AtomS3 and StampC5 v5 support ([05](05_INTERFACE_SPEC.md)).
+
 ## Motion input and coordinates
 
 The assembled profile enables `features.enable_gravity_separated_mass_activity`.

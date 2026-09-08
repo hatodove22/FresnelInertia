@@ -169,6 +169,8 @@ const char* eventTypeToString(EventType type) {
       return "Scrape";
     case EventType::PressurePop:
       return "PressurePop";
+    case EventType::HeartbeatPulse:
+      return "HeartbeatPulse";
     case EventType::None:
     default:
       return "None";
@@ -609,14 +611,23 @@ void HapticPipeline::commitPresetParams(SystemParams next_params, const RuntimeC
   // output ownership. Loading an ordinary preset must clear the optional effect.
   const bool pile = next_params.features.enable_granular_pile_demo;
   const bool pressure = next_params.features.enable_pressurized_demo;
+  const bool heartbeat = next_params.features.enable_heartbeat_demo;
+  const bool heartbeat_transition = heartbeat || params_.features.enable_heartbeat_demo;
   restoreRuntimeConfig(next_params, snapshot);
   next_params.features.enable_granular_pile_demo = pile;
   next_params.features.enable_pressurized_demo = pressure;
-  if (pile || pressure) next_params.features.enable_coherent_container_demo = true;
+  next_params.features.enable_heartbeat_demo = heartbeat;
+  if (pile || pressure || heartbeat) next_params.features.enable_coherent_container_demo = true;
   params_ = next_params;
   current_family_ = params_.container.family;
   reconfigurePipeline();
   synthesis_.resetTilt();
+  if (heartbeat_transition) {
+    // A command response may publish before the next IMU step. Do not attach
+    // a previous heartbeat event/v5 payload to the newly selected v3/v4 preset.
+    telemetry_.mass = HapticSynthesisCore::defaultMassState(params_);
+    telemetry_.last_event = {};
+  }
 }
 
 bool HapticPipeline::loadPresetByName(const char* preset_name) {

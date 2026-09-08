@@ -94,6 +94,21 @@
           "additionalProperties": false
         },
         "pos_norm": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+        "heartbeat": {
+          "type": "object",
+          "description": "Optional fictional shared pulse state, never measured heart rate. Present only while heartbeat model is enabled; omitted by legacy v1-v4.",
+          "required": ["enabled", "phase", "bpm", "beat_sequence", "primary", "secondary", "contraction"],
+          "properties": {
+            "enabled": {"type": "boolean", "enum": [true]},
+            "phase": {"type": "number", "minimum": 0, "exclusiveMaximum": 1},
+            "bpm": {"type": "number", "minimum": 40, "maximum": 140},
+            "beat_sequence": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+            "primary": {"type": "number", "minimum": 0, "maximum": 1},
+            "secondary": {"type": "number", "minimum": 0, "maximum": 1},
+            "contraction": {"type": "number", "minimum": 0, "maximum": 1}
+          },
+          "additionalProperties": false
+        },
         "vel_norm_s": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
         "energy": {"type": "number"},
         "fill": {"type": "number"},
@@ -106,7 +121,7 @@
     "last_event": {
       "type": "object",
       "properties": {
-        "type": {"type": "string", "enum": ["None", "WallHit", "RollTrain", "ImpactCluster", "DropletCluster", "RoofSlap", "Scrape", "PressurePop"]},
+        "type": {"type": "string", "enum": ["None", "WallHit", "RollTrain", "ImpactCluster", "DropletCluster", "RoofSlap", "Scrape", "PressurePop", "HeartbeatPulse"]},
         "primary_wall": {"type": "string"},
         "amplitude": {"type": "number"}
       },

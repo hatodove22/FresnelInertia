@@ -30,6 +30,7 @@ constexpr BuiltinPreset kBuiltinPresets[] = {
     {"granular_single_marble_box", MaterialFamily::Granular, &makeDefaultGranularSingleMarblePreset},
     {"hybrid_ice_water", MaterialFamily::Hybrid, &makeDefaultHybridPreset},
     {"detented_custom", MaterialFamily::Detented, &makeDefaultDetentedPreset},
+    {"heartbeat_soft_object", MaterialFamily::Custom, &makeDefaultHeartbeatPreset},
 };
 
 MaterialFamily parseFamily(const char* text) {

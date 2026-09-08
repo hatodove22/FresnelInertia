@@ -29,12 +29,15 @@ ResonanceFrame<kMaxResonanceVoicesPerFrame> ResonanceLayer::update(
   for (std::size_t i = 0; i < textures.count; ++i) {
     const auto& cmd = textures.items[i];
     const auto wall_index = static_cast<uint8_t>(cmd.primary_wall);
-    if (wall_index >= 4) {
+    const bool body_pulse = params_.features.enable_heartbeat_demo &&
+        cmd.source == EventType::HeartbeatPulse && cmd.atom == TextureAtomKind::SoftPulse;
+    if (wall_index >= 4 && !body_pulse) {
       continue;
     }
 
-    float low_weight = params_.resonance.low_gain[wall_index];
-    float high_weight = params_.resonance.high_gain[wall_index];
+    // Body-wide voices apply each channel's calibration after Spatial4 routing.
+    float low_weight = body_pulse ? 1.0f : params_.resonance.low_gain[wall_index];
+    float high_weight = body_pulse ? 1.0f : params_.resonance.high_gain[wall_index];
     float noise_weight = 1.0f;
     switch (cmd.atom) {
       case TextureAtomKind::KnockPing:

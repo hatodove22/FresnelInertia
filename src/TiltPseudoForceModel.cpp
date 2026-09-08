@@ -208,10 +208,20 @@ TiltPlaneCommand TiltPseudoForceModel::update(const ImuSample& sample, const Mas
       radToDeg(clampf(phi_cm_thumb_rad, -max_delta_cm_rad, max_delta_cm_rad));
   const float clamped_cm_index_deg =
       radToDeg(clampf(phi_cm_index_rad, -max_delta_cm_rad, max_delta_cm_rad));
+  // A fictional contraction changes the two parallel planes in opposition.
+  // It is not a CG estimate or measured grip force; compose it before the
+  // existing differential/total-angle/filter/slew limits, never after them.
+  const float contraction_deg = params_.features.enable_heartbeat_demo &&
+      mass.heartbeat.enabled && std::isfinite(mass.heartbeat.contraction) &&
+      std::isfinite(params_.heartbeat.contraction_deg)
+      ? clampf(params_.heartbeat.contraction_deg, 0.0f, 10.0f) * clamp01(mass.heartbeat.contraction)
+      : 0.0f;
   const float clamped_df_thumb_deg =
-      radToDeg(clampf(phi_df_thumb_rad, -max_delta_df_rad, max_delta_df_rad));
+      radToDeg(clampf(contraction_deg > 0.0f ? phi_df_thumb_rad + degToRad(contraction_deg) : phi_df_thumb_rad,
+                      -max_delta_df_rad, max_delta_df_rad));
   const float clamped_df_index_deg =
-      radToDeg(clampf(phi_df_index_rad, -max_delta_df_rad, max_delta_df_rad));
+      radToDeg(clampf(contraction_deg > 0.0f ? phi_df_index_rad - degToRad(contraction_deg) : phi_df_index_rad,
+                      -max_delta_df_rad, max_delta_df_rad));
 
   Vec2f target_delta_deg{};
   target_delta_deg.x = clampf(clamped_cm_thumb_deg + clamped_df_thumb_deg, -max_delta_total_deg, max_delta_total_deg);

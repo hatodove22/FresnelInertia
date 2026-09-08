@@ -44,6 +44,8 @@ const char* eventTypeToString(EventType type) {
       return "scrape";
     case EventType::PressurePop:
       return "pop";
+    case EventType::HeartbeatPulse:
+      return "beat";
     case EventType::None:
     default:
       return "-";

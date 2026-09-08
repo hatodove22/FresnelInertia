@@ -46,6 +46,11 @@ MassState HapticSynthesisCore::defaultMassState(const SystemParams& params) {
   state.container_y_m = params.container.span_y_m;
   state.container_z_m = params.container.span_z_m;
   state.family = params.container.family;
+  if (params.features.enable_heartbeat_demo) {
+    HeartbeatModel heartbeat;
+    heartbeat.configure(params);
+    state.heartbeat = heartbeat.state();
+  }
   return state;
 }
 

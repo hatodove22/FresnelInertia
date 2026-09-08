@@ -370,4 +370,67 @@ MassState decodeEspNowDemoState(const EspNowDemoState& demo) {
   return mass;
 }
 
+EspNowTelemetryPacketV5 encodeEspNowTelemetryPacketV5(
+    const TelemetrySnapshot& snapshot, uint32_t sequence,
+    const EspNowResolvedState& resolved) {
+  const auto v3 = encodeEspNowTelemetryPacketV3(snapshot, sequence, resolved);
+  EspNowTelemetryPacketV5 packet{};
+  std::memcpy(&packet, &v3, offsetof(EspNowTelemetryPacketV3, crc32));
+  packet.packet_size = static_cast<uint16_t>(sizeof(packet));
+  packet.version = kEspNowTelemetryVersionV5;
+  const auto& state = snapshot.mass.heartbeat;
+  const auto unit16 = [](float value) {
+    return static_cast<uint16_t>(std::round(
+        std::max(0.0f, std::min(1.0f, value)) * 65535.0f));
+  };
+  packet.heartbeat.phase = state.phase;
+  packet.heartbeat.bpm = state.bpm;
+  packet.heartbeat.beat_sequence = state.beat_sequence;
+  packet.heartbeat.primary = unit16(state.primary);
+  packet.heartbeat.secondary = unit16(state.secondary);
+  packet.heartbeat.contraction = unit16(state.contraction);
+  packet.heartbeat.enabled = flag(state.enabled);
+  packet.crc32 = espNowTelemetryCrc32(&packet, offsetof(EspNowTelemetryPacketV5, crc32));
+  return packet;
+}
+
+bool validateEspNowTelemetryPacketV5(const void* data, std::size_t length) {
+  if (data == nullptr || length != sizeof(EspNowTelemetryPacketV5)) return false;
+  EspNowTelemetryPacketV5 packet{};
+  std::memcpy(&packet, data, sizeof(packet));
+  const auto& heartbeat = packet.heartbeat;
+  if (packet.packet_size != sizeof(packet) || packet.version != kEspNowTelemetryVersionV5 ||
+      packet.crc32 != espNowTelemetryCrc32(&packet, offsetof(EspNowTelemetryPacketV5, crc32)) ||
+      heartbeat.enabled != 1U || heartbeat.reserved != 0U ||
+      !std::isfinite(heartbeat.phase) || heartbeat.phase < 0.0f || heartbeat.phase >= 1.0f ||
+      !std::isfinite(heartbeat.bpm) || heartbeat.bpm < 40.0f || heartbeat.bpm > 140.0f ||
+      packet.last_event_type > static_cast<uint8_t>(EventType::HeartbeatPulse) ||
+      (packet.last_event_type == static_cast<uint8_t>(EventType::HeartbeatPulse) &&
+       packet.last_event_primary_wall != static_cast<uint8_t>(WallId::None))) return false;
+
+  // Keep all old-version semantic checks unchanged. The one explicitly known
+  // v5 event has no wall; it is not offered to legacy event validation as a hit.
+  EspNowTelemetryPacketV3 common{};
+  std::memcpy(&common, &packet, offsetof(EspNowTelemetryPacketV3, crc32));
+  if (common.last_event_type == static_cast<uint8_t>(EventType::HeartbeatPulse)) {
+    common.last_event_type = static_cast<uint8_t>(EventType::None);
+  }
+  common.packet_size = static_cast<uint16_t>(sizeof(common));
+  common.version = kEspNowTelemetryVersionV3;
+  common.crc32 = espNowTelemetryCrc32(&common, offsetof(EspNowTelemetryPacketV3, crc32));
+  return validateEspNowTelemetryPacketV3(&common, sizeof(common));
+}
+
+HeartbeatState decodeEspNowHeartbeatState(const EspNowHeartbeatState& heartbeat) {
+  HeartbeatState state{};
+  state.enabled = heartbeat.enabled == 1U;
+  state.phase = heartbeat.phase;
+  state.bpm = heartbeat.bpm;
+  state.beat_sequence = heartbeat.beat_sequence;
+  state.primary = heartbeat.primary / 65535.0f;
+  state.secondary = heartbeat.secondary / 65535.0f;
+  state.contraction = heartbeat.contraction / 65535.0f;
+  return state;
+}
+
 }  // namespace haptics

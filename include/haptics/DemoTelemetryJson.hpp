@@ -8,6 +8,16 @@ namespace haptics {
 // Optional state from the production model, not a second particle simulation.
 // The pressure values describe the demo effect, not measured physical pressure.
 inline void appendDemoTelemetryJson(JsonObject mass, const MassState& state) {
+  if (state.heartbeat.enabled) {
+    JsonObject heartbeat = mass.createNestedObject("heartbeat");
+    heartbeat["enabled"] = true;
+    heartbeat["phase"] = state.heartbeat.phase;
+    heartbeat["bpm"] = state.heartbeat.bpm;
+    heartbeat["beat_sequence"] = state.heartbeat.beat_sequence;
+    heartbeat["primary"] = state.heartbeat.primary;
+    heartbeat["secondary"] = state.heartbeat.secondary;
+    heartbeat["contraction"] = state.heartbeat.contraction;
+  }
   if (!state.granular_pile_active && !state.pressure.enabled) return;
   JsonObject demo = mass.createNestedObject("demo");
   demo["pile_slope"] = state.pile_slope;

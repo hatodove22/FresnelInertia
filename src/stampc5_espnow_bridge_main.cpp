@@ -120,6 +120,8 @@ const char* eventTypeToString(uint8_t value) {
       return "Scrape";
     case haptics::EventType::PressurePop:
       return "PressurePop";
+    case haptics::EventType::HeartbeatPulse:
+      return "HeartbeatPulse";
     case haptics::EventType::None:
     default:
       return "None";
@@ -288,6 +290,11 @@ JsonEmitResult emitCanonicalJson(const TPacket& packet) {
   if constexpr (std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV4>) {
     haptics::appendDemoTelemetryJson(mass, haptics::decodeEspNowDemoState(packet.demo));
   }
+  if constexpr (std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV5>) {
+    haptics::MassState state{};
+    state.heartbeat = haptics::decodeEspNowHeartbeatState(packet.heartbeat);
+    haptics::appendDemoTelemetryJson(mass, state);
+  }
 
   JsonObject last_event = doc.createNestedObject("last_event");
   last_event["type"] = eventTypeToString(packet.last_event_type);
@@ -322,7 +329,8 @@ JsonEmitResult emitCanonicalJson(const TPacket& packet) {
 
   if constexpr (std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV2> ||
                 std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV3> ||
-                std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV4>) {
+                std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV4> ||
+                std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV5>) {
     JsonObject tilt_servo = doc.createNestedObject("tilt_servo");
     tilt_servo["state"] = packet.tilt_servo_state;
     tilt_servo["fault"] = packet.tilt_servo_fault;
@@ -350,7 +358,8 @@ JsonEmitResult emitCanonicalJson(const TPacket& packet) {
   }
 
   if constexpr (std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV3> ||
-                std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV4>) {
+                std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV4> ||
+                std::is_same_v<TPacket, haptics::EspNowTelemetryPacketV5>) {
     JsonObject resolved = doc.createNestedObject("resolved");
     resolved["family"] = familyToString(packet.resolved.family);
     JsonObject container = resolved.createNestedObject("container");
@@ -482,7 +491,19 @@ void loop() {
   ReceivedFrame received{};
   while (g_receive_queue != nullptr &&
          xQueueReceive(g_receive_queue, &received, 0U) == pdTRUE) {
-    if (received.length == sizeof(haptics::EspNowTelemetryPacketV4)) {
+    // v4 and v5 are both 250 bytes. Version, never length alone, selects
+    // the mutually exclusive extension; validators then verify CRC + semantics.
+    if (received.length == sizeof(haptics::EspNowTelemetryPacketV5) &&
+        received.data[6] == haptics::kEspNowTelemetryVersionV5) {
+      haptics::EspNowTelemetryPacketV5 packet{};
+      std::memcpy(&packet, received.data, sizeof(packet));
+      if (!haptics::validateEspNowTelemetryPacketV5(&packet, sizeof(packet))) {
+        ++g_invalid_packets;
+        continue;
+      }
+      processTelemetryPacket(packet, received.source);
+      continue;
+    } else if (received.length == sizeof(haptics::EspNowTelemetryPacketV4)) {
       haptics::EspNowTelemetryPacketV4 packet{};
       std::memcpy(&packet, received.data, sizeof(packet));
       if (!haptics::validateEspNowTelemetryPacketV4(&packet, sizeof(packet))) {

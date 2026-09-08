@@ -19,6 +19,7 @@ class EventLayer {
 
  private:
   EventFrame<kMaxEventsPerFrame> updateCoherent(const MassState& state, float dt_s);
+  EventFrame<kMaxEventsPerFrame> updateHeartbeat(const MassState& state, float dt_s);
   void pushEvent(EventFrame<kMaxEventsPerFrame>& frame, const HapticEvent& event);
   SystemParams params_{};
   HapticEvent last_event_{};
@@ -45,6 +46,9 @@ class EventLayer {
   WallId coherent_flow_wall_ = WallId::None;
   uint16_t pressure_burst_seen_ = 0;
   float pressure_flow_phase_ = 0.0f;
+  uint32_t heartbeat_seen_ = 0;
+  float heartbeat_previous_phase_ = 0.0f;
+  bool heartbeat_initialized_ = false;
 };
 
 }  // namespace haptics

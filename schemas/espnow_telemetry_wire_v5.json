@@ -1,0 +1,37 @@
+{
+  "protocol": "fresnel-haptic-link-telemetry",
+  "version": 5,
+  "endianness": "little",
+  "packet_size_bytes": 250,
+  "maximum_supported_packet_bytes": 250,
+  "compatibility": "Retains v3 bytes 0..225 except header packet_size=250/version=5. v5 is sent only for enabled heartbeat. Ordinary v3 and pile/pressure v4 remain byte-for-byte unchanged. v4 and v5 have the same length and must be dispatched by version. Both AtomS3 and StampC5 require v5-capable firmware for the heartbeat demo.",
+  "common_fields": "espnow_telemetry_wire_v3.json through byte 225 (excluding its CRC)",
+  "crc": {
+    "algorithm": "CRC-32/ISO-HDLC",
+    "polynomial_reflected_hex": "0xEDB88320",
+    "initial_value_hex": "0xFFFFFFFF",
+    "final_xor_hex": "0xFFFFFFFF",
+    "covered_byte_count": 246
+  },
+  "heartbeat_extension": {
+    "offset": 226,
+    "source": "MassState.heartbeat; fictional model state, not measured physiology.",
+    "fields": [
+      {"name": "phase", "offset": 226, "type": "float32", "finite": true, "minimum": 0, "exclusiveMaximum": 1},
+      {"name": "bpm", "offset": 230, "type": "float32", "finite": true, "range": [40, 140]},
+      {"name": "beat_sequence", "offset": 234, "type": "uint32"},
+      {"name": "primary", "offset": 238, "type": "uint16", "encoding": "UNORM16; decode /65535"},
+      {"name": "secondary", "offset": 240, "type": "uint16", "encoding": "UNORM16; decode /65535"},
+      {"name": "contraction", "offset": 242, "type": "uint16", "encoding": "UNORM16; decode /65535"},
+      {"name": "enabled", "offset": 244, "type": "uint8", "required_value": 1},
+      {"name": "reserved", "offset": 245, "type": "uint8", "required_value": 0},
+      {"name": "crc32", "offset": 246, "type": "uint32"}
+    ]
+  },
+  "event_extension": {"last_event_type": {"8": "HeartbeatPulse"}, "primary_wall_for_heartbeat": "None"},
+  "canonical_json": {
+    "mass.heartbeat": ["enabled", "phase", "bpm", "beat_sequence", "primary", "secondary", "contraction"],
+    "legacy": "v1/v2/v3/v4 omit mass.heartbeat; a preset name alone never synthesizes pulse state. v5 does not manufacture mass.demo pile/pressure values."
+  },
+  "validation": "Unchanged v3 semantic checks, except known v5 HeartbeatPulse event 8 is accepted only with WallNone. Reject disabled payloads, nonzero reserved byte, nonfinite/out-of-range phase or bpm, unknown event, wrong envelope/CRC. Three UNORM16 envelopes decode within [0,1]."
+}

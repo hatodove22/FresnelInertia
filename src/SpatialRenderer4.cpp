@@ -100,6 +100,17 @@ void SpatialRenderer4::enqueueDelayed(const DriveFrame4& drive, float delay_s,
 }
 
 void SpatialRenderer4::accumulateImmediate(DriveFrame4& drive, const ResonanceVoice& voice) {
+  if (params_.features.enable_heartbeat_demo && voice.source == EventType::HeartbeatPulse &&
+      voice.atom == TextureAtomKind::SoftPulse) {
+    // Four simultaneous contacts describe one contracting object. Equal 0.5
+    // weights preserve unit squared-weight power instead of quadrupling it.
+    for (std::size_t channel = 0; channel < 4; ++channel) {
+      drive.low[channel] += 0.5f * voice.low_env * params_.resonance.low_gain[channel];
+      drive.high[channel] += 0.5f * voice.high_env * params_.resonance.high_gain[channel];
+      drive.noise[channel] += 0.5f * voice.noise_env;
+    }
+    return;
+  }
   const int src = static_cast<int>(voice.primary_wall);
   if (src < 0 || src >= 4) {
     return;

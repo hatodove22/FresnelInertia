@@ -23,6 +23,7 @@ enum class EventType : uint8_t {
   RoofSlap,
   Scrape,
   PressurePop,
+  HeartbeatPulse,
 };
 
 enum class TextureAtomKind : uint8_t {
@@ -34,6 +35,7 @@ enum class TextureAtomKind : uint8_t {
   DryRattle,
   ScrapeNoise,
   FlowRipple,
+  SoftPulse,
 };
 
 enum class WallId : uint8_t {
@@ -121,6 +123,17 @@ struct PressureState {
   uint16_t burst_sequence = 0;
 };
 
+// An authored, fictional soft-object rhythm. Not a measured biological signal.
+struct HeartbeatState {
+  bool enabled = false;
+  float phase = 0.0f;  // normalized cycle [0, 1)
+  float primary = 0.0f;
+  float secondary = 0.0f;
+  float contraction = 0.0f;
+  float bpm = 72.0f;
+  uint32_t beat_sequence = 0;
+};
+
 struct MassState {
   Vec2f pos_norm{};      // normalized container coordinates [-1, 1]
   Vec2f vel_norm_s{};    // normalized velocity [1/s]
@@ -139,6 +152,7 @@ struct MassState {
   float pile_slope = 0.0f;  // body dy/dx, retained when the pile sticks
   float granular_flow = 0.0f;
   PressureState pressure{};
+  HeartbeatState heartbeat{};
 };
 
 struct HapticEvent {

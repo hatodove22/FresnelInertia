@@ -305,6 +305,98 @@ void testV4ValidationAndSaturation() {
   CHECK(v4.demo.pressure_phase_ms == 0U && v4.demo.pressure_remaining == 0U);
 }
 
+EspNowTelemetryPacketV5 heartbeatPacket() {
+  auto source = snapshot();
+  std::strcpy(source.active_preset, "heartbeat_soft_object");
+  source.last_event.type = EventType::HeartbeatPulse;
+  source.last_event.primary_wall = WallId::None;
+  auto& heartbeat = source.mass.heartbeat;
+  heartbeat.enabled = true;
+  heartbeat.phase = 0.125f;
+  heartbeat.bpm = 72.0f;
+  heartbeat.beat_sequence = 0x12345678U;
+  heartbeat.primary = 0.875f;
+  heartbeat.secondary = 0.25f;
+  heartbeat.contraction = 0.625f;
+  return encodeEspNowTelemetryPacketV5(source, 79U, makeEspNowResolvedState(params()));
+}
+
+void seal(EspNowTelemetryPacketV5& value) {
+  value.crc32 = espNowTelemetryCrc32(&value, offsetof(EspNowTelemetryPacketV5, crc32));
+}
+
+void expectInvalid(EspNowTelemetryPacketV5 value) {
+  seal(value);
+  CHECK(!validateEspNowTelemetryPacketV5(&value, sizeof(value)));
+}
+
+void testV5PrefixAndRoundTrip() {
+  const auto v5 = heartbeatPacket();
+  CHECK(sizeof(v5) == 250U && v5.version == 5U);
+  CHECK(validateEspNowTelemetryPacketV5(&v5, sizeof(v5)));
+  const auto v4 = demoPacket();
+  CHECK(!validateEspNowTelemetryPacketV4(&v5, sizeof(v5)));
+  CHECK(!validateEspNowTelemetryPacketV5(&v4, sizeof(v4)));
+  CHECK(!validateEspNowTelemetryPacketV3(&v5, sizeof(v5)));
+  // Reconstruct v3's identical common prefix, with the one v5-only event reset.
+  auto source = snapshot();
+  std::strcpy(source.active_preset, "heartbeat_soft_object");
+  source.last_event.primary_wall = WallId::None;
+  const auto v3 = encodeEspNowTelemetryPacketV3(source, 79U, makeEspNowResolvedState(params()));
+  auto common = v5;
+  common.version = v3.version;
+  common.packet_size = v3.packet_size;
+  common.last_event_type = v3.last_event_type;
+  CHECK(std::memcmp(&common, &v3, offsetof(EspNowTelemetryPacketV3, crc32)) == 0);
+  const auto* bytes = reinterpret_cast<const unsigned char*>(&v5);
+  CHECK(bytes[234] == 0x78U && bytes[235] == 0x56U && bytes[236] == 0x34U && bytes[237] == 0x12U);
+  CHECK(bytes[244] == 1U && bytes[245] == 0U);
+  CHECK(v5.crc32 == espNowTelemetryCrc32(bytes, 246U));
+  const auto decoded = decodeEspNowHeartbeatState(v5.heartbeat);
+  CHECK(decoded.enabled && decoded.phase == 0.125f && decoded.bpm == 72.0f);
+  CHECK(decoded.beat_sequence == 0x12345678U);
+  CHECK(std::fabs(decoded.primary - 0.875f) <= 0.5f / 65535.0f);
+  CHECK(std::fabs(decoded.secondary - 0.25f) <= 0.5f / 65535.0f);
+  CHECK(std::fabs(decoded.contraction - 0.625f) <= 0.5f / 65535.0f);
+  CHECK(!decodeEspNowDemoState(v4.demo).heartbeat.enabled);
+}
+
+void testV5MalformedAndBounds() {
+  auto value = heartbeatPacket();
+  CHECK(!validateEspNowTelemetryPacketV5(nullptr, sizeof(value)));
+  CHECK(!validateEspNowTelemetryPacketV5(&value, sizeof(value) - 1U));
+  CHECK(!validateEspNowTelemetryPacketV5(&value, sizeof(value) + 1U));
+  value.heartbeat.beat_sequence++;
+  CHECK(!validateEspNowTelemetryPacketV5(&value, sizeof(value)));
+  value = heartbeatPacket(); value.version = 4U; expectInvalid(value);
+  value = heartbeatPacket(); value.packet_size = 230U; expectInvalid(value);
+  value = heartbeatPacket(); value.magic = 0U; expectInvalid(value);
+  value = heartbeatPacket(); value.flags = 1U; expectInvalid(value);
+  value = heartbeatPacket(); value.heartbeat.enabled = 0U; expectInvalid(value);
+  value = heartbeatPacket(); value.heartbeat.enabled = 2U; expectInvalid(value);
+  value = heartbeatPacket(); value.heartbeat.reserved = 1U; expectInvalid(value);
+  value = heartbeatPacket(); value.tilt_reserved = 1U; expectInvalid(value);
+  value = heartbeatPacket(); value.resolved.span_x_m = 0.0f; expectInvalid(value);
+  value = heartbeatPacket(); value.last_event_type = 9U; expectInvalid(value);
+  value = heartbeatPacket(); value.last_event_primary_wall = static_cast<uint8_t>(WallId::Top); expectInvalid(value);
+  for (float invalid : {-0.01f, 1.0f, 1.1f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()}) {
+    value = heartbeatPacket(); value.heartbeat.phase = invalid; expectInvalid(value);
+  }
+  for (float invalid : {39.9f, 140.1f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()}) {
+    value = heartbeatPacket(); value.heartbeat.bpm = invalid; expectInvalid(value);
+  }
+  for (float bpm : {40.0f, 140.0f}) for (float phase : {0.0f, 0.999999f}) {
+    value = heartbeatPacket(); value.heartbeat.bpm = bpm; value.heartbeat.phase = phase;
+    value.heartbeat.primary = 0U; value.heartbeat.secondary = UINT16_MAX;
+    value.heartbeat.contraction = UINT16_MAX; value.heartbeat.beat_sequence = UINT32_MAX;
+    seal(value);
+    CHECK(validateEspNowTelemetryPacketV5(&value, sizeof(value)));
+    const auto decoded = decodeEspNowHeartbeatState(value.heartbeat);
+    CHECK(decoded.primary == 0.0f && decoded.secondary == 1.0f && decoded.contraction == 1.0f);
+    CHECK(decoded.beat_sequence == UINT32_MAX);
+  }
+}
+
 #ifdef HAPTICS_TEST_DEMO_JSON
 void testCanonicalDemoJson() {
   StaticJsonDocument<3072> doc;
@@ -331,7 +423,39 @@ void testCanonicalDemoJson() {
   mass = doc.createNestedObject("mass");
   appendDemoTelemetryJson(mass, MassState{});
   CHECK(!mass.containsKey("demo"));
+  CHECK(!mass.containsKey("heartbeat"));
   std::puts("Canonical demo JSON: optional state, names, values and reuse passed.");
+}
+
+void testCanonicalHeartbeatJson() {
+  StaticJsonDocument<3072> doc;
+  auto mass = doc.createNestedObject("mass");
+  MassState state{};
+  state.heartbeat = decodeEspNowHeartbeatState(heartbeatPacket().heartbeat);
+  appendDemoTelemetryJson(mass, state);
+  CHECK(!doc.overflowed() && !mass.containsKey("demo"));
+  const auto heartbeat = mass["heartbeat"].as<JsonObjectConst>();
+  CHECK(heartbeat.size() == 7U && heartbeat["enabled"].as<bool>());
+  CHECK(heartbeat["phase"].as<float>() == state.heartbeat.phase);
+  CHECK(heartbeat["bpm"].as<float>() == state.heartbeat.bpm);
+  CHECK(heartbeat["beat_sequence"].as<uint32_t>() == state.heartbeat.beat_sequence);
+  CHECK(heartbeat["primary"].as<float>() == state.heartbeat.primary);
+  CHECK(heartbeat["secondary"].as<float>() == state.heartbeat.secondary);
+  CHECK(heartbeat["contraction"].as<float>() == state.heartbeat.contraction);
+  // Exercise serialized decimal precision too: a valid phase must not round
+  // to 1, which correctly fails the browser's [0,1) heartbeat contract.
+  state.heartbeat.phase = std::nextafter(1.0f, 0.0f);
+  doc.clear(); mass = doc.createNestedObject("mass");
+  appendDemoTelemetryJson(mass, state);
+  char json[512]{};
+  CHECK(serializeJson(doc, json, sizeof(json)) < sizeof(json) - 1U);
+  StaticJsonDocument<1024> parsed;
+  CHECK(!deserializeJson(parsed, json));
+  CHECK(parsed["mass"]["heartbeat"]["phase"].as<double>() < 1.0);
+  doc.clear();
+  mass = doc.createNestedObject("mass");
+  appendDemoTelemetryJson(mass, MassState{});
+  CHECK(!mass.containsKey("heartbeat") && !mass.containsKey("demo"));
 }
 #endif
 
@@ -346,9 +470,12 @@ int main() {
   testInheritedValidation();
   testV4PrefixAndRoundTrip();
   testV4ValidationAndSaturation();
+  testV5PrefixAndRoundTrip();
+  testV5MalformedAndBounds();
 #ifdef HAPTICS_TEST_DEMO_JSON
   testCanonicalDemoJson();
+  testCanonicalHeartbeatJson();
 #endif
-  std::puts("ESP-NOW v3/v4: 8 regression groups passed (v1/v2/v3 compatibility retained).");
+  std::puts("ESP-NOW v3/v4/v5: 10 regression groups passed (v1-v4 compatibility retained).");
   return 0;
 }

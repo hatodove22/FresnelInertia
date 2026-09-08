@@ -1,6 +1,7 @@
 #pragma once
 
 #include "haptics/Parameters.hpp"
+#include "haptics/HeartbeatModel.hpp"
 #include "haptics/PressurizedContentModel.hpp"
 #include "haptics/Types.hpp"
 
@@ -29,6 +30,7 @@ class MassMotionLayer {
   SystemParams params_{};
   MassState state_{};
   PressurizedContentModel pressure_model_{};
+  HeartbeatModel heartbeat_model_{};
   Vec2f filtered_drive_{};
   Vec2f convective_bias_{};
   Vec2f agitation_bias_{};

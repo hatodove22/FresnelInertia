@@ -76,4 +76,29 @@ assert.deepEqual(Object.fromEntries(wire4.demo_extension.fields.map(f => [f.name
   pile_slope: 226, granular_flow: 230, pressure_charge: 234, pressure_phase_ms: 238,
   burst_sequence: 240, pressure_phase: 242, flags: 243, pressure_remaining: 244, crc32: 246
 });
-console.log("OK telemetry v1/v2/v3/v4; 21 malformed config/demo cases rejected; v3/v4 wire offsets checked.");
+const wire5 = JSON.parse(fs.readFileSync(new URL("../../schemas/espnow_telemetry_wire_v5.json", import.meta.url), "utf8"));
+const v5 = structuredClone(frame);
+v5.mass.heartbeat = { enabled: true, phase: 0.25, bpm: 72, beat_sequence: 4294967295,
+  primary: 0.8, secondary: 0.1, contraction: 0.6 };
+v5.last_event = { type: "HeartbeatPulse", primary_wall: "None", amplitude: 0.8 };
+assert.deepEqual(validateSchemaSubset(schema, v5), []);
+for (const mutate of [
+  h => { h.enabled = false; }, h => { h.phase = -0.1; }, h => { h.phase = null; },
+  h => { h.bpm = 39; }, h => { h.bpm = 141; }, h => { h.beat_sequence = 4294967296; },
+  h => { h.beat_sequence = 0.5; }, h => { h.primary = -1; }, h => { h.secondary = 2; },
+  h => { h.contraction = null; }, h => { delete h.primary; }, h => { h.unreported = 1; }
+]) {
+  const changed = structuredClone(v5); mutate(changed.mass.heartbeat);
+  assert.notEqual(validateSchemaSubset(schema, changed).length, 0);
+}
+// The subset validator ignores exclusiveMaximum; C++ and Web parser tests
+// exercise phase=1 rejection while this asserts the complete schema contract.
+assert.equal(schema.properties.mass.properties.heartbeat.properties.phase.exclusiveMaximum, 1);
+assert.equal(wire5.version, 5);
+assert.equal(wire5.packet_size_bytes, 250);
+assert.equal(wire5.crc.covered_byte_count, 246);
+assert.deepEqual(Object.fromEntries(wire5.heartbeat_extension.fields.map(f => [f.name, f.offset])), {
+  phase: 226, bpm: 230, beat_sequence: 234, primary: 238, secondary: 240,
+  contraction: 242, enabled: 244, reserved: 245, crc32: 246
+});
+console.log("OK telemetry v1-v5; malformed config/demo/heartbeat cases rejected; v3/v4/v5 wire offsets checked.");

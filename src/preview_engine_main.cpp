@@ -60,6 +60,7 @@ const char* eventName(EventType type) {
     case EventType::RoofSlap: return "roof_slap";
     case EventType::Scrape: return "scrape";
     case EventType::PressurePop: return "pressure_pop";
+    case EventType::HeartbeatPulse: return "heartbeat_pulse";
     default: return "none";
   }
 }
@@ -102,6 +103,8 @@ EMSCRIPTEN_KEEPALIVE int preview_load_preset(const char* name) {
     next = makeDefaultLiquidPreset();
   } else if (std::strcmp(name, "liquid_soda_bottle") == 0) {
     next = makeDefaultSodaPreset();
+  } else if (std::strcmp(name, "heartbeat_soft_object") == 0) {
+    next = makeDefaultHeartbeatPreset();
   } else {
     return 0;
   }
@@ -154,6 +157,10 @@ EMSCRIPTEN_KEEPALIVE int preview_set_param(const char* path, float value) {
   PREVIEW_FLOAT(tilt, k_phi, 0.0f, 8.0f)
   PREVIEW_FLOAT(tilt, k_cm, 0.0f, 1.0f)
   PREVIEW_FLOAT(tilt, k_tau, 0.0f, 1.0f)
+  PREVIEW_FLOAT(heartbeat, bpm, 40.0f, 140.0f)
+  PREVIEW_FLOAT(heartbeat, pulse_gain, 0.0f, 1.0f)
+  PREVIEW_FLOAT(heartbeat, secondary_gain, 0.0f, 1.0f)
+  PREVIEW_FLOAT(heartbeat, contraction_deg, 0.0f, 10.0f)
 #undef PREVIEW_FLOAT
   if (std::strcmp(path, "features.enable_granular_pile_demo") == 0) {
     if (value != 0.0f && value != 1.0f) return 0;
@@ -222,9 +229,14 @@ EMSCRIPTEN_KEEPALIVE const char* preview_snapshot() {
   const char* phase = static_cast<unsigned>(mass.pressure.phase) == 1 ? "burst"
                       : (static_cast<unsigned>(mass.pressure.phase) == 2 ? "spent" : "sealed");
   out.add("\"pressure\":{\"enabled\":%s,\"phase\":\"%s\",\"charge\":%.9g,\"phaseS\":%.9g,"
-          "\"remaining\":%.9g,\"burstSequence\":%u}},",
+          "\"remaining\":%.9g,\"burstSequence\":%u},",
           mass.pressure.enabled ? "true" : "false", phase, mass.pressure.charge, mass.pressure.phase_s,
           mass.pressure.remaining, static_cast<unsigned>(mass.pressure.burst_sequence));
+  out.add("\"heartbeat\":{\"enabled\":%s,\"phase\":%.9g,\"primary\":%.9g,\"secondary\":%.9g,"
+          "\"contraction\":%.9g,\"bpm\":%.9g,\"beatSequence\":%u}},",
+          mass.heartbeat.enabled ? "true" : "false", mass.heartbeat.phase,
+          mass.heartbeat.primary, mass.heartbeat.secondary, mass.heartbeat.contraction,
+          mass.heartbeat.bpm, static_cast<unsigned>(mass.heartbeat.beat_sequence));
   out.add("\"tilt\":{\"thumbDeg\":%.9g,\"indexDeg\":%.9g,\"cgX\":%.9g,\"cgY\":%.9g,"
           "\"commonForceN\":%.9g,\"differentialTorqueNm\":%.9g,\"apparentMassKg\":%.9g},",
           tilt.thumb_angle_deg, tilt.index_angle_deg, tilt.cg_x_m, tilt.cg_y_m,

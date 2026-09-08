@@ -1,4 +1,5 @@
 #include "haptics/EventLayer.hpp"
+#include "haptics/HeartbeatModel.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -232,6 +233,9 @@ void EventLayer::configure(const SystemParams& params) {
   coherent_flow_wall_ = WallId::None;
   pressure_burst_seen_ = 0;
   pressure_flow_phase_ = 0.0f;
+  heartbeat_seen_ = 0;
+  heartbeat_previous_phase_ = 0.0f;
+  heartbeat_initialized_ = false;
 }
 
 void EventLayer::pushEvent(EventFrame<kMaxEventsPerFrame>& frame, const HapticEvent& event) {
@@ -248,6 +252,7 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(
     std::size_t max_output_events) {
   EventFrame<kMaxEventsPerFrame> frame{};
   output_limit_ = std::min(max_output_events, frame.items.size());
+  if (params_.features.enable_heartbeat_demo) return updateHeartbeat(state, dt_s);
   if (params_.features.enable_coherent_container_demo) {
     return updateCoherent(state, dt_s);
   }
@@ -714,6 +719,38 @@ EventFrame<kMaxEventsPerFrame> EventLayer::update(
       break;
   }
 
+  return frame;
+}
+
+EventFrame<kMaxEventsPerFrame> EventLayer::updateHeartbeat(const MassState& state, float dt_s) {
+  EventFrame<kMaxEventsPerFrame> frame{};
+  const auto& pulse = state.heartbeat;
+  if (!std::isfinite(dt_s) || dt_s <= 0.0f || !pulse.enabled ||
+      !std::isfinite(pulse.phase) || !std::isfinite(pulse.bpm)) return frame;
+  if (heartbeat_initialized_ && dt_s <= 0.050f) {
+    const bool primary = pulse.beat_sequence != heartbeat_seen_ &&
+        pulse.phase >= kHeartbeatPrimaryPhase &&
+        pulse.phase < kHeartbeatPrimaryPhase + kHeartbeatPrimaryWidth;
+    const bool secondary = heartbeat_previous_phase_ < kHeartbeatSecondaryPhase &&
+        pulse.phase >= kHeartbeatSecondaryPhase &&
+        pulse.phase < kHeartbeatSecondaryPhase + kHeartbeatSecondaryWidth;
+    if (primary || secondary) {
+      HapticEvent beat{};
+      beat.type = EventType::HeartbeatPulse;
+      beat.primary_wall = WallId::None;  // Explicit body-wide cue, not a wall contact.
+      beat.amplitude = clampf(params_.heartbeat.pulse_gain, 0.0f, 1.0f) *
+          (primary ? 1.0f : clampf(params_.heartbeat.secondary_gain, 0.0f, 1.0f));
+      beat.duration_ms = (primary ? kHeartbeatPrimaryWidth : kHeartbeatSecondaryWidth) *
+          60000.0f / clampf(pulse.bpm, 40.0f, 140.0f);
+      beat.density_hz = pulse.bpm / 60.0f;
+      pushEvent(frame, beat);
+    }
+  }
+  // Consume suppressed onsets too: a full event frame or resumed stream must
+  // not replay old beats later. Long gaps establish a fresh quiet baseline.
+  heartbeat_seen_ = pulse.beat_sequence;
+  heartbeat_previous_phase_ = pulse.phase;
+  heartbeat_initialized_ = true;
   return frame;
 }
 

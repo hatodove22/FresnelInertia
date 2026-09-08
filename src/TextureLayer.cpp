@@ -212,6 +212,12 @@ void TextureLayer::spawnVoice(const HapticEvent& event) {
       activateVoice(*acquireVoice(), event, TextureAtomKind::WetBurst,
                     0.060f, 18.0f, 0.012f, true, 0.65f);
       break;
+    case EventType::HeartbeatPulse:
+      if (!params_.features.enable_heartbeat_demo) break;
+      activateVoice(*acquireVoice(), event, TextureAtomKind::SoftPulse,
+                    event.duration_ms * 1.0e-3f, event.density_hz,
+                    0.0f, false, 1.0f);
+      break;
     case EventType::Scrape:
       activateVoice(*acquireVoice(),
                     event,
@@ -322,6 +328,16 @@ TextureCommand TextureLayer::renderVoice(const Voice& voice) const {
       cmd.low_env = clamp01(voice.amplitude * 0.62f * ripple * decay);
       cmd.high_env = clamp01(voice.amplitude * 0.18f * ripple * decay);
       cmd.noise_env = clamp01(voice.amplitude * 0.03f * ripple * decay);
+      break;
+    }
+    case TextureAtomKind::SoftPulse: {
+      // The phase-defined pulse duration makes a rounded low-band thump,
+      // without a chirp, rattle train or sharp fabricated collision attack.
+      const float sine = std::sin(kPi * t);
+      const float body = sine * sine;
+      cmd.low_env = clamp01(voice.amplitude * 0.95f * body);
+      cmd.high_env = clamp01(voice.amplitude * 0.08f * body);
+      cmd.noise_env = clamp01(voice.amplitude * 0.025f * body);
       break;
     }
     case TextureAtomKind::None:

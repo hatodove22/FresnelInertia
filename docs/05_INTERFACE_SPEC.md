@@ -114,6 +114,7 @@ two-axis sessions keep their three-value transaction and can use old firmware.
 
 | Contract | Bytes |
 |---|---:|
+| [Telemetry v5: opt-in heartbeat state](../schemas/espnow_telemetry_wire_v5.json) | 250 |
 | [Telemetry v4: opt-in pile/pressure state](../schemas/espnow_telemetry_wire_v4.json) | 250 |
 | [Telemetry v3](../schemas/espnow_telemetry_wire_v3.json) | 230 |
 | [Telemetry v2 compatibility](../schemas/espnow_telemetry_wire_v2.json) | 200 |
@@ -121,9 +122,11 @@ two-axis sessions keep their three-value transaction and can use old firmware.
 | [Command / execution response](../schemas/espnow_control_wire_v1.json) | 140 / 88 |
 
 These are CRC-protected ESP-NOW frames within 250 bytes on channel 6.
-The updated bridge decodes all four telemetry versions. Normal content still
-sends v3; active granular-pile or pressure effects send v4. Update StampC5
-before selecting these new presets: an older bridge cannot decode v4. Callbacks queue
+The updated bridge decodes all five telemetry versions. Normal content still
+sends v3; active granular-pile or pressure effects send v4; heartbeat sends v5.
+Update both AtomS3 and StampC5 before selecting heartbeat: its dedicated v5
+payload has the same size as v4 but different state. Existing v1-v4 layouts
+remain unchanged. Callbacks queue
 data; the main loop executes commands and serializes output. Pairing isolates a
 bench session but is not cryptographic authentication. Product security is
 deferred, not a new demo requirement.
@@ -165,6 +168,22 @@ the unchanged v3 prefix; phase time is quantized to milliseconds (saturates at
 recordings use the same names. `PressurePop` is event type 7; a sequence edge
 creates one pop, not one pop per low-rate snapshot. Radio observation can miss
 the short burst onset; the model owns the event and output scheduling.
+
+V5 replaces the 20-byte optional extension, not the unchanged v3 prefix or its
+resolved configuration. It carries named `mass.heartbeat`: `enabled`, normalized
+`phase` [0,1), `primary`, `secondary`, `contraction` [0,1], `bpm` [40,140], and
+unsigned 32-bit `beat_sequence`. Phase/envelopes use UNORM16 and BPM hundredths;
+CRC and exact version/length distinguish it from v4. There is no synthetic
+pile/pressure object in v5 and no guessed heartbeat in legacy telemetry.
+`HeartbeatPulse` is event type 8 with `WallId::None`, explicitly routed across
+four channels rather than mislabeled as a wall contact. Full JSON and Wasm
+expose the same state (Wasm uses camelCase `beatSequence`).
+
+Default heartbeat is 72 BPM. Like other speaker events, the 10 Hz radio's
+latest-event observation is not sample-accurate: sufficiently close pulses
+can collapse to the last event, particularly at higher experimental tempos.
+On-device haptic scheduling is independent of this observation rate. Stop,
+reconfiguration and source gaps do not replay a queue of missed beats.
 
 Immediate command snapshots refresh preset, run mode, idle fill and output
 metadata before publication. They retain the last IMU timestamp/frame counter;
