@@ -20,20 +20,20 @@ const importBundle = async options => {
     logLevel: "silent", ...options });
   return import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0].text).toString("base64")}`);
 };
+const presets = ["granular_single_marble_box", "granular_sand_box", "liquid_small_box", "liquid_soda_bottle", "granular_coin_box", "granular_single_coin_box", "heartbeat_soft_object"];
 const { OfflineLab } = await importBundle({
   entryPoints: [fileURLToPath(new URL("../src/offlineLab.ts", import.meta.url))],
   plugins: [{ name: "offline-lab-engine-boundary", setup(builder) {
     builder.onResolve({ filter: /HapticLink/ }, () => { throw new Error("Offline Lab must not import hardware controls"); });
     builder.onResolve({ filter: /\/lab\/PreviewEngine$/ }, () => ({ path: "engine", namespace: "offline-lab-test" }));
     builder.onLoad({ filter: /.*/, namespace: "offline-lab-test" }, () => ({ loader: "js",
-      contents: "export const PreviewEngine = { create: (...args) => globalThis.__offlineLabEngineFactory(...args) };" }));
+      contents: `export const previewPresets = ${JSON.stringify(presets)}; export const PreviewEngine = { create: (...args) => globalThis.__offlineLabEngineFactory(...args) };` }));
   } }]
 });
 const { PreviewEngine } = await importBundle({
   entryPoints: [fileURLToPath(new URL("../src/lab/PreviewEngine.ts", import.meta.url))]
 });
 
-const presets = ["granular_single_marble_box", "granular_sand_box", "liquid_small_box", "liquid_soda_bottle", "granular_coin_box", "granular_single_coin_box"];
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 const near = (actual, expected, tolerance = 1e-7) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`);
 
@@ -49,14 +49,15 @@ class Element {
 }
 function frame(preset = "granular_sand_box") {
   return { source: "production-cpp-preview", abiVersion: 1, preset,
-    family: preset.startsWith("granular") ? "Granular" : "Liquid", timeS: 0, frameCounter: 0, eventsTotal: 0,
+    family: preset.startsWith("heartbeat") ? "Custom" : preset.startsWith("granular") ? "Granular" : "Liquid", timeS: 0, frameCounter: 0, eventsTotal: 0,
     container: { span_x_m: 0.06, span_y_m: 0.06, span_z_m: 0.04, fill: 0.35,
       headspace: 0.65, viscosity: 0.08, particle_count: 0.9, particle_hardness: 0.35 },
     parameters: { granularPile: preset === "granular_sand_box" },
     mass: { posNorm: [0, -0.65], velNormS: [0, 0], energy: 0, fill: 0.35,
       granularPileActive: preset === "granular_sand_box", pileSlope: 0, granularFlow: 0,
       pressure: { enabled: preset === "liquid_soda_bottle", phase: "sealed", charge: 0,
-        phaseS: 0, remaining: 1, burstSequence: 0 } },
+        phaseS: 0, remaining: 1, burstSequence: 0 },
+      heartbeat: { enabled: preset === "heartbeat_soft_object", phase: 0, primary: 0, secondary: 0, contraction: 0, bpm: 72, beatSequence: 0 } },
     tilt: { thumbDeg: 0, indexDeg: 0 }, channels: [0, 0, 0, 0], events: [] };
 }
 class FakeEngine {
@@ -120,7 +121,7 @@ function fixture(factory) {
 test("query lab route starts one asynchronous offline open and never touches hardware", async () => {
   const pending = deferred(), f = fixture(() => pending.promise);
   const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
-  const route = main.match(/if \(new URLSearchParams\(window\.location\.search\)\.get\("lab"\) === "1"\) void offlineLab\.open\(\);/);
+  const route = main.match(/const launch = new URLSearchParams\(window\.location\.search\);\s*if \(launch\.get\("lab"\) === "1"\) void offlineLab\.open\(launch\.get\("preset"\) \?\? undefined\);/);
   assert.ok(route, "main keeps its explicit ?lab=1 startup route");
   const runRoute = new Function("window", "offlineLab", route[0]);
   runRoute({ location: { search: "" } }, f.lab);
@@ -451,5 +452,27 @@ test("coin and single-coin Lab selections use their named production presets and
     }
     assert.ok(events > 0 && peak > 0, "same tilted production state drives contacts and channel envelopes");
   }
+  assert.equal(f.hardwareReads(), 0);
+});
+
+test("heart deep link uses production state, names pulses honestly, and holds on pause", async () => {
+  let engine;
+  const f = fixture(async preset => (engine = await PreviewEngine.create(preset)));
+  await f.lab.open("heartbeat_soft_object");
+  assert.equal(engine.snapshot().preset, "heartbeat_soft_object");
+  assert.equal(f.applied.at(-1).preset.family, "Custom");
+  let peak = 0;
+  for (let i = 0; i < 70; ++i) {
+    f.lab.update(.02);
+    const frame = engine.snapshot();
+    assert.deepEqual(f.states.at(-1).heartbeat, frame.mass.heartbeat);
+    peak = Math.max(peak, frame.mass.heartbeat.contraction);
+  }
+  assert.ok(peak > .95); assert.match(f.element("lab-status").textContent, /72 BPM/);
+  assert.match(f.element("lab-model-state").textContent, /拍動/);
+  assert.doesNotMatch(f.element("lab-model-state").textContent, /接触/);
+  f.element("lab-pause").click(); const held = engine.snapshot();
+  f.lab.update(.02); f.lab.update(.02);
+  assert.deepEqual(engine.snapshot(), held); assert.equal(f.lab.soundFrame, null);
   assert.equal(f.hardwareReads(), 0);
 });

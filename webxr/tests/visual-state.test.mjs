@@ -89,6 +89,27 @@ test("v4 source time, retained pile and burst state cross the pure adapter as bo
   assert.equal(invalid.pressure, undefined);
 });
 
+test("heartbeat adapter copies only valid source envelopes and never infers missing beats", () => {
+  const heartbeat = { enabled: true, phase: 0.2, bpm: 72, beat_sequence: 123,
+    primary: 0.8, secondary: 0.1, contraction: 0.6 };
+  const snapshot = { timestamp_ms: 2300, mass: { pos_norm: [0, 0], vel_norm_s: [0, 0], heartbeat } };
+  const result = contentFromSnapshot(snapshot, 0.5);
+  assert.deepEqual(result.heartbeat, { phase: 0.2, bpm: 72, beatSequence: 123,
+    primary: 0.8, secondary: 0.1, contraction: 0.6 });
+  heartbeat.phase = 0.4;
+  close(result.heartbeat.phase, 0.2);
+  const copy = sanitizeDeviceContent(result);
+  assert.notEqual(copy.heartbeat, result.heartbeat);
+  for (const invalid of [{ phase: 1 }, { bpm: 39 }, { primary: NaN }, { secondary: 1.1 },
+    { contraction: -0.1 }, { beatSequence: 1.5 }, { beatSequence: 2 ** 32 }]) {
+    assert.equal(sanitizeDeviceContent({ ...state, heartbeat: { ...result.heartbeat, ...invalid } }).heartbeat, undefined);
+  }
+  heartbeat.enabled = false;
+  assert.equal(contentFromSnapshot(snapshot, 0.5).heartbeat, undefined);
+  delete snapshot.mass.heartbeat;
+  assert.equal(contentFromSnapshot(snapshot, 0.5).heartbeat, undefined);
+});
+
 test("pure particle layout preserves mass centroid for odd/even clouds and wall contacts", () => {
   for (const count of [1, 17, 74]) for (const mass of [[0.6, -0.7], [-1, 1], [0, 0]]) {
     const layout = deviceParticleLayout(size, { ...state, massX: mass[0], massY: mass[1] }, "Granular", count === 1);

@@ -31,8 +31,19 @@ export interface DeviceDemoState {
   };
 }
 
+/** Named shared model state; not a browser beat clock or measured physiology. */
+export interface DeviceHeartbeatState {
+  enabled: boolean;
+  phase: number;
+  bpm: number;
+  beat_sequence: number;
+  primary: number;
+  secondary: number;
+  contraction: number;
+}
+
 export type DeviceEventType = "None" | "WallHit" | "RollTrain" | "ImpactCluster" |
-  "DropletCluster" | "RoofSlap" | "Scrape" | "PressurePop";
+  "DropletCluster" | "RoofSlap" | "Scrape" | "PressurePop" | "HeartbeatPulse";
 
 export interface DeviceSnapshot {
   timestamp_ms: number;
@@ -40,7 +51,7 @@ export interface DeviceSnapshot {
   preset: string;
   run_mode: string;
   imu?: { valid?: boolean; accel_g?: number[]; gyro_dps?: number[]; [key: string]: unknown };
-  mass?: { pos_norm?: number[]; vel_norm_s?: number[]; energy?: number; fill?: number; demo?: DeviceDemoState; [key: string]: unknown };
+  mass?: { pos_norm?: number[]; vel_norm_s?: number[]; energy?: number; fill?: number; demo?: DeviceDemoState; heartbeat?: DeviceHeartbeatState; [key: string]: unknown };
   audio?: { runtime_enabled?: boolean; output_silenced?: boolean; [key: string]: unknown };
   safety?: { imu_stale_safe_stop?: boolean; audio_zero_asserted?: boolean; tilt_disarmed?: boolean; [key: string]: unknown };
   tilt_servo?: { state?: number; fault?: number; devices?: Array<Record<string, unknown>>; [key: string]: unknown };
@@ -145,6 +156,22 @@ export function parseHapticLinkLine(raw: string): ParsedBridgeLine | null {
             pressure.burst_sequence < 0 || pressure.burst_sequence > 65535) {
           return { kind: "diagnostic", message: "Ignored invalid mass.demo.pressure" };
         }
+      }
+      if (record(value.mass) && value.mass.heartbeat !== undefined) {
+        const heartbeat = value.mass.heartbeat;
+        const unit = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1;
+        if (!record(heartbeat) || heartbeat.enabled !== true ||
+            !unit(heartbeat.phase) || heartbeat.phase >= 1 ||
+            !unit(heartbeat.primary) || !unit(heartbeat.secondary) || !unit(heartbeat.contraction) ||
+            typeof heartbeat.bpm !== "number" || !Number.isFinite(heartbeat.bpm) || heartbeat.bpm < 40 || heartbeat.bpm > 140 ||
+            typeof heartbeat.beat_sequence !== "number" || !Number.isInteger(heartbeat.beat_sequence) ||
+            heartbeat.beat_sequence < 0 || heartbeat.beat_sequence > 0xffffffff) {
+          return { kind: "diagnostic", message: "Ignored invalid mass.heartbeat" };
+        }
+      }
+      if (record(value.last_event) && value.last_event.type === "HeartbeatPulse" &&
+          (!record(value.mass) || !record(value.mass.heartbeat) || value.last_event.primary_wall !== "None")) {
+        return { kind: "diagnostic", message: "Ignored heartbeat event without shared heartbeat state" };
       }
       if (value.resolved !== undefined) {
         const resolved = value.resolved;

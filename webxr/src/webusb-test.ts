@@ -1,4 +1,6 @@
 import "./webusb-test.css";
+import { initPwa } from "./pwa/register";
+initPwa(document.getElementById("webusb-app")!);
 
 type UsbDirection = "in" | "out";
 type UsbEndpointType = "bulk" | "interrupt" | "isochronous";

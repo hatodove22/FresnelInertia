@@ -16,7 +16,8 @@ const devicePresets = [
   ["granular_coin_box", "コイン"],
   ["granular_single_coin_box", "コイン1枚（新FW）"],
   ["liquid_dense_jar", "粘性のある液体"],
-  ["liquid_half_tube", "細長い容器の液体"]
+  ["liquid_half_tube", "細長い容器の液体"],
+  ["heartbeat_soft_object", "心臓 · 拍動（Atom・Stamp 新FW）"]
 ];
 const quietContent: LocalContentState = {
   surfaceOffsetX: 0, surfaceOffsetY: 0, surfaceVelocityX: 0, surfaceVelocityY: 0,
@@ -152,6 +153,9 @@ export class DeviceDemo {
         if (name === "granular_single_coin_box" && error instanceof HapticLinkError &&
           error.code === "rejected" && error.message.includes("preset_load_failed")) {
           throw new HapticLinkError(error.code, `${error.message} — コイン1枚には対応するAtomS3 FWが必要です`);
+        }
+        if (name === "heartbeat_soft_object" && error instanceof HapticLinkError && error.code === "rejected") {
+          throw new HapticLinkError(error.code, `${error.message} — 心臓には対応するAtomS3・StampC5 FWが必要です。実機なしラボでも試せます`);
         }
         throw error;
       }

@@ -4,8 +4,8 @@ import type { ContainerPreset, LocalContentState } from "../types";
 import { resolvedPresetFromSnapshot } from "../visualState";
 import { sourceTimeStep } from "../SourceTime";
 
-export type SoundMaterial = "coin" | "marble" | "sand" | "water" | "soda" | "hybrid";
-export interface SoundEvent { kind: "impact" | "scrape" | "pop"; strength: number; pan: number }
+export type SoundMaterial = "coin" | "marble" | "sand" | "water" | "soda" | "hybrid" | "heartbeat";
+export interface SoundEvent { kind: "impact" | "scrape" | "pop" | "beat"; strength: number; pan: number }
 export interface SoundFrame {
   source: "device" | "lab" | "preview";
   preset: string;
@@ -34,9 +34,10 @@ const validTime = (value: unknown): value is number => finite(value) && value >=
 const validContainer = (preset: ContainerPreset) => !!preset?.container && [preset.container.span_x_m, preset.container.span_y_m,
   preset.container.span_z_m].every(value => finite(value) && value > 0) && finite(preset.container.fill);
 
-function material(preset: ContainerPreset, pressureEnabled = false): SoundMaterial {
+function material(preset: ContainerPreset, pressureEnabled = false, heartbeatEnabled = false): SoundMaterial {
   // Applied family outranks an arbitrary preset name; coin names distinguish
   // the hard discs from the sparse-hard marble fallback within Granular only.
+  if (preset.family === "Custom" && heartbeatEnabled) return "heartbeat";
   if (preset.family === "Hybrid") return "hybrid";
   if (preset.family === "Liquid") return pressureEnabled || /soda/i.test(preset.preset) ? "soda" : "water";
   if (preset.family === "Granular") {
@@ -83,11 +84,11 @@ function eventPan(wall: unknown, fallback: number): number {
   return fallback;
 }
 function eventKind(type: unknown): SoundEvent["kind"] | null {
-  const names = ["none", "wallhit", "rolltrain", "impactcluster", "dropletcluster", "roofslap", "scrape", "pressurepop"];
+  const names = ["none", "wallhit", "rolltrain", "impactcluster", "dropletcluster", "roofslap", "scrape", "pressurepop", "heartbeatpulse"];
   const name = typeof type === "string" ? type.replace(/_/g, "").toLowerCase() : typeof type === "number" ? names[type] : "";
   if (["wallhit", "impactcluster", "dropletcluster", "roofslap"].includes(name)) return "impact";
   if (name === "rolltrain" || name === "scrape") return "scrape";
-  return name === "pressurepop" ? "pop" : null;
+  return name === "heartbeatpulse" ? "beat" : name === "pressurepop" ? "pop" : null;
 }
 function soundEvent(type: unknown, amplitude: unknown, wall: unknown, pan: number, burst?: Pressure): SoundEvent | null {
   const kind = eventKind(type), strength = unit(amplitude);
@@ -113,13 +114,14 @@ export function fromDeviceSound(state: HapticLinkState): SoundFrame | null {
   const burst = preset.family === "Liquid" ? pressure(reported && { enabled: reported.enabled, phase: reported.phase,
     phaseS: reported.phase_s, charge: reported.charge, remaining: reported.remaining, sequence: reported.burst_sequence }) : undefined;
   const fill = unit(mass.fill), pan = panOf(mass.pos_norm[0]), serial = counter(snapshot.evt_total);
+  const heartbeat = preset.family === "Custom" && mass.heartbeat?.enabled === true;
   const event = serial > 0 && fill > 0 && (!burst || unit(burst.remaining) > 0)
     ? soundEvent(snapshot.last_event?.type, snapshot.last_event?.amplitude, snapshot.last_event?.primary_wall, pan, burst) : null;
   return { source: "device", preset: preset.preset, timeS: snapshot.timestamp_ms / 1000, serial,
-    step: snapshot.frame_counter, popSerial: burst?.sequence, material: material(preset, !!burst), pan,
-    flow: motionFlow(preset, mass.vel_norm_s, fill, mass.demo?.granular_pile_active ? mass.demo.granular_flow : 0, burst),
+    step: snapshot.frame_counter, popSerial: burst?.sequence, material: material(preset, !!burst, heartbeat), pan,
+    flow: heartbeat ? 0 : motionFlow(preset, mass.vel_norm_s, fill, mass.demo?.granular_pile_active ? mass.demo.granular_flow : 0, burst),
     ...(burst ? { vent: pressureVent(burst, fill) } : {}),
-    events: event ? [event] : [] };
+    events: event && (event.kind === "beat" ? heartbeat : !heartbeat) ? [event] : [] };
 }
 
 /** Current C++ events are used directly; no haptic impulses are inferred from the rendered coins. */
@@ -132,17 +134,18 @@ export function fromLabSound(frame: PreviewFrame): SoundFrame {
   const burst = preset.family === "Liquid" ? pressure(reported && { enabled: reported.enabled, phase: reported.phase, phaseS: reported.phaseS,
     charge: reported.charge, remaining: reported.remaining, sequence: reported.burstSequence }) : undefined;
   const fill = valid ? unit(frame.mass.fill) : 0, pan = valid ? panOf(frame.mass.posNorm[0]) : 0;
+  const heartbeat = valid && preset.family === "Custom" && frame.mass.heartbeat?.enabled === true;
   const serial = counter(frame.eventsTotal);
   const events: SoundEvent[] = [];
   if (valid && fill > 0 && serial > 0 && (!burst || unit(burst.remaining) > 0) && Array.isArray(frame.events)) {
     for (const event of frame.events.slice(0, 16)) {
       const mapped = event && soundEvent(event.name, event.amplitude, event.wall, pan, burst);
-      if (mapped) events.push(mapped);
+      if (mapped && (mapped.kind === "beat" ? heartbeat : !heartbeat)) events.push(mapped);
     }
   }
   return { source: "lab", preset: frame.preset, timeS: validTime(frame.timeS) ? frame.timeS : 0,
-    serial, step: counter(frame.frameCounter), popSerial: burst?.sequence, material: material(preset, !!burst), pan,
-    flow: valid ? motionFlow(preset, frame.mass.velNormS, fill, frame.mass.granularPileActive ? frame.mass.granularFlow : 0, burst) : 0,
+    serial, step: counter(frame.frameCounter), popSerial: burst?.sequence, material: material(preset, !!burst, heartbeat), pan,
+    flow: valid && !heartbeat ? motionFlow(preset, frame.mass.velNormS, fill, frame.mass.granularPileActive ? frame.mass.granularFlow : 0, burst) : 0,
     ...(burst ? { vent: valid ? pressureVent(burst, fill) : 0 } : {}),
     events };
 }
@@ -183,7 +186,8 @@ export class SoundTimeline {
       sample.kind === "rewind" || sample.kind === "gap" ||
       (frame.step !== undefined && previous.step !== undefined && frame.step < previous.step) ||
       (frame.source !== "preview" && (frame.serial < previous.serial || (frame.serial < 0) !== (previous.serial < 0)));
-    const candidates = frame.events.filter(event => event && ["impact", "scrape", "pop"].includes(event.kind) &&
+    const candidates = frame.events.filter(event => event && ["impact", "scrape", "pop", "beat"].includes(event.kind) &&
+      (event.kind !== "beat" || frame.material === "heartbeat") &&
       finite(event.strength) && event.strength > 0 && finite(event.pan)).slice(-16)
       .map(event => ({ kind: event.kind, strength: unit(event.strength), pan: panOf(event.pan) }));
     const pulse = Math.max(0, ...candidates.filter(event => event.kind === "impact").map(event => event.strength));

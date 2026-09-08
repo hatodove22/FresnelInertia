@@ -26,6 +26,38 @@ heavy geometry tests do not contend with short wall-clock transport fixtures.
 The independent [concept atlas](../explainer/README.md) is an explanatory
 artifact; its sketches do not drive this connected scene.
 
+## Phone launch and offline installation
+
+The standalone demo uses [the fixed HTTPS address](https://hatodove22.github.io/FresnelInertia/).
+Only the built Web application is served; the PC is not a server or relay.
+Android Chrome talks directly to the connected StampC5 through WebUSB and the
+AtomS3 continues to own physical output. Opening/installing never enables output.
+
+Open **アプリ保存・オフライン** and wait for **保存済み** while online. The
+same build, including recorded sound, lazy coin physics and the production
+Wasm Lab, is saved without reducing rendering or sound quality. Use
+**ホーム画面に追加** when offered, or Chrome's installation menu. MR's external
+hand assets are outside offline support. Storage can still be evicted by the
+browser; check the save indicator before taking the demo offline.
+
+Updates wait while any page/app window remains open; close all windows for this
+site and reopen to activate a fully downloaded version. There is no hot reload,
+automatic Start or forceful worker takeover during a demo. Failed/incomplete
+downloads leave the older complete release intact. USB permissions and speaker
+unlock still belong to the browser. Actual Android installed-mode USB and
+resume behavior require the focused check recorded in 08, not an assumption
+from desktop emulation.
+
+Profiles and tuning histories belong to each origin: export their JSON before
+moving from localhost or a temporary tunnel, and import at the new address.
+Local loopback development skips PWA registration by default; `?pwa=1` opts
+an isolated test browser into it. Production HTTPS registers normally.
+
+GitHub Pages publishes `webxr/dist` using
+[the deployment workflow](../.github/workflows/demo-pages.yml) after Web tests
+and a build, on relevant main-branch pushes or manual dispatch. No research
+logs, device recordings or repository source tree are in that static artifact.
+
 ## Modes
 
 - Connected desktop demo: Web Serial to StampC5; AtomS3 owns motion/content, applied configuration and physical output. A WebUSB transport also exists, with target-host compatibility tracked in 16.
@@ -40,7 +72,7 @@ artifact; its sketches do not drive this connected scene.
 
 The ordinary screen shows only the current source's material picker:
 **画面で試す** before connection, the applied device material after connecting,
-or the six Lab choices while the Lab is open. Preview names are Japanese;
+or the seven Lab choices while the Lab is open. Preview names are Japanese;
 the underlying preset IDs and device-acceptance rules are unchanged.
 **StampC5に接続** is the single connection entry; open **接続方法** only to
 override automatic USB selection. Device **実機で開始 / 停止** stay fixed below
@@ -70,8 +102,8 @@ the Lab cannot take over an active device view or XR session. Closing it returns
 to the simple preview without connecting, disconnecting or sending Stop/Start
 to hardware.
 
-1. Choose one of six material buttons: marble, sand, water, soda, **コイン**
-   or **コイン1枚**. The engine loads actual C++ presets;
+1. Choose marble, sand, water, soda, **コイン**, **コイン1枚** or **心臓 · 拍動**.
+   The engine loads actual C++ presets;
    the renderer uses their resolved dimensions and the returned content state.
 2. Move the left/right and front/back sliders, or use the automatic tilt sweep.
    The same synthetic body-frame input drives visible state and model outputs.
@@ -155,6 +187,22 @@ fill semantics. Coin visuals use thin metallic discs with a patterned face,
 bounded placement and source-driven movement; the multi-coin count is illustrative,
 while the explicit single-coin condition displays one disc. The richer appearance
 of existing **コイン** is a Web-only change.
+
+### Heartbeat — a soft object in the hand
+
+Select **心臓 · 拍動** in the Lab or use
+[the direct Lab link](https://hatodove22.github.io/FresnelInertia/?lab=1&preset=heartbeat_soft_object).
+At rest, the shared production model creates a 72 BPM main/softer second pulse
+and slower contraction. The visible soft body deforms from that reported
+contraction; optional speaker sound voices named pulse events using a short
+authored dull thud, not a cardiac recording or a pitch sweep. No independent
+browser beat timer runs. Pause holds the model and image and cancels sound tails;
+resuming or receiving a source gap never plays a backlog of missed beats.
+
+The four-channel and servo meters are calculated commands, not tactile proof.
+Physical selection needs new **AtomS3 and StampC5** firmware for v5 state.
+Existing presets remain compatible. This fictional expressive object does not
+measure grip/heart rate and is not a medical simulation or tuning representative.
 
 ## Keyboard controls
 
@@ -604,6 +652,14 @@ Chromium/Web Audio scheduling and the production Lab. It uses the same
 [browser setup](../docs/reference/19_DEVELOPMENT_SETUP.md#output-free-c-lab).
 The harness blocks device/microphone access and launches Chromium with muted
 audio. It verifies browser behavior, not what a person hears.
+
+`node tests/browser-heartbeat.mjs` uses the same environment and mocked StampC5
+to check named beat sound, contraction pixels, stale/Stop and read-only refresh.
+After `npm run build`, `node tests/browser-pwa.mjs` serves an isolated in-memory
+copy at a Pages-like subpath and tests offline routes/lazy assets, waiting
+updates, record preservation and explicit cache repair. It needs the same
+Playwright runtime, starts/closes its own fixture server, and never requests
+hardware. Neither test establishes actual Android installed-mode USB behavior.
 
 For an affected desktop interaction, use the connected-demo steps above: check
 reported configuration, deliberate Start, handled visual/haptic agreement and

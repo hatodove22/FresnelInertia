@@ -1,0 +1,8 @@
+.pwa-options { margin: .75rem 0; padding: .6rem .7rem; border: 1px solid #78928d44; border-radius: .65rem; font-size: .78rem; }
+.pwa-options summary { cursor: pointer; }
+.pwa-options #pwa-indicator { margin-left: .35rem; color: #79cbb7; font-size: .72rem; }
+.pwa-options p { line-height: 1.5; margin: .65rem 0; }
+.pwa-options .pwa-note { opacity: .72; font-size: .72rem; }
+.pwa-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.pwa-options button { padding: .45rem .65rem; width: auto; }
+.pwa-options [hidden] { display: none !important; }

@@ -89,6 +89,54 @@ test("v4 demo state and PressurePop are retained without inferring them for v3",
   }
 });
 
+test("v5 named heartbeat is preserved without creating a beat for legacy/preset-only frames", () => {
+  const frame = snapshot({ preset: "heartbeat_soft_object" });
+  assert.equal(parseHapticLinkLine(jsonLine(frame)).snapshot.mass.heartbeat, undefined);
+  frame.mass.heartbeat = { enabled: true, phase: 0.125, bpm: 72, beat_sequence: 4294967295,
+    primary: 0.8, secondary: 0.1, contraction: 0.6 };
+  frame.last_event = { type: "HeartbeatPulse", primary_wall: "None", amplitude: 0.8 };
+  assert.deepEqual(parseHapticLinkLine(jsonLine(frame)), { kind: "telemetry", snapshot: frame });
+  assert.equal(parseHapticLinkLine(jsonLine(frame)).snapshot.mass.demo, undefined);
+  const missing = structuredClone(frame); delete missing.mass.heartbeat;
+  assert.equal(parseHapticLinkLine(jsonLine(missing)).kind, "diagnostic");
+  const wallHit = structuredClone(frame); wallHit.last_event.primary_wall = "Top";
+  assert.equal(parseHapticLinkLine(jsonLine(wallHit)).kind, "diagnostic");
+});
+
+test("malformed heartbeat is ignored; receiving/reconnecting never starts output", async t => {
+  const { link, wire } = await fixture(t);
+  const initialWrites = [...wire.writes];
+  wire.send(jsonLine());
+  const heartbeat = { enabled: true, phase: 0.2, bpm: 72, beat_sequence: 3,
+    primary: 0.5, secondary: 0, contraction: 0.4 };
+  for (const mutate of [
+    h => { h.enabled = false; }, h => { h.enabled = 1; }, h => { h.phase = 1; },
+    h => { h.phase = -0.001; }, h => { h.phase = null; }, h => { h.bpm = 39; },
+    h => { h.bpm = 141; }, h => { h.bpm = Infinity; }, h => { h.beat_sequence = 2 ** 32; },
+    h => { h.beat_sequence = -1; }, h => { h.beat_sequence = 1.5; },
+    h => { h.primary = -0.1; }, h => { h.secondary = 1.1; },
+    h => { h.contraction = NaN; }, h => { delete h.primary; }
+  ]) {
+    const frame = snapshot({ frame_counter: 999 });
+    frame.mass.heartbeat = structuredClone(heartbeat);
+    mutate(frame.mass.heartbeat);
+    assert.equal(parseHapticLinkLine(jsonLine(frame)).kind, "diagnostic");
+    wire.send(jsonLine(frame));
+    assert.equal(link.state.telemetry.frame_counter, 120);
+  }
+  const frame = snapshot(); frame.mass.heartbeat = heartbeat;
+  wire.send(jsonLine(frame));
+  assert.deepEqual(link.state.telemetry.mass.heartbeat, heartbeat);
+  assert.deepEqual(wire.writes, initialWrites);
+  wire.send(jsonLine());
+  assert.equal(link.state.telemetry.mass.heartbeat, undefined, "ordinary frame clears previous pulse");
+  await link.disconnect();
+  await link.connect();
+  assert.equal(link.state.stale, true, "retained diagnostics are not a fresh connection");
+  assert.equal(link.state.telemetry.mass.heartbeat, undefined);
+  assert.ok(!wire.writes.some(text => /(?:start|audio on|tilt arm)/i.test(text)));
+});
+
 test("malformed optional demo fields are rejected without replacing latest state", async t => {
   const { link, wire } = await fixture(t);
   const initialWrites = [...wire.writes];
@@ -406,6 +454,20 @@ test("preset change stops, loads, gets state and waits for real telemetry", asyn
   wire.send(jsonLine(snapshot({ preset: "water_box" })));
   assert.equal(link.state.telemetry.preset, "water_box");
   assert.deepEqual(wire.writes, ["status\n", "stop\n", "preset load water_box\n", "get state\n"]);
+});
+
+test("heartbeat rejected by older firmware remains stopped and never invents applied state", async t => {
+  const { link, wire } = await fixture(t);
+  wire.send(jsonLine());
+  const changed = outcome(link.loadPreset("heartbeat_soft_object"));
+  wire.accept(1, 3);
+  await turn();
+  assert.equal(wire.writes.at(-1), "preset load heartbeat_soft_object\n");
+  wire.accept(2, 6, "rejected");
+  assert.equal((await changed).error.code, "rejected");
+  assert.equal(link.state.telemetry.preset, "marble_box");
+  assert.equal(link.state.telemetry.mass.heartbeat, undefined);
+  assert.deepEqual(wire.writes, ["status\n", "stop\n", "preset load heartbeat_soft_object\n"]);
 });
 
 const tuningValues = () => ({

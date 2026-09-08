@@ -1,5 +1,6 @@
 import { SoundTimeline, type SoundFrame } from "./SoundState";
 import { loadFoleyBank, type FoleyBank, type FoleyBankLoader } from "./FoleyBank";
+import { heartbeatSamples } from "./HeartbeatSamples";
 export { impactSamples, flowSamples } from "./FoleySamples";
 
 const clamp = (v: number, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : lo));
@@ -24,6 +25,7 @@ export class MaterialSound {
   private generation = 0;
   private seed = 0;
   private lastWetContactS = -Infinity;
+  private heartbeatBuffer?: AudioBuffer;
 
   constructor(private readonly makeContext = () => new AudioContext({ latencyHint: "interactive" }),
     private readonly loadBank: FoleyBankLoader = loadFoleyBank) {}
@@ -35,7 +37,7 @@ export class MaterialSound {
     try {
       if (!this.context || this.context.state === "closed") {
         this.context = this.makeContext();
-        this.bank = undefined; this.bankLoading = undefined;
+        this.bank = undefined; this.bankLoading = undefined; this.heartbeatBuffer = undefined;
         this.master = this.context.createGain();
         this.master.gain.value = this.volume;
         // Modest authored gains plus compression keep busy grains from masking
@@ -98,7 +100,7 @@ export class MaterialSound {
     if (this.flow) {
       const gain = this.flow.gain.gain;
       // Friction is subordinate to the contact, especially for isolated solids.
-      const level = clamp(flow) ** 1.3 * ({ coin: 0.18, marble: 0.14, sand: 0.34, water: 0.38, soda: 0.30, hybrid: 0.34 }[material]);
+      const level = clamp(flow) ** 1.3 * ({ coin: 0.18, marble: 0.14, sand: 0.34, water: 0.38, soda: 0.30, hybrid: 0.34, heartbeat: 0 }[material]);
       gain.cancelScheduledValues(now); gain.setValueAtTime(gain.value, now);
       gain.linearRampToValueAtTime(level, now + 0.035);
       // Fresh 10 Hz source frames renew this envelope. A stalled page/radio
@@ -151,11 +153,20 @@ export class MaterialSound {
       // gentle movement keeps the smaller wet sample. This remaps timbre only.
       const surge = wet && event.kind === "scrape" && (flow >= 0.25 || event.strength >= 0.35);
       const sampleKind = surge ? "impact" : event.kind;
-      const buffer = this.bank?.get(sampleKind === "pop" ? `pop:${variation}` : `${material}:${sampleKind}:${variation}`);
+      let buffer = this.bank?.get(sampleKind === "pop" ? `pop:${variation}` : `${material}:${sampleKind}:${variation}`);
+      if (event.kind === "beat" && material === "heartbeat") {
+        if (!this.heartbeatBuffer) {
+          const pcm = heartbeatSamples(ctx.sampleRate);
+          this.heartbeatBuffer = ctx.createBuffer(1, pcm.length, ctx.sampleRate);
+          this.heartbeatBuffer.copyToChannel(pcm, 0);
+        }
+        buffer = this.heartbeatBuffer;
+      }
       if (!buffer) continue;
       const voice = this.voice(buffer, false);
       if (wet && event.kind !== "pop") this.lastWetContactS = result.frame.timeS;
-      voice.gain.gain.value = event.kind === "pop" ? clamp(event.strength) * 0.85
+      voice.gain.gain.value = event.kind === "beat" ? clamp(event.strength) * 0.90
+        : event.kind === "pop" ? clamp(event.strength) * 0.85
         : wet ? Math.sqrt(clamp(event.strength)) * (sampleKind === "scrape" ? 0.30 : 0.52)
         : clamp(event.strength) * 0.60;
       voice.pan.pan.value = clamp(event.pan, -0.65, 0.65);

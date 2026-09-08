@@ -22,6 +22,15 @@ export interface DeviceContentState {
     remaining: number;
     burstSequence: number;
   };
+  /** Envelopes sampled from AtomS3 / the same Wasm model, never extrapolated. */
+  heartbeat?: {
+    phase: number;
+    bpm: number;
+    beatSequence: number;
+    primary: number;
+    secondary: number;
+    contraction: number;
+  };
 }
 
 /** THREE XYZ-compatible, gravity-referenced angles; there is no absolute yaw. */
@@ -63,6 +72,12 @@ export function resolvedPresetFromSnapshot(snapshot: DeviceSnapshot | null): Con
 }
 
 export function sanitizeDeviceContent(state: DeviceContentState): DeviceContentState {
+  const heartbeat = state.heartbeat;
+  const validHeartbeat = heartbeat &&
+    [heartbeat.phase, heartbeat.primary, heartbeat.secondary, heartbeat.contraction].every(
+      value => Number.isFinite(value) && value >= 0 && value <= 1) && heartbeat.phase < 1 &&
+    Number.isFinite(heartbeat.bpm) && heartbeat.bpm >= 40 && heartbeat.bpm <= 140 &&
+    Number.isInteger(heartbeat.beatSequence) && heartbeat.beatSequence >= 0 && heartbeat.beatSequence <= 0xffffffff;
   return {
     massX: clamp(finite(state.massX), -1, 1), massY: clamp(finite(state.massY), -1, 1),
     velocityX: finite(state.velocityX), velocityY: finite(state.velocityY),
@@ -71,6 +86,7 @@ export function sanitizeDeviceContent(state: DeviceContentState): DeviceContentS
     ...(state.pileSlope === undefined ? {} : { pileSlope: clamp(finite(state.pileSlope), -8, 8) }),
     ...(state.granularFlow === undefined ? {} : { granularFlow: clamp(finite(state.granularFlow), 0, 1) }),
     ...(state.phaseS === undefined || !Number.isFinite(state.phaseS) ? {} : { phaseS: state.phaseS }),
+    ...(validHeartbeat ? { heartbeat: { ...heartbeat } } : {}),
     ...(state.pressure && ["sealed", "burst", "spent"].includes(state.pressure.phase) ? { pressure: {
       charge: clamp(finite(state.pressure.charge), 0, 1), phase: state.pressure.phase,
       phaseS: Math.max(0, finite(state.pressure.phaseS)),
@@ -91,6 +107,11 @@ export function contentFromSnapshot(snapshot: DeviceSnapshot, appliedFill: numbe
     phaseS: Number.isFinite(snapshot.timestamp_ms) ? snapshot.timestamp_ms / 1000 : undefined,
     pileSlope: mass.demo?.granular_pile_active ? mass.demo.pile_slope : undefined,
     granularFlow: mass.demo?.granular_pile_active ? mass.demo.granular_flow : undefined,
+    heartbeat: mass.heartbeat?.enabled ? {
+      phase: mass.heartbeat.phase, bpm: mass.heartbeat.bpm,
+      beatSequence: mass.heartbeat.beat_sequence, primary: mass.heartbeat.primary,
+      secondary: mass.heartbeat.secondary, contraction: mass.heartbeat.contraction
+    } : undefined,
     pressure: mass.demo?.pressure?.enabled ? {
       charge: mass.demo.pressure.charge, phase: mass.demo.pressure.phase,
       phaseS: mass.demo.pressure.phase_s, remaining: mass.demo.pressure.remaining,

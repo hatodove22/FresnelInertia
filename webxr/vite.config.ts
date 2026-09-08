@@ -2,9 +2,13 @@ import basicSsl from "@vitejs/plugin-basic-ssl";
 import { iwsdkDev } from "@iwsdk/vite-plugin-dev";
 import { resolve } from "node:path";
 import { defineConfig, searchForWorkspaceRoot } from "vite";
+import { staticPwa } from "./src/pwa/staticPwaPlugin";
 
 export default defineConfig({
+  // Relative assets work both at a pages.dev root and a GitHub Pages subpath.
+  base: process.env.VITE_BASE_PATH || "./",
   plugins: [
+    staticPwa(),
     basicSsl(),
     iwsdkDev({
       emulator: {

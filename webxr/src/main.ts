@@ -17,6 +17,9 @@ import { DeviceDemo } from "./deviceDemo";
 import { OfflineLab } from "./offlineLab";
 import { makeMaterialBackdrop, makeMaterialEnvironment } from "./renderer/MaterialStudio";
 import "./style.css";
+import { initPwa } from "./pwa/register";
+
+initPwa(document.querySelector<HTMLElement>(".hud-scroll")!);
 
 const canvas = document.querySelector<HTMLCanvasElement>("#scene");
 if (!canvas) {
@@ -275,7 +278,8 @@ setPanelState(panelState);
 updateReadout(phoneInput.tilt);
 new DemoKeyboard(document, () => deviceDemo.active ? "device" :
   renderer.xr.isPresenting ? "xr" : offlineLab.active ? "lab" : "preview");
-if (new URLSearchParams(window.location.search).get("lab") === "1") void offlineLab.open();
+const launch = new URLSearchParams(window.location.search);
+if (launch.get("lab") === "1") void offlineLab.open(launch.get("preset") ?? undefined);
 
 const presentationStatus = document.querySelector<HTMLElement>("#presentation-status")!;
 window.addEventListener("resize", () => {

@@ -50,6 +50,26 @@ async function fakeBank(ctx) {
 }
 function fixture(loader = fakeBank) { const ctx = new Context(); let allocated = 0; const sound = new MaterialSound(() => { allocated++; return ctx; }, loader); return { sound, ctx, allocated: () => allocated }; }
 
+test('heart doublet plays only named source beats, reuses its short thud and cancels on pause', async () => {
+  const { sound, ctx } = fixture(); await sound.enable();
+  const heart = { preset: 'heartbeat_soft_object', material: 'heartbeat', flow: 0 };
+  sound.update(frame(1, 0, heart));
+  sound.update(frame(1.1, 1, { ...heart, events: [{ kind: 'beat', strength: .95, pan: 0 }] }));
+  assert.equal(ctx.sources.length, 1);
+  const buffer = ctx.sources[0].buffer;
+  assert.equal(buffer.length, Math.round(.17 * ctx.sampleRate));
+  sound.update(frame(1.1, 1, { ...heart, events: [{ kind: 'beat', strength: .95, pan: 0 }] }));
+  assert.equal(ctx.sources.length, 1, 'duplicate telemetry cannot retrigger');
+  sound.update(frame(1.3, 2, { ...heart, events: [{ kind: 'beat', strength: .55, pan: 0 }] }));
+  assert.equal(ctx.sources.length, 2); assert.equal(ctx.sources[1].buffer, buffer);
+  assert.ok(ctx.sources[1].connections[0].gain.value < ctx.sources[0].connections[0].gain.value);
+  assert.ok(ctx.sources.every(source => !source.loop && source.playbackRate === undefined));
+  sound.update(null);
+  assert.ok(ctx.sources.every(source => source.stops.length === 1));
+  sound.update(frame(2.5, 5, { ...heart, events: [{ kind: 'beat', strength: .95, pan: 0 }] }));
+  assert.equal(ctx.sources.length, 2, 'resume baselines without replaying missed beats');
+});
+
 test('material waveforms are deterministic, bounded, nonempty and acoustically distinct', () => {
   const signatures = new Set();
   for (const material of ['coin','marble','sand','water','soda','hybrid']) {

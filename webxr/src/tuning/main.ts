@@ -1,4 +1,6 @@
 import "./style.css";
+import { initPwa } from "../pwa/register";
+initPwa(document.querySelector<HTMLElement>("main")!);
 import { HapticLink, parseTiltGainReadback, tiltGainsMatch, type DeviceSnapshot } from "../link/HapticLink";
 import { PreviewEngine } from "../lab/PreviewEngine";
 import { createSession, parseSession, parameterValues, recordChoice, axisDefinitions, getSessionSpace, getSessionDemo, getSessionPreset, demoDefinitions, type DemoId, type TuningSession, type SessionMode, type Point, type Choice } from "./TuningSession";

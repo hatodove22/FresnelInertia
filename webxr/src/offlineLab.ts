@@ -1,4 +1,4 @@
-import { PreviewEngine, type PreviewFrame, type PreviewPreset } from "./lab/PreviewEngine";
+import { PreviewEngine, previewPresets, type PreviewFrame, type PreviewPreset } from "./lab/PreviewEngine";
 import type { ContainerScene } from "./renderer/ContainerScene";
 import type { ContainerPreset, LocalContentState, TiltState } from "./types";
 
@@ -11,7 +11,8 @@ const descriptions: Record<PreviewPreset, string> = {
   granular_sand_box: "傾けると崩れ、戻しても偏りが残る。砂の重心と堆積面を一緒に見る。",
   granular_sand_pile_box: "摩擦で堆積面と重心の偏りが残る砂pile。静止摩擦と流動時の摩擦を連動させて比較する。",
   liquid_small_box: "水面全体が寄り、片側の盛り上がりと周囲の引き込みが一続きに動く。戻る波の細部は映像表現、FWの重心・触覚指令はそのまま。",
-  liquid_soda_bottle: "振るほど気泡が蓄積。限界でポンと弾け、泡が吹き出して静まる。"
+  liquid_soda_bottle: "振るほど気泡が蓄積。限界でポンと弾け、泡が吹き出して静まる。",
+  heartbeat_soft_object: "手の中でドクン、と脈打つ柔らかな物体。主拍と小さな追拍、ゆっくりした収縮を同じC++状態から描画・発音します。医療モデルや心拍計ではありません。"
 };
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -78,8 +79,9 @@ export class OfflineLab {
     };
   }
 
-  async open() {
+  async open(initialPreset?: string) {
     if (this.loading || this.active || !this.hooks.canEnter()) return;
+    if (initialPreset && previewPresets.includes(initialPreset as PreviewPreset)) this.preset = initialPreset as PreviewPreset;
     const generation = ++this.generation;
     this.loading = true;
     element<HTMLButtonElement>("lab-open").disabled = true;
@@ -206,7 +208,8 @@ export class OfflineLab {
       velocityX: frame.mass.velNormS[0], velocityY: frame.mass.velNormS[1], energy: frame.mass.energy,
       fill: frame.mass.fill, pileSlope: frame.mass.granularPileActive ? frame.mass.pileSlope : undefined,
       granularFlow: frame.mass.granularPileActive ? frame.mass.granularFlow : undefined,
-      phaseS: frame.timeS, pressure: pressure.enabled ? pressure : undefined });
+      phaseS: frame.timeS, pressure: pressure.enabled ? pressure : undefined,
+      heartbeat: frame.mass.heartbeat?.enabled ? frame.mass.heartbeat : undefined });
     this.scene.setDeviceOrientation({ pitchRad: p, rollRad: r });
     // Use the same bounded display cue as a connected device. Writing the
     // group's position directly would be overwritten by desktop placement.
@@ -216,6 +219,7 @@ export class OfflineLab {
     this.status.textContent = this.modelError || (this.paused ? "一時停止 — 映像とモデルを同時に保持" :
       pressure.enabled && pressure.phase === "burst" ? "POP! — 同じイベントから衝撃と噴出を生成" :
       pressure.enabled && pressure.phase === "spent" ? "噴出完了 — リセットで再び密封" :
+      frame.mass.heartbeat?.enabled ? `${Math.round(frame.mass.heartbeat.bpm)} BPM · 同じ拍動から振動・接平面の動き・収縮を生成` :
       this.mode === "sweep" ? "左右に傾け、水平へ戻す。同じ入力で比較中。" :
       this.mode === "shake" ? "揺動入力を再生中" : "左右・前後のスライダーで自由に探索");
     for (let i = 0; i < 4; ++i) {
@@ -226,7 +230,9 @@ export class OfflineLab {
     }
     element("lab-thumb").textContent = `${frame.tilt.thumbDeg.toFixed(1)}°`;
     element("lab-index").textContent = `${frame.tilt.indexDeg.toFixed(1)}°`;
-    element("lab-model-state").textContent = `重心 x ${(frame.mass.posNorm[0] * frame.container.span_x_m * 500).toFixed(1)} mm · 接触 ${frame.eventsTotal} 回 · ${frame.timeS.toFixed(1)} s`;
+    element("lab-model-state").textContent = frame.mass.heartbeat?.enabled
+      ? `拍動 ${frame.mass.heartbeat.beatSequence} 周期 · 収縮 ${(frame.mass.heartbeat.contraction * 100).toFixed(0)}% · ${frame.timeS.toFixed(1)} s`
+      : `重心 x ${(frame.mass.posNorm[0] * frame.container.span_x_m * 500).toFixed(1)} mm · 接触 ${frame.eventsTotal} 回 · ${frame.timeS.toFixed(1)} s`;
     element<HTMLMeterElement>("lab-charge").value = pressure.charge;
     element("lab-pressure-label").textContent = pressure.phase === "sealed" ? "密封" : pressure.phase === "burst" ? "噴出中" : "落ち着いた";
     return { tilt: { x: p, y: r }, content: quiet };

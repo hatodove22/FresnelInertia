@@ -8,6 +8,7 @@ import { LiquidContentRenderer } from "./LiquidContentRenderer";
 import { ParticleContentRenderer } from "./ParticleContentRenderer";
 import { CoinContentRenderer } from "./CoinContentRenderer";
 import { IceContentRenderer } from "./IceContentRenderer";
+import { HeartbeatContentRenderer } from "./HeartbeatContentRenderer";
 import { disposeObjectTree } from "./disposeObjectTree";
 
 export { containerRestY } from "./ContainerGeometry";
@@ -26,6 +27,7 @@ export class ContainerScene {
   private particles?: ParticleContentRenderer;
   private coins?: CoinContentRenderer;
   private ice?: IceContentRenderer;
+  private heartbeat?: HeartbeatContentRenderer;
   private disposed = false;
   private deviceDirty = true;
   private desktop = true;
@@ -122,6 +124,7 @@ export class ContainerScene {
       this.liquid?.updateDevice(this.deviceState, this.group.quaternion, this.deviceAcceleration);
       this.particles?.updateDevice(this.deviceState, this.group.quaternion, this.deviceAcceleration);
       this.coins?.updateDevice(this.deviceState, this.group.quaternion, this.deviceAcceleration);
+      this.heartbeat?.updateDevice(this.deviceState);
       if (this.liquid) this.ice?.updateDevice(this.deviceState, this.liquid.volume);
       this.deviceDirty = false;
     } else {
@@ -163,11 +166,13 @@ export class ContainerScene {
     this.particles?.dispose();
     this.coins?.dispose();
     this.ice?.dispose();
+    this.heartbeat?.dispose();
     disposeObjectTree(this.group);
     this.liquid = undefined;
     this.particles = undefined;
     this.coins = undefined;
     this.ice = undefined;
+    this.heartbeat = undefined;
     this.supportPoints = [];
   }
 
@@ -176,6 +181,22 @@ export class ContainerScene {
     this.gripProxy.setVisible(false);
     if (!this.preset || !this.geometry || this.disposed) return;
     const dims = this.geometry.dimensions;
+    if (this.preset.preset === "heartbeat_soft_object" && this.preset.family === "Custom") {
+      this.heartbeat = new HeartbeatContentRenderer(dims);
+      this.group.add(this.heartbeat.group);
+      // The soft object is the held object, not contents floating in a glass
+      // box. Use its rest envelope for stable stage placement while it pulses.
+      this.heartbeat.group.traverse(object => {
+        const positions = (object as THREE.Mesh).geometry?.getAttribute("position");
+        if (positions) for (let i = 0; i < positions.count; ++i) {
+          this.supportPoints.push(new THREE.Vector3().fromBufferAttribute(positions, i));
+        }
+      });
+      this.group.scale.setScalar(1);
+      this.gripProxy.setSize(dims);
+      this.group.add(this.gripProxy.group);
+      return;
+    }
     const glass = new THREE.MeshPhysicalMaterial({
       color: "#d8edf0", transparent: true, opacity: 0.14, roughness: 0.18,
       metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12, depthWrite: false,
