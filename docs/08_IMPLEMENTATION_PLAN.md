@@ -26,20 +26,21 @@ acceptance.
 
 | Priority | Work | Completion evidence |
 |---|---|---|
-| 1 | Deploy the pending AtomS3 changes when the operator is available; close the reported material-switch/servo-recovery issue. | A short handled switch, Stop and deliberate restart with both output branches; no reboot workaround counted as success. |
+| 1 | Restore servo communication for the handled run, then check the now-installed material-switch/servo-recovery fixes. | A short handled switch, Stop and deliberate restart with both output branches; no reboot workaround counted as success. |
 | 2 | Use the existing joint search on water, one marble and retained sand. | Useful selected settings compared again with their starting settings; actual judgments and context retained. |
 | 3 | Reapply selected profiles in the ordinary desktop/Android demo. | Material behavior, fingertip cues, visual response and optional sound make sense together on the intended host. |
 | 4 | Resolve the specific remaining mismatch revealed by that comparison. | A focused before/after observation, not simply more parameters, geometry or tests. |
 
 These are small iterations, not a campaign to repeat completed bring-up.
-Existing evidence and exactly which source changes remain unflashed are in
+Existing evidence and the installed firmware boundary are in
 [16](16_PROGRESS_STATUS.md#current-issues-and-unverified-behavior).
 
 ### 1. Restore a dependable exhibition flow
 
-Upload the affected integrated AtomS3 image when the user resumes hardware
-work. Gain tuning and the servo fixes alone need no new StampC5 image; the
-heartbeat demo additionally requires the compatible StampC5 v5 bridge.
+Both integrated AtomS3 and compatible StampC5 v5 images are uploaded; see
+[16](16_PROGRESS_STATUS.md#working-tree-versus-installed-firmware). The stopped
+post-upload check found no valid servo replies. Check supply/connections when
+resuming hardware work, then use the existing stopped servo recheck before Start.
 Preserve ordinary powered, supervised testing; do not actuate unattended hardware.
 
 Use one short handling sequence to check the observed fault and any catch-up

@@ -22,12 +22,12 @@ No human-optimized profiles or demonstrated tactile benefit from tuning exist.
 | Capability | Implemented in current software | Physical evidence / pending boundary |
 |---|---|---|
 | Shared synthesis and tilt | Mass -> Event -> Texture -> Resonance -> Spatial4, with parallel filtered/bounded position and dynamic-CG/inertia tilt; reusable C++ core | Earlier marble/sand runs used both outputs together; later revisions are not thereby validated |
-| Haptic Link and applied state | Bidirectional intent/ACK/telemetry, resolved dimensions/fill/material, v3 and optional v4 pile/pressure state | Deployed pre-integration firmware transported v4 with outputs OFF; new tuning setters/readback remain unflashed |
+| Haptic Link and applied state | Bidirectional intent/ACK/telemetry, resolved dimensions/fill/material, v3/v4 and heartbeat v5 state | Current AtomS3/StampC5 uploaded; stopped heartbeat/water switching and tilt readback ACK checked; physical tuning remains pending |
 | Stop and servo recovery | Exact-length status matching, visible stopped recovery and assembled-profile bounded live retry; generic defaults retained | Earlier Stop/readbacks passed; reported material-switch interruptions are not yet physically resolved |
 | Ordinary desktop/phone view | Applied-state controls, pinned Start/Stop, richer water/sand/ice, visual coin contacts and marble depth | Earlier desktop direction agreement and phone use reported; latest audiovisual/tactile fit and phone performance unmeasured |
 | Lab and speaker branch | Output-free production C++/Wasm Lab; separate opt-in source-driven sound with recorded water/soda and authored solid Foley | Recorded water sound approved; newer soda/sand changes have no user acceptance yet |
 | Preference workspace and profiles | Joint five-axis A/B for three representative materials, save/resume, seven-value selected profiles and explicit stopped demo application | Software/mock checked only; no real A/B ratings or optimized gains established |
-| Fictional heartbeat | Shared C++ primary/secondary pulse and contraction; explicit body-wide texture, bounded tilt, v5 state, Web soft-body rendering and named-event sound | Model/software/mock tested only; both AtomS3 and StampC5 updates and a short handled check remain pending |
+| Fictional heartbeat | Shared C++ primary/secondary pulse and contraction; explicit body-wide texture, bounded tilt, v5 state, Web soft-body rendering and named-event sound | Both devices uploaded; named heartbeat state verified over actual radio with outputs OFF; a short handled check remains pending |
 | Standalone distribution | Static GitHub Pages workflow and quality-preserving PWA; full-release cache including lazy sound/physics/Wasm and explicit cache repair | Desktop offline/update/recovery tested; actual Android installed-mode USB/resume not yet checked |
 
 Implementation ownership and limits are in [05](05_INTERFACE_SPEC.md),
@@ -37,26 +37,32 @@ The [Web guide](../webxr/README.md) owns controls, launch and import/export use.
 
 ## Working tree versus installed firmware
 
-The current source includes the 2026-09-07 integration and subsequent changes.
-The latest confirmed AtomS3 upload was the **2026-09-05 pre-integration soda
-common-mode recoil increment**. StampC5 last received the earlier same-day
-pile/pressure-capable baseline. Neither device received the later merged build.
-Refreshing the Web client updates presentation/Lab, not installed device code.
+On **2026-09-08**, both current images were uploaded from source revision
+`b28f18a` (firmware implementation `9ed08e5`): integrated AtomS3 on COM3
+(`34:B7:DA:5E:75:90`) and StampC5 bridge on COM4 (`3C:DC:75:8E:05:7C`).
+Both uploaders verified written data and rebooted successfully; no filesystem
+upload or storage formatting was performed. Port numbers are this session's
+identities, not permanent settings. The 2026-09-05 images are superseded.
 
-Unflashed AtomS3 changes include exact-length servo reply matching, bounded live
-retry, the single-coin preset, sharper soda opening and three-material tuning
-setters/four tilt readbacks. These additions do not require a StampC5 update.
-The heartbeat addition additionally requires both devices to be updated for its
-named v5 state. No new image was uploaded during this implementation.
-Existing preset defaults, physical output bounds and Stop remain preserved.
+Installed AtomS3 code now includes exact-length servo reply matching, bounded
+live retry, single coin, sharper soda opening, joint tuning setters/readbacks
+and heartbeat. The bridge includes the required v5 heartbeat decoder.
+Refreshing the Web client alone still does not update either device.
 
-The last directly captured bench snapshot followed that recoil upload: AtomS3
-reported Idle/audio OFF/tilt disabled, neither servo answered the non-actuating
-PING, and StampC5 was absent/unpaired. The user ended hardware work at upload.
-This is a **dated observation, not the present connection, power or fault state**.
-Later phone feedback does not identify its exact installed firmware.
-No hardware was accessed, flashed or actuated during the latest software checks
-or Web refactoring.
+Post-upload, actual ESP-NOW paired automatically. `get state`, stopped loading
+of heartbeat and water, and final Stop all returned applied ACKs. The capture
+contained 85 snapshots, all Idle/audio runtime OFF/output silenced/tilt disarmed
+with zero actuator levels; heartbeat exposed its named 72 BPM v5 state and
+water restored ordinary state. Bridge checks reported zero invalid packets,
+gaps, serialization errors and command timeouts during this short check.
+No Live, audio-enable or tilt-arm command was sent; pulse motion/tactile quality
+was not tested. The final preset is `liquid_small_box`, in Idle.
+
+Both servo status records were invalid with a communication fault; actual
+torque/position could not be read. Check servo supply/connections before the
+next handled run; this snapshot does not identify the cause or establish that
+the exhibition interruption is fixed. The earlier software/browser verification
+below remains distinct from this stopped hardware communication check.
 
 ## Heartbeat and standalone distribution — 2026-09-08
 
@@ -79,7 +85,8 @@ The final local Web suite passed **416/416**, with TypeScript and production
 build PASS (existing large physics/scene chunk advisories remain). Sequential
 firmware builds passed: baseline AtomS3 **625,761 B flash / 45,996 B RAM**;
 integrated AtomS3 **1,075,265 B / 71,100 B**; StampC5 **1,046,295 B / 54,124 B**.
-All are software build results; none of these images was uploaded.
+Those checks established build success; the subsequent upload and its limited
+hardware evidence are recorded above.
 
 The PWA caches the exact complete release (about 6.3 MiB), including unvisited
 Rapier, Wasm and PCM assets. Desktop Chromium checked all three routes and real
@@ -168,8 +175,8 @@ the [development ledger](archive/2026-09-08/16_DEVELOPMENT_LEDGER.md).
 - **Material-switch servo interruptions:** a matching late-response defect was
   reproduced and corrected in software; no incident trace proves it explains
   every exhibition failure. Same-ID/same-length stale replies remain ambiguous.
-  The corrected firmware and requested brief live retry still lack deployment
-  and a handled switch/recovery result; the issue is not closed.
+  The corrected firmware and requested brief live retry are now deployed but
+  still lack a handled switch/recovery result; the issue is not closed.
 - **Depth versus sound/haptics:** marble depth, individual coin contacts and
   fore/aft liquid motion can occur without corresponding C++ contact events.
   They do not generate extra speaker/haptic hits; exact per-object landing
