@@ -1,0 +1,95 @@
+Unity Studio software regression (mock data; no hardware)
+PASS Link: v3 resolved snapshot accepted
+PASS Link: v1 legacy missing capabilities accepted without guessing
+PASS Link: v4 sand/pressure snapshot accepted
+PASS Link: v5 named shared heartbeat accepted
+PASS Link: out-of-range heartbeat rejected
+PASS Link: malformed vector rejected
+PASS Link: noncanonical material-family casing rejected
+PASS Link: literal visual particle count rejected from normalized parameter
+PASS Link: zero resolved geometry span rejected
+PASS Link: incomplete v3 resolved model rejected
+PASS Link: nonfinite extension rejected
+PASS Link: malformed JSON ignored
+PASS Link: oversized request ID rejected
+PASS Link: connection shows observation state with no telemetry
+PASS Link: connection sends no preset, Live or enable command
+PASS Link: partial line does not publish state
+PASS Link: fragmented mixed-line telemetry published
+PASS Link: snapshot getter protects shared state
+PASS Link: duplicate configuration snapshot updates revision without refreshing old motion
+PASS Link: new source sample recovers freshness
+PASS Link: oversize fragments discard complete line
+PASS Link: framing recovers after oversized line
+PASS Link: telemetry does not count as execution ACK
+PASS Link: wrong request and old-session ACK cannot complete command
+PASS Link: exact request/session execution ACK completes command
+PASS Link: monotonic command timeout exposes error
+PASS Link: late ACK cannot complete following command
+PASS Link: bounded discovery retries local pairing readiness rejection
+PASS Link: explicit zero-session rejection recovers through new discovery execution ACK
+PASS Link: Stop respects single bridge in-flight request
+PASS Link: Stop supersedes remaining Start steps
+PASS Link: partial Start rejection executes cleanup Stop
+PASS Link: preset change stops and confirms without auto Start
+PASS Link: preset injection rejected before IO
+PASS Link: profile uses eleven execution ACKs
+PASS Link: profile probes and verifies applied tilt gains without Start
+PASS Link: invalid full profile rejected before Stop or writes
+PASS Link: old firmware rejected before applying profile values
+PASS Link: new bridge session invalidates old sample and in-flight request
+PASS Link: transport fault cancels command and marks observation stale
+PASS Link: reconnect clears previous state and never arms
+PASS Presentation: Actual granular_single_marble_box preset renders one marble
+PASS Presentation: Representative applied preset identifiers select their intended renderers
+PASS Presentation: Body-to-Unity basis agrees with Web gravity for roll, pitch, compound and inverted poses
+PASS Presentation: Mounted sensor rest maps to body +Y
+PASS Presentation: Body x/y marble bounds do not map vertical mass to tray depth
+PASS Presentation: Initial source sample does not integrate
+PASS Presentation: Duplicate source sample does not integrate
+PASS Presentation: Half-second source step is accepted
+PASS Presentation: Source gap forbids catch-up integration
+PASS Presentation: Source restart rebases
+PASS Presentation: Missing time cannot animate
+PASS Presentation: Initial telemetry resolves real metric geometry and motion
+PASS Presentation: Configuration-only receipt changes fill without resampling IMU or motion
+PASS Presentation: Fresh source sample advances the gravity filter once
+PASS Presentation: Preset ACK does not transplant old material motion
+PASS Presentation: Named heartbeat envelope and sequence are accepted without extrapolation
+PASS Presentation: Invalid heartbeat phase cannot produce a synthetic beat
+PASS Presentation: Legacy missing dimensions remain unknown
+PASS Presentation: Malformed motion is never a fresh source sample
+PASS Presentation: Uint32 milliseconds wrap advances by actual elapsed time
+PASS Presentation: Device restart resets source time without catch-up
+PASS Presentation: Source reset clears the accepted frame
+PASS Presentation: Fresh IMU exposes gravity-subtracted acceleration in g units
+PASS Presentation: Duplicate telemetry neither resamples IMU nor advances its gravity filter
+PASS Presentation: Accepted sample without IMU clears excitation while retaining known orientation
+PASS Presentation: Invalid IMU flag cannot replay or replace linear excitation
+PASS Presentation: Malformed IMU components cannot excite a new accepted frame
+PASS Presentation: Nonfinite IMU components cannot excite a new accepted frame
+PASS Presentation: IMU recovery advances once from the last valid filter state
+PASS Presentation: Water/sand surface stays inside walls at empty/full fill and extreme compound/inverted slopes
+PASS Presentation: Clipped volume conserves fill across 400 surface configurations
+PASS Presentation: Rendered top/side/bottom meshes share a bounded volume
+PASS Presentation: Free-surface triangle winding faces the viewer above
+PASS Presentation: Inverted water has downward-facing free-surface winding
+PASS Presentation: Connecting does not replay a latched speaker event
+PASS Presentation: Fresh event voices once despite repeated display calls
+PASS Presentation: Speaker event after a source gap is suppressed
+PASS Presentation: Stopped source cannot voice residual events
+PASS Presentation: Enabling sound or recovering stale state establishes a fresh baseline
+PASS Profiles: 84 assertions
+PASS Gesture: 3 Hz position second derivative agrees with acceleration during attack, shake and release
+PASS Gesture: 3 Hz default gesture stays spatially bounded with finite metric acceleration
+PASS Gesture: 3 Hz release returns the visible vessel and excitation to rest
+PASS Gesture: 5 Hz position second derivative agrees with acceleration during attack, shake and release
+PASS Gesture: 5 Hz default gesture stays spatially bounded with finite metric acceleration
+PASS Gesture: 5 Hz release returns the visible vessel and excitation to rest
+PASS Gesture: Live 3-to-5 Hz change includes angular frequency acceleration and has no velocity discontinuity
+PASS Gesture: Drag attack and return acceleration are derivatives of the same visible hand path
+PASS Gesture: Stopped or invalid source intervals leave all published gesture state unchanged
+PASS Gesture: Paused gesture does not advance hidden phase, envelope or hand history
+PASS Gesture: A 240 ms source interval advances the exact path instead of replaying old acceleration
+PASS Gesture: Explicit gesture reset discards pose, acceleration, phase and envelope
+TOTAL PASS: 176

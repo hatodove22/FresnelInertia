@@ -1,6 +1,6 @@
 # 16 Current Facts
 
-Updated: 2026-09-08. This page describes implemented software, the scope of
+Updated: 2026-09-11. This page describes implemented software, the scope of
 dated verification, and actual user observations—not the next work plan.
 The research objective is coherent fingertip-plane tilt and four-channel
 vibration from one device-owned content state, with an agreeing visual client.
@@ -16,6 +16,90 @@ baseline, not proof that later software changes have been physically accepted.
 The working tree now includes richer presentation, servo recovery changes and
 joint preference tuning for water, one marble and retained sand.
 No human-optimized profiles or demonstrated tactile benefit from tuning exist.
+
+## Optional Unity study — 2026-09-10
+
+[**Fresnel Studio**](../unity/README.md) targets Unity **6.3 LTS / 6000.3.23f1**.
+The original MIT-licensed
+[Fresnel Container Materials](../unity/FresnelContainerDemo/Packages/com.fresnel.container-materials/README.md)
+**v0.3.0** is an embedded, reusable Built-in pipeline package with no Obi code
+or paid dependency. On 2026-09-11 the user judged the smooth v0.2 visuals
+substantially improved, then requested convincing rapid shaking. That feedback
+does not establish physical or tactile acceptance. The preceding appearance,
+cost and distribution results are retained in the
+[v0.2 snapshot](archive/2026-09-11_UNITY_V020_VISUAL_VERIFICATION.md).
+
+The [v0.3.0 experimental checkpoint](https://github.com/hatodove22/FresnelInertia/releases/tag/unity-v0.3.0)
+collects the Windows ZIP, Android APK, UPM archive, film and checksums.
+Portable [software records](../unity/verification/results/v0.3.0/) accompany the
+source. Publication preparation rebuilt a checkout with no Library or generated
+TMP assets and reran all 49 shake checks successfully. The standalone protocol
+helper also passed 41 checks and 36 canonical schema snapshots after its Unity
+6.3/package-cache portability fixes. No runtime dynamics changed in this packaging step.
+
+The new Hold to shake/H gesture and Shift-drag use one bounded vessel path and
+its acceleration. Local simulation includes translational and rotating-frame
+inertia. Four accepted-step wave modes, curved crest accents, contained droplets
+and foam make water impacts visible. Sand separates supported mass from actual
+unsupported particles, shows their flight and returns them to a continuous bed.
+Gravity-based support selection prevents a horizontal shake from turning the bed
+into a vertical curtain; zero-thickness floor faces no longer flicker against
+the enclosure. The retained elastic skin follows rotation, deformation and the
+fictional contraction. Detail batches reuse buffers and have explicit budgets.
+
+Device mode remains driven by accepted AtomS3 telemetry through Windows COM or
+Android CDC USB. Gravity-excluded acceleration and accepted pose changes supply
+visual inertia; no IMU position tracking is invented. The gold mass marker uses
+telemetry directly. Lost/duplicate frames freeze simulation, waves and detail
+ages; rebases discard momentum. Two bounded substeps report skipped detail time
+instead of replaying it. Connection never starts outputs. Stop supersession,
+stopped profile application and source-driven, initially muted audio remain.
+The PhysX marble/beads and material studies are explicitly offline; their visual
+contacts do not create hardware events or replace the production C++ model.
+
+| Check | Verified result and boundary |
+|---|---|
+| Windows player | x64 build PASS; PhysX **38/38**, Studio **30/30**, material integration **100/100**; zero captured runtime errors |
+| Editor regressions | Protocol/presentation/profile/gesture **176/176** and solver/component **135/135** PASS; includes acceleration units, accepted pose, stale/rebase and analytic path derivatives |
+| Rapid motion | **49/49** player checks at Balanced/Mobile: 3–5 Hz translation with rapid rotation, >1 g excitation, finite contained particles, pause hashes and release. Water modes/detail decay and airborne sand returns to the bed. This is not a claim that every numerical velocity reaches zero |
+| Actual rendering | Reviewed slow tilt, energetic bursts, airborne peak and release captures, plus native shake-button press/release and auto-tilt restoration. Integration also covers empty, shallow/near-full, extreme tilt and stale recovery. A **24-second, 720-frame** actual-player film shows all three materials at 30 fps; recording is not a benchmark |
+| Independent asset | Separate Unity 6.3 project builds and runs the uninstrumented sample with persistent HDR lighting; no Assets C# or Assembly-CSharp host dependency. UPM **0.3.0**, **68,855 B**, all **58** files match source. Complete Windows ZIP **35,213,634 B**, all **158** files match the built player and pass CRC |
+| Android build | APK **33,106,344 B**, **57** ZIP entries, ARM64 IL2CPP/OpenGLES3; Unity 6000.3.23f1 with JDK17/NDKr27c/SDK36. CRC, v2 development signature and 16 KB ZIP alignment PASS; min API25/target36. Actual phone rendering, USB and speed remain unverified |
+
+On this RTX 3060 Ti at 1600 × 900, the capture-free rapid-motion run held
+**16.67 ms median / 16.68 ms p95** for all six Balanced/Mobile cases with VSync.
+The separate slow-tilt run also held that interval. Capture-free, uncapped rapid
+motion with an accepted 1/60-second source interval measured:
+
+| Balanced material | Solver CPU median | Surface CPU median | Whole-scene GPU median | Wall frame median / p95 |
+|---|---:|---:|---:|---:|
+| Water, 437 particles | 3.22 ms | 0.28 ms | 0.58 ms | 3.88 / 5.03 ms |
+| Sand, 778 particles | 3.62 ms | 0.64 ms | 0.45 ms | 4.65 / 6.69 ms |
+| Softbody, 168 particles | 0.75 ms | 0.35 ms | 0.32 ms | 1.34 / 2.37 ms |
+
+These are short representative runs, including the UI; GPU measurements are
+whole-scene FrameTimingManager values, not water-only timings. VSync GPU values
+include presentation waits and are not used above. A final camera-only framing
+adjustment followed these workload measurements. Mobile quality was exercised
+on Windows, not a phone. The allocation counter was unavailable and a GC
+collection occurred during slow-tilt review; no zero-allocation player claim is
+made. Raw results and captures are under `output/unity/`.
+
+The surface fit and bounded secondary details remain approximations. Water has
+no overturning sheets, overhangs or separate pools; droplets are not a second
+mass-conserving fluid solver. Airborne sand is a representative rendering of
+unsupported solver particles, and steep-bed smoothing does not preserve exact
+surface COM. The elastic skin cannot tear or split. No direct quality comparison
+with Obi or general realism claim has been established. Screen-space refraction
+can displace opaque frame/shadow edges into the liquid, especially in the basic
+sample's lower camera view; it does not reconstruct hidden scene geometry.
+
+No physical device was operated. Actual Windows USB, Android runtime/USB,
+simultaneous physical outputs, listening and handled visual/felt agreement remain
+**unverified**; the existing servo communication issue is not closed. No firmware,
+Web client or device storage changed. Controls and local distributions are in the
+[Unity README](../unity/README.md); remaining attended acceptance belongs in
+[08](08_IMPLEMENTATION_PLAN.md#unity-implementation-track).
 
 ## Capability and evidence
 

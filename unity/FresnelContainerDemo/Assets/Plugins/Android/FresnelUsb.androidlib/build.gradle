@@ -1,0 +1,19 @@
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'com.fresnel.hapticusb'
+    // Unity 6 supplies these properties for every generated Gradle subproject.
+    buildToolsVersion project.property('unity.buildToolsVersion')
+    compileSdkVersion project.property('unity.compileSdkVersion').toInteger()
+    defaultConfig { minSdkVersion project.property('unity.minSdkVersion').toInteger() }
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = ['src']
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}

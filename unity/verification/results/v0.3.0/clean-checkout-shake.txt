@@ -1,0 +1,71 @@
+Unity 6000.3.23f1; NVIDIA GeForce RTX 3060 Ti; 1600x900; uncapped
+Visual evidence run: screenshot capture perturbs timing; use --no-captures for measurements.
+Accepted source interval fixed at 1/60 s. 3 Hz translation then 5 Hz translation + 2.7 Hz rotation, held pause and 4 s release. No physical device or phone test.
+PASS offline input only
+PASS real uGUI pointer-down begins the shake gesture
+PASS another pointer cannot release the captured shake
+PASS pointer exit releases the gesture without latching
+PASS paused input cannot begin shaking
+PASS water-Balanced: real source acceleration exceeds 1 g (20.94 m/s2)
+PASS water-Balanced: particles finite and contained during both bursts
+PASS water-Balanced: content travels under rapid shaking (45.47 mm)
+PASS water-Balanced: accepted impulses excite spatial water modes
+water-Balanced: max detail particles=44, dynamic energy=0.000517531, peak speed=1.453
+PASS water-Balanced: pause freezes modes, geometry, detail ages and solver
+PASS water-Balanced: gesture returns to zero acceleration
+PASS water-Balanced: release remains finite and contained
+water-Balanced: settled dynamic energy=2.90902E-13, details=0, speed=0.678
+water-Balanced: simulation CPU ms median=3.181 p95=3.860, surface CPU ms median=0.248 p95=0.404, whole GPU ms median=0.777 p95=0.826, wall frame ms median=3.701 p95=4.591
+PASS sand-Balanced: real source acceleration exceeds 1 g (20.66 m/s2)
+PASS sand-Balanced: particles finite and contained during both bursts
+PASS sand-Balanced: content travels under rapid shaking (49.48 mm)
+PASS sand-Balanced: actual unsupported grains become visible
+PASS sand-Balanced: supported + airborne volume allocation is conserved
+sand-Balanced: max detail particles=256, dynamic energy=0, peak speed=1.434
+PASS sand-Balanced: pause freezes modes, geometry, detail ages and solver
+PASS sand-Balanced: gesture returns to zero acceleration
+PASS sand-Balanced: release remains finite and contained
+PASS sand-Balanced: all airborne grains settle back into the bed
+sand-Balanced: settled dynamic energy=0, details=0, speed=0.114
+sand-Balanced: simulation CPU ms median=3.550 p95=4.985, surface CPU ms median=0.646 p95=0.837, whole GPU ms median=1.447 p95=1.496, wall frame ms median=4.440 p95=6.026
+PASS heartbeat-Balanced: real source acceleration exceeds 1 g (20.66 m/s2)
+PASS heartbeat-Balanced: particles finite and contained during both bursts
+PASS heartbeat-Balanced: content travels under rapid shaking (73.79 mm)
+heartbeat-Balanced: max detail particles=0, dynamic energy=0, peak speed=1.442
+PASS heartbeat-Balanced: pause freezes modes, geometry, detail ages and solver
+PASS heartbeat-Balanced: gesture returns to zero acceleration
+PASS heartbeat-Balanced: release remains finite and contained
+heartbeat-Balanced: settled dynamic energy=0, details=0, speed=0.034
+heartbeat-Balanced: simulation CPU ms median=0.765 p95=0.840, surface CPU ms median=0.355 p95=0.393, whole GPU ms median=0.477 p95=0.509, wall frame ms median=1.372 p95=1.509
+PASS water-Mobile: real source acceleration exceeds 1 g (20.66 m/s2)
+PASS water-Mobile: particles finite and contained during both bursts
+PASS water-Mobile: content travels under rapid shaking (42.74 mm)
+PASS water-Mobile: accepted impulses excite spatial water modes
+water-Mobile: max detail particles=20, dynamic energy=0.000496355, peak speed=1.472
+PASS water-Mobile: pause freezes modes, geometry, detail ages and solver
+PASS water-Mobile: gesture returns to zero acceleration
+PASS water-Mobile: release remains finite and contained
+water-Mobile: settled dynamic energy=3.06172E-13, details=0, speed=0.631
+water-Mobile: simulation CPU ms median=2.002 p95=2.356, surface CPU ms median=3.312 p95=3.774, whole GPU ms median=0.554 p95=0.910, wall frame ms median=5.663 p95=6.536
+PASS sand-Mobile: real source acceleration exceeds 1 g (20.66 m/s2)
+PASS sand-Mobile: particles finite and contained during both bursts
+PASS sand-Mobile: content travels under rapid shaking (46.62 mm)
+PASS sand-Mobile: actual unsupported grains become visible
+PASS sand-Mobile: supported + airborne volume allocation is conserved
+sand-Mobile: max detail particles=128, dynamic energy=0, peak speed=1.314
+PASS sand-Mobile: pause freezes modes, geometry, detail ages and solver
+PASS sand-Mobile: gesture returns to zero acceleration
+PASS sand-Mobile: release remains finite and contained
+PASS sand-Mobile: all airborne grains settle back into the bed
+sand-Mobile: settled dynamic energy=0, details=0, speed=0.059
+sand-Mobile: simulation CPU ms median=1.380 p95=1.856, surface CPU ms median=0.232 p95=0.379, whole GPU ms median=1.217 p95=1.348, wall frame ms median=1.911 p95=2.471
+PASS heartbeat-Mobile: real source acceleration exceeds 1 g (20.66 m/s2)
+PASS heartbeat-Mobile: particles finite and contained during both bursts
+PASS heartbeat-Mobile: content travels under rapid shaking (69.89 mm)
+heartbeat-Mobile: max detail particles=0, dynamic energy=0, peak speed=1.489
+PASS heartbeat-Mobile: pause freezes modes, geometry, detail ages and solver
+PASS heartbeat-Mobile: gesture returns to zero acceleration
+PASS heartbeat-Mobile: release remains finite and contained
+heartbeat-Mobile: settled dynamic energy=0, details=0, speed=0.021
+heartbeat-Mobile: simulation CPU ms median=0.372 p95=0.457, surface CPU ms median=0.141 p95=0.186, whole GPU ms median=0.312 p95=0.338, wall frame ms median=0.712 p95=0.855
+Runtime errors: 0

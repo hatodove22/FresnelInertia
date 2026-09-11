@@ -1,0 +1,41 @@
+{
+  "version": "0.3.0",
+  "unity": "6000.3.23f1",
+  "scope": "Software-only verification. No physical USB, phone runtime or tactile acceptance. Original workspace paths normalized; assertion values preserved. Final camera framing changed after timing measurements.",
+  "reports": [
+    "materials-editor.txt",
+    "studio-editor.txt",
+    "materials-runtime.txt",
+    "studio-runtime.txt",
+    "physx-runtime.txt",
+    "shake-uncapped.txt",
+    "shake-vsync.txt",
+    "slow-tilt-vsync.txt",
+    "motion-film.txt",
+    "encoded-video.json",
+    "android-build.json",
+    "clean-checkout-shake.txt"
+  ],
+  "counts": {
+    "editorMaterials": 135,
+    "editorStudio": 176,
+    "runtimeMaterials": 100,
+    "runtimeStudio": 30,
+    "runtimePhysX": 38,
+    "rapidShake": 49
+  },
+  "standalone": {
+    "filesMatchSource": 58,
+    "assetsCSharp": 0,
+    "hostAssemblyCSharp": 0,
+    "builtAndRendered": true,
+    "heldHInputTested": false
+  },
+  "publicationValidation": {
+    "cleanUnityBuildWithoutLibraryOrTmpAssets": true,
+    "freshPlayerShakeChecks": 49,
+    "portableProtocolChecks": 41,
+    "canonicalSchemaSnapshots": 36,
+    "runtimeSourceChanged": false
+  }
+}

@@ -1,0 +1,240 @@
+{
+  "format": "fresnel-profile-parity-v1",
+  "cases": [
+    {
+      "name": "water-device",
+      "valid": true,
+      "json": "{\n  \"format\": \"haptic-tuning-profile-v1\",\n  \"sourceSession\": {\n    \"id\": \"web-fixture-water-device\",\n    \"version\": 3,\n    \"mode\": \"device\"\n  },\n  \"demo\": \"water\",\n  \"preset\": \"liquid_small_box\",\n  \"objective\": \"持った実物らしさ\",\n  \"reference\": \"同じ把持\",\n  \"createdAt\": \"2026-09-10T00:00:00.000Z\",\n  \"comparisonCount\": 1,\n  \"reviewStatus\": \"self-reported-preference\",\n  \"parameters\": {\n    \"resonance.master_gain\": 0.64,\n    \"mass.damping_ratio_x\": 0.775,\n    \"mass.damping_ratio_y\": 0.775,\n    \"tilt.max_tilt_deg\": 4,\n    \"tilt.k_cm\": 0.3,\n    \"tilt.k_tau\": 0.7,\n    \"tilt.k_phi\": 3.2\n  }\n}"
+    },
+    {
+      "name": "water-rehearsal",
+      "valid": true,
+      "json": "{\n  \"format\": \"haptic-tuning-profile-v1\",\n  \"sourceSession\": {\n    \"id\": \"web-fixture-water-rehearsal\",\n    \"version\": 3,\n    \"mode\": \"rehearsal\"\n  },\n  \"demo\": \"water\",\n  \"preset\": \"liquid_small_box\",\n  \"objective\": \"持った実物らしさ\",\n  \"reference\": \"同じ把持\",\n  \"createdAt\": \"2026-09-10T00:00:00.000Z\",\n  \"comparisonCount\": 1,\n  \"reviewStatus\": \"rehearsal-only\",\n  \"parameters\": {\n    \"resonance.master_gain\": 0.64,\n    \"mass.damping_ratio_x\": 0.775,\n    \"mass.damping_ratio_y\": 0.775,\n    \"tilt.max_tilt_deg\": 4,\n    \"tilt.k_cm\": 0.3,\n    \"tilt.k_tau\": 0.7,\n    \"tilt.k_phi\": 3.2\n  }\n}"
+    },
+    {
+      "name": "marble-device",
+      "valid": true,
+      "json": "{\n  \"format\": \"haptic-tuning-profile-v1\",\n  \"sourceSession\": {\n    \"id\": \"web-fixture-marble-device\",\n    \"version\": 3,\n    \"mode\": \"device\"\n  },\n  \"demo\": \"marble\",\n  \"preset\": \"granular_single_marble_box\",\n  \"objective\": \"持った実物らしさ\",\n  \"reference\": \"同じ把持\",\n  \"createdAt\": \"2026-09-10T00:00:00.000Z\",\n  \"comparisonCount\": 1,\n  \"reviewStatus\": \"self-reported-preference\",\n  \"parameters\": {\n    \"resonance.master_gain\": 0.64,\n    \"mass.damping_ratio_x\": 0.775,\n    \"mass.damping_ratio_y\": 0.775,\n    \"tilt.max_tilt_deg\": 4,\n    \"tilt.k_cm\": 0.3,\n    \"tilt.k_tau\": 0.7,\n    \"tilt.k_phi\": 3.2\n  }\n}"
+    },
+    {
+      "name": "marble-rehearsal",
+      "valid": true,
+      "json": "{\n  \"format\": \"haptic-tuning-profile-v1\",\n  \"sourceSession\": {\n    \"id\": \"web-fixture-marble-rehearsal\",\n    \"version\": 3,\n    \"mode\": \"rehearsal\"\n  },\n  \"demo\": \"marble\",\n  \"preset\": \"granular_single_marble_box\",\n  \"objective\": \"持った実物らしさ\",\n  \"reference\": \"同じ把持\",\n  \"createdAt\": \"2026-09-10T00:00:00.000Z\",\n  \"comparisonCount\": 1,\n  \"reviewStatus\": \"rehearsal-only\",\n  \"parameters\": {\n    \"resonance.master_gain\": 0.64,\n    \"mass.damping_ratio_x\": 0.775,\n    \"mass.damping_ratio_y\": 0.775,\n    \"tilt.max_tilt_deg\": 4,\n    \"tilt.k_cm\": 0.3,\n    \"tilt.k_tau\": 0.7,\n    \"tilt.k_phi\": 3.2\n  }\n}"
+    },
+    {
+      "name": "sand-device",
+      "valid": true,
+      "json": "{\n  \"format\": \"haptic-tuning-profile-v1\",\n  \"sourceSession\": {\n    \"id\": \"web-fixture-sand-device\",\n    \"version\": 3,\n    \"mode\": \"device\"\n  },\n  \"demo\": \"sand\",\n  \"preset\": \"granular_sand_pile_box\",\n  \"objective\": \"持った実物らしさ\",\n  \"reference\": \"同じ把持\",\n  \"createdAt\": \"2026-09-10T00:00:00.000Z\",\n  \"comparisonCount\": 1,\n  \"reviewStatus\": \"self-reported-preference\",\n  \"parameters\": {\n    \"resonance.master_gain\": 0.64,\n    \"mass.granular_static_friction\": 0.55,\n    \"mass.granular_dynamic_friction\": 0.35000000000000003,\n    \"tilt.max_tilt_deg\": 4,\n    \"tilt.k_cm\": 0.3,\n    \"tilt.k_tau\": 0.7,\n    \"tilt.k_phi\": 3.2\n  }\n}"
+    },
+    {
+      "name": "sand-rehearsal",
+      "valid": true,
+      "json": "{\n  \"format\": \"haptic-tuning-profile-v1\",\n  \"sourceSession\": {\n    \"id\": \"web-fixture-sand-rehearsal\",\n    \"version\": 3,\n    \"mode\": \"rehearsal\"\n  },\n  \"demo\": \"sand\",\n  \"preset\": \"granular_sand_pile_box\",\n  \"objective\": \"持った実物らしさ\",\n  \"reference\": \"同じ把持\",\n  \"createdAt\": \"2026-09-10T00:00:00.000Z\",\n  \"comparisonCount\": 1,\n  \"reviewStatus\": \"rehearsal-only\",\n  \"parameters\": {\n    \"resonance.master_gain\": 0.64,\n    \"mass.granular_static_friction\": 0.55,\n    \"mass.granular_dynamic_friction\": 0.35000000000000003,\n    \"tilt.max_tilt_deg\": 4,\n    \"tilt.k_cm\": 0.3,\n    \"tilt.k_tau\": 0.7,\n    \"tilt.k_phi\": 3.2\n  }\n}"
+    },
+    {
+      "name": "v2-water",
+      "valid": true,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":2,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "year-zero",
+      "valid": true,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"0000-02-29T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "bad-format",
+      "valid": false,
+      "json": "{\"format\":\"other\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "extra-history",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2},\"history\":[]}"
+    },
+    {
+      "name": "missing-reference",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "v1",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":1,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "source-fraction",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":2.5,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "bad-mode",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"physical-verified\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "bad-id",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"../escape\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "bad-review",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"self-reported-preference\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "negative-count",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":-1,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "high-count",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":61,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "fraction-count",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0.5,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "bad-date",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "rollover-date",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-02-29T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "extended-year",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"+010000-01-01T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "objective-length",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "unknown-demo",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"soda\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "wrong-preset",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"granular_coin_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "phi-zero",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":0}}"
+    },
+    {
+      "name": "tilt-high",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":10.01,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "numeric-string",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":\".3\",\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "numeric-null",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":null,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "unknown-param",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2,\"audio.output_peak_limit\":0.1}}"
+    },
+    {
+      "name": "missing-param",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "uncoupled",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.785,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "near-coupled",
+      "valid": true,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.7750000005000001,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "outside-coupled",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.7750000020000001,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "malformed",
+      "valid": false,
+      "json": "{broken"
+    },
+    {
+      "name": "null",
+      "valid": false,
+      "json": "null"
+    },
+    {
+      "name": "array",
+      "valid": false,
+      "json": "[]"
+    },
+    {
+      "name": "nan",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":NaN}}"
+    },
+    {
+      "name": "trailing",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2},}"
+    },
+    {
+      "name": "comment",
+      "valid": false,
+      "json": "/*comment*/{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "single",
+      "valid": false,
+      "json": "{'format':\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "hex",
+      "valid": false,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-water-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"water\",\"preset\":\"liquid_small_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":0,\"reviewStatus\":\"not-evaluated\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.damping_ratio_x\":0.775,\"mass.damping_ratio_y\":0.775,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":0x20}}"
+    },
+    {
+      "name": "utf8",
+      "valid": false,
+      "json": "砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂砂"
+    },
+    {
+      "name": "sand-0.2-scaled",
+      "valid": true,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-sand-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"sand\",\"preset\":\"granular_sand_pile_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":1,\"reviewStatus\":\"self-reported-preference\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.granular_static_friction\":0.2,\"mass.granular_dynamic_friction\":0.1272727272727273,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "sand-0.2-fraction",
+      "valid": true,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-sand-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"sand\",\"preset\":\"granular_sand_pile_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":1,\"reviewStatus\":\"self-reported-preference\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.granular_static_friction\":0.2,\"mass.granular_dynamic_friction\":0.1272727272727273,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "sand-0.9-scaled",
+      "valid": true,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-sand-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"sand\",\"preset\":\"granular_sand_pile_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":1,\"reviewStatus\":\"self-reported-preference\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.granular_static_friction\":0.9,\"mass.granular_dynamic_friction\":0.5727272727272728,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    },
+    {
+      "name": "sand-0.9-fraction",
+      "valid": true,
+      "json": "{\"format\":\"haptic-tuning-profile-v1\",\"sourceSession\":{\"id\":\"web-fixture-sand-device\",\"version\":3,\"mode\":\"device\"},\"demo\":\"sand\",\"preset\":\"granular_sand_pile_box\",\"objective\":\"持った実物らしさ\",\"reference\":\"同じ把持\",\"createdAt\":\"2026-09-10T00:00:00.000Z\",\"comparisonCount\":1,\"reviewStatus\":\"self-reported-preference\",\"parameters\":{\"resonance.master_gain\":0.64,\"mass.granular_static_friction\":0.9,\"mass.granular_dynamic_friction\":0.5727272727272728,\"tilt.max_tilt_deg\":4,\"tilt.k_cm\":0.3,\"tilt.k_tau\":0.7,\"tilt.k_phi\":3.2}}"
+    }
+  ]
+}

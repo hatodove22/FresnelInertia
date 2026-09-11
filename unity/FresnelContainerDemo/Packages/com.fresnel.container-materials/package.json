@@ -1,0 +1,9 @@
+{
+  "name": "com.fresnel.container-materials",
+  "version": "0.3.0",
+  "displayName": "Fresnel Container Materials",
+  "description": "Source-driven container inertia with dynamic water waves, contained droplets, supported sand beds, airborne grains and elastic skins.",
+  "unity": "6000.0",
+  "author": { "name": "Fresnel Inertia" },
+  "license": "MIT"
+}

@@ -7,6 +7,9 @@ and [demo acceptance](../07_TEST_AND_VALIDATION.md).
 
 ## Retained evidence
 
+- [Unity v0.2 visual verification](2026-09-11_UNITY_V020_VISUAL_VERIFICATION.md):
+  the accepted smooth-surface revision, its measured costs and distribution checks,
+  before the rapid-shake extension. These results do not cover the later dynamics.
 - [Development ledger through 2026-09-08](2026-09-08/16_DEVELOPMENT_LEDGER.md):
   the complete former 16 status log, including superseded implementations,
   user feedback, failed approaches and revision-specific checks. Original

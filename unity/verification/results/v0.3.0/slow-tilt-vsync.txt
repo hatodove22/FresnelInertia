@@ -1,0 +1,10 @@
+Unity 6000.3.23f1; NVIDIA GeForce RTX 3060 Ti; 1600x900
+4-second measurements after 4-second settling; 60 Hz target/VSync on. Whole-frame GPU timings can include driver/present waits with VSync; use uncapped runs for workload comparison. No phone or hardware test.
+FrameTimingManager enabled: True
+water-Balanced: particles=437, vertices=8, simulation CPU ms median=3.571 p95=3.843, surface CPU ms median=0.227 p95=0.248, whole GPU ms median=11.078 p95=11.617, wall frame ms median=16.667 p95=16.683, GC allocation counter=unavailable/zero not established, GC0=0
+sand-Balanced: particles=778, vertices=829, simulation CPU ms median=4.149 p95=4.455, surface CPU ms median=0.712 p95=0.763, whole GPU ms median=11.137 p95=11.367, wall frame ms median=16.667 p95=16.683, GC allocation counter=unavailable/zero not established, GC0=1
+heartbeat-Balanced: particles=168, vertices=614, simulation CPU ms median=0.827 p95=1.024, surface CPU ms median=0.415 p95=0.520, whole GPU ms median=15.658 p95=15.925, wall frame ms median=16.668 p95=16.683, GC allocation counter=unavailable/zero not established, GC0=0
+water-Mobile: particles=285, vertices=4922, simulation CPU ms median=2.340 p95=2.559, surface CPU ms median=2.945 p95=3.241, whole GPU ms median=10.204 p95=10.436, wall frame ms median=16.667 p95=16.683, GC allocation counter=unavailable/zero not established, GC0=0
+sand-Mobile: particles=363, vertices=429, simulation CPU ms median=1.661 p95=1.817, surface CPU ms median=0.317 p95=0.348, whole GPU ms median=11.161 p95=11.380, wall frame ms median=16.667 p95=16.683, GC allocation counter=unavailable/zero not established, GC0=0
+heartbeat-Mobile: particles=88, vertices=266, simulation CPU ms median=0.397 p95=0.462, surface CPU ms median=0.154 p95=0.182, whole GPU ms median=16.614 p95=16.739, wall frame ms median=16.667 p95=16.683, GC allocation counter=unavailable/zero not established, GC0=0
+Runtime errors: 0

@@ -1,3 +1,10 @@
 # Preserve original bench capture bytes, including diagnostic whitespace.
 # Source code and documentation retain the normal whitespace checks.
 docs/archive/**/evidence/*.txt -text -whitespace
+
+# Keep the reusable package byte-identical to its verified UPM release archive.
+unity/FresnelContainerDemo/Packages/com.fresnel.container-materials/** -text whitespace=cr-at-eol
+# Unity serializes empty YAML values with a trailing space.
+unity/**/*.meta whitespace=-blank-at-eol,cr-at-eol
+unity/**/*.asset whitespace=-blank-at-eol,cr-at-eol
+unity/**/*.unity whitespace=-blank-at-eol,cr-at-eol

@@ -1,7 +1,10 @@
 # License TODO
 
 This repository is being prepared for a possible future open-source release.
-A license has **not** been selected yet.
+A repository-wide license has **not** been selected yet. The original
+[Fresnel Container Materials package](unity/FresnelContainerDemo/Packages/com.fresnel.container-materials/)
+is explicitly covered by its [MIT license](unity/FresnelContainerDemo/Packages/com.fresnel.container-materials/LICENSE.md).
+That exception does not relicense the host client, firmware, hardware or third-party dependencies.
 
 Before publishing:
 
