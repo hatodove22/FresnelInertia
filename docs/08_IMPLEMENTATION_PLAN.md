@@ -1,6 +1,7 @@
 # 08 Active Plan
 
-Updated: 2026-09-08. This is the only active work list.
+Updated: 2026-09-11, after completing the requested Unity rapid-shake refinement.
+This is the only active work list.
 [00](00_DESIGN_SPECIFICATION.md) owns the research question;
 [16](16_PROGRESS_STATUS.md) owns implementation, deployment and evidence.
 The [previous expanded plan](archive/2026-09-08/08_ACTIVE_PLAN_SNAPSHOT.md)
@@ -103,10 +104,81 @@ Heartbeat remains a separate expressive demonstration, not a fourth joint
 tuning condition or a biometric/medical simulation. Its contract is in
 [06](06_PARAMETER_MODEL.md#fictional-heartbeat); current results belong in 16.
 
+## Unity implementation track
+
+Use the implemented [Unity client](../unity/README.md) for the remaining
+attended acceptance below. [16](16_PROGRESS_STATUS.md#optional-unity-study--2026-09-10)
+owns implementation, build and verification results, including the Android
+build status. The README owns launch, controls, component locations and test
+commands; do not repeat completed software work as prerequisites here.
+
+The immediate physical priority remains the servo communication/interruption
+problem in the sequence above. Unity's software checks do not resolve it or
+replace the previously accepted desktop/ordinary-screen Android experience.
+Start with one connected marble run after the stopped recovery check permits
+normal operation; then extend that same handling session to the relevant
+materials and profile comparison. Follow [07](07_TEST_AND_VALIDATION.md) for
+actual demo acceptance, without repeating a full legacy campaign.
+
+### Remaining attended acceptance
+
+| Step | Next action | Evidence still needed |
+|---|---|---|
+| U1 — Actual Windows USB | Select the real StampC5 port in the built Windows player and read status/applied state with outputs stopped. Close the Web connection first so one client owns the port. | Real telemetry agrees with the device; opening the port sends no preset or output-enable intent. Unplug/reconnect produces truthful stale/disconnected state, releases the port and does not replay Start. |
+| U2 — Combined marble | Explicitly Start, handle the marble container, then Stop and perform the representative stopped recovery/reconnect check. | Simultaneous fingertip-plane tilt and four-channel vibration work; the observed content direction, device state and felt direction agree. Stop and valid measured servo feedback confirm the affected acceptance items in 07. Any communication fault remains visible and is resolved or recorded as outstanding. |
+| U3 — Material presentation | Compare water, retained sand and the fictional heartbeat during a focused handled check after U2 works. Enable speaker sound only for the intended comparison. | Applied dimensions/fill and content motion agree with the held device; relevant poses stay visually contained. Stale/restarted input freezes presentation without duplicate or catch-up sound. The operator judges the combined audiovisual/tactile result rather than renderer quality alone. |
+| U4 — Real profile transaction | Import a selected Web profile into A/B, explicitly apply it to the matching reported material while stopped, then deliberately Start for comparison. Exercise Stop cancellation and the explicitly chosen baseline once. | Actual execution ACKs cover all seven requested values and four numeric `tilt_v1` readbacks match. Selected/pending/applied values remain distinguishable; a cancelled or failed transaction never appears complete and never restarts output. The baseline is a chosen setting, not an inferred backup of device state. |
+| U5 — Target Android phone | Use the native APK on the actual phone with StampC5, its intended USB/power arrangement and ordinary landscape screen. Check the current build result in 16 before installation. | USB permission, actual telemetry, touch controls and both physical outputs work on that phone. Handling, Stop, detach/reconnect and app pause/resume preserve truthful state and require deliberate restart. Measure representative frame time and allocations on the phone; Windows timing and APK compilation do not establish this. |
+
+U1 and U2 are the next useful demonstration boundary. U3 and U4 build on the
+same verified device flow, and U5 requires the target phone. If hardware or the
+operator is unavailable, record those checks as pending; a mock bridge,
+profile roundtrip or rendered capture does not substitute for them. Ordinary
+supervised testing can keep power on. Do not actuate unattended hardware.
+
+### Authority and interpretation during acceptance
+
+AtomS3 remains the owner of connected content state, actuator commands and the
+shared vibration/tilt response. Unity presents accepted configuration and
+telemetry and sends high-level intent through the existing
+[Haptic Link contract](05_INTERFACE_SPEC.md). The PhysX marble/beads study and
+Fresnel Materials particle studies remain explicitly independent offline sources.
+Connected particles add visual detail from accepted source frames; the gold
+mass marker remains direct telemetry, and bounded visual COM error is not a
+new measurement or a source of actuator commands.
+Source changes clear old presentation state; loss of the device must not fall
+back to a moving preview or invent new collisions.
+
+Check the model's body X/Y cross-section, resolved metric dimensions and actual
+servo direction against the held device. Four reported actuator meters are
+not a reconstruction of every wall contact. The contact-plane illustrations
+must distinguish a reported goal from valid measured position; missing or stale
+feedback stays unknown. Simulated grains, surface detail and fictional heartbeat are
+not individual-grain tracking, force measurements or biological observations.
+
+The [profile contract](06_PARAMETER_MODEL.md) retains its seven values and
+material coupling. Only the four tilt values have numeric readback; the other
+three have execution ACKs. Do not turn successful profile import or a local A/B
+slot choice into a measured-state or preference claim. Formal preference
+optimization remains in the Web workspace until a concrete comparison needs
+otherwise.
+
+Record observed results once in 16 and revise only the affected next action
+here. Fix a reproduced USB, presentation, command or performance defect with a
+focused regression. Production-core preview parity, additional material
+catalogues, hand tracking, AR and a render-pipeline migration are not acceptance
+prerequisites for this client.
+
 ## Later choices — not current completion gates
 
 ### Conditional model and presentation work
 
+- Unity presentation cadence: compare one recorded gesture at 10/30/60 Hz before
+  changing the current bounded detail-time policy. The normal device feed is
+  10 Hz, while the rapid-shake visual checks used 60 Hz input. Compare contact
+  timing, COM residual and settling duration; preserve stale/duplicate holds and
+  avoid unbounded catch-up. Then address depth-aware refraction rejection and
+  measured Android bottlenecks if their respective comparisons show a gain.
 - Dynamic-CG refinement: the mapping already exists. Change it only for a
   demonstrated felt mismatch, with the accepted law retained as a comparison.
   [06](06_PARAMETER_MODEL.md) owns current meanings; [model research](reference/34_FW_MODEL_RESEARCH.md)

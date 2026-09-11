@@ -1,0 +1,127 @@
+Actual Unity player integration; device transport is synthetic. No hardware acceptance is claimed.
+Expected checks: 100; executed: 100; passed: 100
+PASS Initial source is offline; no receiver is open
+PASS Gallery actor has no independent Unity clock
+PASS water: gallery routes to package actor
+PASS water: source and metric configuration are explicit
+PASS water: rendered shader and mesh are valid
+PASS water: solver particles are finite and contained
+PASS water: accepted tilt changes actual particle geometry
+PASS water: warm performance samples are finite
+PASS water: pause holds particles, mesh and source counter
+PASS water: duplicate timestamp cannot create motion or contraction
+PASS water: explicitly nonfresh package frame is ignored
+PASS water: NaN timestamp is rejected before state mutation
+PASS water: invalid vessel dimensions are rejected before state mutation
+PASS water: invalid gravity is rejected before state mutation
+PASS water: fresh explicit source resumes the held actor
+PASS water: gallery source resumes after explicit rebase
+PASS water: response control reaches solver, transition 0
+PASS water: response control reaches solver, transition 1
+PASS water: response control reaches solver, transition 2
+PASS water: fill control rebuilds contained geometry, transition 0
+PASS water: fill control rebuilds contained geometry, transition 1
+PASS water: fill control rebuilds contained geometry, transition 2
+PASS water: quality control keeps render and solver valid at High
+PASS water: quality control keeps render and solver valid at Mobile
+PASS water: quality control keeps render and solver valid at Balanced
+PASS water: empty fill removes all material geometry
+PASS water: one-percent fill retains a valid occupied surface
+PASS water: near-full vessel stays finite and contained
+PASS water: positive extreme tilt preserves contained geometry
+PASS water: negative extreme tilt preserves contained geometry
+PASS sand: gallery routes to package actor
+PASS sand: source and metric configuration are explicit
+PASS sand: rendered shader and mesh are valid
+PASS sand: solver particles are finite and contained
+PASS sand: accepted tilt changes actual particle geometry
+PASS sand: warm performance samples are finite
+PASS sand: pause holds particles, mesh and source counter
+PASS sand: duplicate timestamp cannot create motion or contraction
+PASS sand: explicitly nonfresh package frame is ignored
+PASS sand: NaN timestamp is rejected before state mutation
+PASS sand: invalid vessel dimensions are rejected before state mutation
+PASS sand: invalid gravity is rejected before state mutation
+PASS sand: fresh explicit source resumes the held actor
+PASS sand: gallery source resumes after explicit rebase
+PASS sand: response control reaches solver, transition 0
+PASS sand: response control reaches solver, transition 1
+PASS sand: response control reaches solver, transition 2
+PASS sand: fill control rebuilds contained geometry, transition 0
+PASS sand: fill control rebuilds contained geometry, transition 1
+PASS sand: fill control rebuilds contained geometry, transition 2
+PASS sand: quality control keeps render and solver valid at High
+PASS sand: quality control keeps render and solver valid at Mobile
+PASS sand: quality control keeps render and solver valid at Balanced
+PASS sand: empty fill removes all material geometry
+PASS sand: near-full vessel stays finite and contained
+PASS sand: positive extreme tilt preserves contained geometry
+PASS sand: negative extreme tilt preserves contained geometry
+PASS softbody: gallery routes to package actor
+PASS softbody: source and metric configuration are explicit
+PASS softbody: rendered shader and mesh are valid
+PASS softbody: solver particles are finite and contained
+PASS softbody: accepted tilt changes actual particle geometry
+PASS softbody: warm performance samples are finite
+PASS softbody: pause holds particles, mesh and source counter
+PASS softbody: duplicate timestamp cannot create motion or contraction
+PASS softbody: explicitly nonfresh package frame is ignored
+PASS softbody: NaN timestamp is rejected before state mutation
+PASS softbody: invalid vessel dimensions are rejected before state mutation
+PASS softbody: invalid gravity is rejected before state mutation
+PASS softbody: fresh explicit source resumes the held actor
+PASS softbody: gallery source resumes after explicit rebase
+PASS softbody: response control reaches solver, transition 0
+PASS softbody: response control reaches solver, transition 1
+PASS softbody: response control reaches solver, transition 2
+PASS softbody: fill control rebuilds contained geometry, transition 0
+PASS softbody: fill control rebuilds contained geometry, transition 1
+PASS softbody: fill control rebuilds contained geometry, transition 2
+PASS softbody: quality control keeps render and solver valid at High
+PASS softbody: quality control keeps render and solver valid at Mobile
+PASS softbody: quality control keeps render and solver valid at Balanced
+PASS softbody: empty fill removes all material geometry
+PASS softbody: near-full vessel stays finite and contained
+PASS softbody: positive extreme tilt preserves contained geometry
+PASS softbody: negative extreme tilt preserves contained geometry
+PASS Mock receiver connection
+PASS Mock applied state read
+PASS Mock water selection completes
+PASS Mock device frame routes into water actor
+PASS Mock connect and preset selection do not arm output
+PASS Mock Start completes
+PASS Mock live source advances material actor
+PASS Stale mock disables Start and marks actor stale
+PASS Stale mock holds actual mesh, particles, velocity and source counter
+PASS Stale actor cannot be advanced by an otherwise fresh package frame
+PASS Fresh mock telemetry resumes actor from the new source sample
+PASS Mock Stop completes
+PASS Mock Stop produces an acknowledged idle snapshot
+PASS Mock disconnect
+PASS Mock connection is closed
+PASS Original PhysX preview returns without an independent material clock
+ERRORS: 0
+
+CAPTURES:
+water-01-rest.png
+water-02-moving.png
+water-03-empty.png
+water-03-shallow.png
+water-04-high-fill.png
+water-05-extreme-positive.png
+water-06-extreme-negative.png
+sand-01-rest.png
+sand-02-moving.png
+sand-03-empty.png
+sand-04-high-fill.png
+sand-05-extreme-positive.png
+sand-06-extreme-negative.png
+softbody-01-rest.png
+softbody-02-moving.png
+softbody-03-empty.png
+softbody-04-high-fill.png
+softbody-05-extreme-positive.png
+softbody-06-extreme-negative.png
+device-01-live.png
+device-02-stale.png
+device-03-recovered.png

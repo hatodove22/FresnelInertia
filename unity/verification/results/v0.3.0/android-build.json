@@ -1,0 +1,14 @@
+{
+  "bytes": 33106344,
+  "sha256": "07f02eeb5e431a14fe249e4c6b1c101a667f4a974a8d160468df894221bd2316",
+  "zipEntries": 57,
+  "crc": "PASS",
+  "apksignerV2": "PASS",
+  "zipalign16KB": "PASS",
+  "minApi": 25,
+  "targetApi": 36,
+  "abi": [
+    "arm64-v8a"
+  ],
+  "physicalPhoneTest": false
+}

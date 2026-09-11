@@ -1,0 +1,32 @@
+Software-only Unity player tests; USB/actuators are mocked.
+PASS Default is offline; no device opened
+PASS Preview resolves Water
+PASS Preview explicitly marks illustrative source 2
+PASS PhysX is disabled in gallery 2
+PASS Preview resolves Sand
+PASS Preview explicitly marks illustrative source 3
+PASS PhysX is disabled in gallery 3
+PASS Preview resolves Heartbeat
+PASS Preview explicitly marks illustrative source 4
+PASS PhysX is disabled in gallery 4
+PASS Gallery pause freezes source time
+PASS Profile roundtrip persists validated local slot
+PASS Mock connection
+PASS Mock initial applied state
+PASS Runtime consumes fresh link state
+PASS Connect observes only; no output arming
+PASS Fresh idle applied state enables Start
+PASS Start UI completes
+PASS Start reaches mock live state
+PASS Stop UI completes
+PASS Stop reaches mock idle state
+PASS Water preset UI completes
+PASS Accepted applied preset controls presentation
+PASS Compatible profile ACK/readback transaction
+PASS Profile application stays stopped
+PASS Stale state disables Start
+PASS Stale source does not animate independently
+PASS Unplug closes mock session
+PASS Return restores original offline physics
+PASS Studio sequence completed
+ERRORS: 0

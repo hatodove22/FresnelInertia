@@ -1,0 +1,6 @@
+{
+  "name": "Fresnel.ContainerMaterials.Editor",
+  "rootNamespace": "Fresnel.Materials.Editor",
+  "references": ["Fresnel.ContainerMaterials"],
+  "includePlatforms": ["Editor"]
+}

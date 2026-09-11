@@ -1,0 +1,26 @@
+Fresnel Container Materials software regression (no hardware)
+PASS Numerical solver: 112 assertions
+PASS Integration: external source starts without an autonomous clock
+PASS Integration: initial source frame creates a real closed material mesh
+PASS Integration: initial zero-delta frame seeds geometry without advancing motion
+PASS Integration: component controls reach the material solver
+PASS Integration: duplicate source identity cannot replay impacts or deform the mesh
+PASS Integration: elapsed source timestamps bound caller delta and account for omitted detail time
+PASS Integration: stale device state freezes particles and mesh
+PASS Integration: Pause freezes source-driven material detail
+PASS Integration: configuration-only nonfresh frames cannot advance detail
+PASS Integration: invalid time, mass and geometry leave the last accepted state intact
+PASS Integration: nonfinite acceleration on every axis leaves time, particles and mesh unchanged
+PASS Integration: nonfinite angular velocity on every axis leaves accepted detail unchanged
+PASS Integration: invalid excitation is rejected before a rebase or changed configuration can mutate the actor
+PASS Integration: a fresh source frame resumes actual particle motion
+PASS Integration: explicit same-timestamp session rebase discards prior momentum
+PASS Integration: source rewind rebases instead of integrating negative time
+PASS Integration: long source gap rebases without catch-up motion
+PASS Integration: empty fill removes both simulated and visible contents
+PASS Integration: explicit ResetState accepts the current source identity and restores geometry
+PASS Integration: extreme valid box has a finite bounded particle budget: (0.0001, 10, 10)
+PASS Integration: extreme valid box has a finite bounded particle budget: (10, 0.0001, 0.0001)
+PASS Integration: extreme valid box has a finite bounded particle budget: (0.0001, 0.0001, 0.0001)
+PASS Integration: extreme valid box has a finite bounded particle budget: (10, 10, 10)
+TOTAL PASS: 135

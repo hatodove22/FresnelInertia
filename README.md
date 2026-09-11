@@ -35,12 +35,24 @@ Start/build instructions and controls are in the [Web guide](webxr/README.md).
 Lab/rehearsal is not measured haptic output. Ordinary-screen Android does not
 require AR; retained Quest/WebXR work is deferred.
 
+## Try the Unity material study
+
+[Fresnel Studio for Unity 6.3](unity/README.md) presents water, retained sand
+and a soft fictional heartbeat with tilt and rapid shaking. The reusable
+[Container Materials package](unity/FresnelContainerDemo/Packages/com.fresnel.container-materials/README.md)
+has its own MIT license and independent sample. Download the Windows demo,
+Android development APK, package and motion film from the
+[Unity v0.3.0 experimental release](https://github.com/hatodove22/FresnelInertia/releases/tag/unity-v0.3.0).
+Software verification and the still-pending phone/physical checks are in
+[current facts](docs/16_PROGRESS_STATUS.md#optional-unity-study--2026-09-10).
+
 ## Source map
 
 | Location | Responsibility |
 |---|---|
 | `src/`, `include/haptics/` | Shared synthesis, runtime authority, hardware drivers |
 | `webxr/` | Presentation, Haptic Link, Lab and preference workspace |
+| `unity/` | Unity client, reusable materials, build helpers and software verification |
 | `presets/`, `schemas/` | Material configuration and observable contracts |
 | `test/`, `tools/` | Reusable firmware/protocol checks and build helpers |
 | `docs/` | Current concept, contracts, acceptance, plan and facts |

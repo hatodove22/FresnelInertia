@@ -1,0 +1,16 @@
+Actual Unity player screen recording; UI included; no image processing or synthetic rendering.
+Unity 6000.3.23f1; NVIDIA GeForce RTX 3060 Ti; 1600x900
+Source interval 1/60 s; target 60 render frames/s; capture every second end-of-frame for 30 fps output.
+Per material: 1.5 s warmup excluded, then 1 s rest + 3 s held shake at 4.6 Hz + 4 s release.
+No device connection, transport operation or physical output is performed.
+PNG capture/encoding can slow wall-clock rendering. This recording is NOT a benchmark or an actual sustained-FPS claim.
+Water: quality=Balanced, fill=0.480, shake amplitude=(0.013, 0.018, 0.007)
+Water: render frames=480, PNG requests=240, sequence=000000..000239
+Sand: quality=Balanced, fill=0.480, shake amplitude=(0.013, 0.018, 0.007)
+Sand: render frames=480, PNG requests=240, sequence=000240..000479
+Heartbeat: quality=Balanced, fill=0.480, shake amplitude=(0.013, 0.018, 0.007)
+Heartbeat: render frames=480, PNG requests=240, sequence=000480..000719
+Recorded render frames: 1440/1440
+PNG requests: 720/720; written files: 720
+Output: 30 fps; expected encoded duration 24 s (8 s per material).
+Runtime errors: 0

@@ -1,0 +1,39 @@
+PASS Auto button switches to manual
+PASS Marble rolls downhill to right
+PASS Actual wall contact produces indicator event
+PASS Shared mass drives opposite plane cues
+PASS Marble reverses downhill to left
+PASS Pause freezes physics and tilt
+PASS Reset while paused stays paused and levels tray
+PASS Beads button creates 24 rigid bodies
+PASS Beads produce wall contacts during auto motion
+PASS No contents escaped during handling sequence
+PASS Bead contained Content 1
+PASS Bead contained Content 2
+PASS Bead contained Content 3
+PASS Bead contained Content 4
+PASS Bead contained Content 5
+PASS Bead contained Content 6
+PASS Bead contained Content 7
+PASS Bead contained Content 8
+PASS Bead contained Content 9
+PASS Bead contained Content 10
+PASS Bead contained Content 11
+PASS Bead contained Content 12
+PASS Bead contained Content 13
+PASS Bead contained Content 14
+PASS Bead contained Content 15
+PASS Bead contained Content 16
+PASS Bead contained Content 17
+PASS Bead contained Content 18
+PASS Bead contained Content 19
+PASS Bead contained Content 20
+PASS Bead contained Content 21
+PASS Bead contained Content 22
+PASS Bead contained Content 23
+PASS Bead contained Content 24
+PASS Sound button enables contact audio
+PASS Sound button mutes audio
+PASS Return to single marble and reset
+PASS Verification sequence completed
+ERRORS: 0

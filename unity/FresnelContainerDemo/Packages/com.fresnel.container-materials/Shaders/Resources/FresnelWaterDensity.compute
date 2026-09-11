@@ -1,0 +1,99 @@
+#pragma kernel BuildColumns
+#pragma kernel ResolveVolume
+#pragma kernel BuildDensity
+#pragma only_renderers d3d11 metal vulkan
+
+RWTexture2D<float4> _ColumnOutput;
+Texture2D<float4> _ColumnInput;
+SamplerState sampler_ColumnInput;
+RWStructuredBuffer<float> _Level;
+RWTexture3D<float2> _DensityOutput;
+int _ParticleCount,_ColumnResolution;
+int3 _Grid;
+float3 _VesselSize,_Up,_AxisU,_AxisV;
+float4 _Projection,_Plane,_Waves;
+float _BaseLevel,_MeanSpeed,_TargetVolume,_Iso,_DistanceScale;
+groupshared float reduction[64];
+groupshared float lowerLevel,upperLevel;
+
+float surfaceHeight(float2 uv)
+{
+    float2 normalized=clamp(uv/_Projection.xy,-1,1);
+    float height=_BaseLevel+dot(_Plane.xy,uv)+
+        _Plane.z*normalized.x*(1-normalized.x*normalized.x)+
+        _Plane.w*normalized.y*(1-normalized.y*normalized.y);
+    if(dot(_Waves,_Waves)>0)
+    {
+        float2 s=sin(normalized*1.57079632679),c=cos(normalized*3.14159265359);
+        height+=dot(_Waves,float4(s.x,s.y,s.x*s.y,c.x));
+    }
+    return height;
+}
+
+bool columnBounds(float2 uv,out float bottom,out float top)
+{
+    float3 p=_AxisU*uv.x+_AxisV*uv.y;
+    float3 safe=(step(0,_Up)*2-1)*max(abs(_Up),.000001);
+    float3 a=(-_VesselSize*.5-p)/safe,b=(_VesselSize*.5-p)/safe;
+    float3 lo=min(a,b),hi=max(a,b);
+    bottom=max(lo.x,max(lo.y,lo.z));top=min(hi.x,min(hi.y,hi.z));
+    return top>bottom;
+}
+[numthreads(8,8,1)]
+void BuildColumns(uint3 id:SV_DispatchThreadID)
+{
+    if(any(id.xy>=(uint)_ColumnResolution))return;
+    float2 uv=((float2(id.xy)+.5)/_ColumnResolution-.5)*_Projection.xy*2;
+    float bottom,top;
+    if(!columnBounds(uv,bottom,top)||_ParticleCount==0){_ColumnOutput[id.xy]=0;return;}
+    // Only the actual cloud's aggregate departure from equilibrium survives
+    // regularization. Micro-scale solver packing cannot become tall wall waves.
+    float height=surfaceHeight(uv);
+    // Bounds are invariant during the volume solve. Keep them beside the
+    // height so each of its 13 iterations only loads and integrates a column.
+    _ColumnOutput[id.xy]=float4(height,bottom,top,1);
+}
+[numthreads(64,1,1)]
+void ResolveVolume(uint groupIndex:SV_GroupIndex)
+{
+    if(groupIndex==0){lowerLevel=-_Projection.z*2;upperLevel=_Projection.z*2;}
+    GroupMemoryBarrierWithGroupSync();
+    float columnArea=4*_Projection.x*_Projection.y/(_ColumnResolution*_ColumnResolution);
+    for(int iteration=0;iteration<13;iteration++)
+    {
+        float mid=(lowerLevel+upperLevel)*.5,sum=0;
+        for(int i=groupIndex;i<_ColumnResolution*_ColumnResolution;i+=64)
+        {
+            int2 cell=int2(i%_ColumnResolution,i/_ColumnResolution);
+            float4 value=_ColumnInput.Load(int3(cell,0));
+            if(value.a>.5)
+            {
+                sum+=clamp(value.r+mid-value.g,0,value.b-value.g)*columnArea;
+            }
+        }
+        reduction[groupIndex]=sum;GroupMemoryBarrierWithGroupSync();
+        [unroll]for(int stride=32;stride>0;stride/=2)
+        {
+            if(groupIndex<(uint)stride)reduction[groupIndex]+=reduction[groupIndex+stride];
+            GroupMemoryBarrierWithGroupSync();
+        }
+        if(groupIndex==0){if(reduction[0]<_TargetVolume)lowerLevel=mid;else upperLevel=mid;}
+        GroupMemoryBarrierWithGroupSync();
+    }
+    if(groupIndex==0)_Level[0]=(lowerLevel+upperLevel)*.5;
+}
+[numthreads(4,4,4)]
+void BuildDensity(uint3 id:SV_DispatchThreadID)
+{
+    if(any(id>=(uint3)_Grid))return;
+    if(_ParticleCount==0){_DensityOutput[id]=0;return;}
+    // Include the box endpoints. A positive fill thinner than half a voxel
+    // must still have occupied boundary samples and a reconstructible surface.
+    float3 p=(float3(id)/float3(_Grid-1)-.5)*_VesselSize;
+    float2 uv=float2(dot(p,_AxisU),dot(p,_AxisV));
+    // Evaluate the fitted surface directly: no projected-grid edge interpolation
+    // can turn empty footprint texels into corner spikes.
+    float height=surfaceHeight(uv)+_Level[0];
+    float signedDepth=height-dot(p,_Up);
+    _DensityOutput[id]=float2(max(0,_Iso+signedDepth/_DistanceScale),_MeanSpeed);
+}
